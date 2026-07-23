@@ -1,0 +1,14 @@
+{
+  "_meta": { "version": "1", "sourceApp": "任务管理系统LV08" },
+  "localStorage": {
+    "work_tasks_data": "[{\"id\":\"task_old\",\"name\":\"旧版任务\",\"category\":\"重点项目\",\"source\":\"会议\",\"status\":\"progress\",\"files\":[\"att_old\"],\"createdAt\":\"2026-07-01T00:00:00.000Z\",\"legacyOnly\":\"keep-me\"}]",
+    "work_documents_data": "[{\"id\":\"doc_old\",\"title\":\"旧版文件\",\"docType\":\"收文\",\"files\":[\"att_old\"]}]",
+    "work_meetings_data": "[{\"id\":\"meeting_old\",\"subject\":\"旧版会议\",\"meetingTime\":\"2026-07-01\"}]",
+    "work_researches_data": "[{\"id\":\"research_old\",\"subject\":\"旧版调研\",\"researchTime\":\"2026-07-02\"}]",
+    "work_seals_data": "[{\"id\":\"seal_old\",\"docName\":\"旧版用章\",\"sealTime\":\"2026-07-03\"}]",
+    "work_materials_data": "[{\"id\":\"material_old\",\"name\":\"旧版物资\",\"createdAt\":\"2026-07-04\"}]",
+    "wenxi_skills": "[{\"id\":\"skill_old\",\"name\":\"旧 Skill\",\"content\":\"# 旧版写作规则\",\"legacySkillOnly\":\"keep-skill\"}]",
+    "work_categories": "[\"重点项目\",\"日常工作\"]"
+  },
+  "indexedDBFiles": [{ "id": "att_old", "name": "证明材料.txt", "type": "text/plain", "size": 3, "data": "YWJj" }]
+}

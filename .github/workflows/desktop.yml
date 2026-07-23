@@ -1,0 +1,106 @@
+name: Build desktop packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.9.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm content:verify
+      - run: pnpm assets:verify
+
+  windows:
+    needs: verify
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.9.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:desktop:win:${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HxHwang-Gw-windows-${{ matrix.arch }}
+          path: apps/desktop/release/*-setup.exe
+
+  linux:
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.9.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:desktop:linux:${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HxHwang-Gw-linux-${{ matrix.arch }}
+          path: |
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+
+  debian-smoke:
+    needs: linux
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, platform: linux/amd64, image: 'debian:10-slim' }
+          - { arch: arm64, platform: linux/arm64, image: 'debian:10-slim' }
+          - { arch: x64, platform: linux/amd64, image: 'debian:12-slim' }
+          - { arch: arm64, platform: linux/arm64, image: 'debian:12-slim' }
+    steps:
+      - name: Enable arm64 emulation
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: actions/download-artifact@v4
+        with:
+          name: HxHwang-Gw-linux-${{ matrix.arch }}
+          path: packages
+      - name: Install and launch on Debian
+        shell: bash
+        run: |
+          docker run --rm --platform '${{ matrix.platform }}' \
+            -v '${{ github.workspace }}/packages:/packages:ro' \
+            '${{ matrix.image }}' sh -euxc '
+              if grep -q "VERSION_ID=\"10\"" /etc/os-release; then
+                sed -i "s|deb.debian.org/debian|archive.debian.org/debian|g; s|security.debian.org/debian-security|archive.debian.org/debian-security|g" /etc/apt/sources.list
+                printf "Acquire::Check-Valid-Until \"false\";\n" >/etc/apt/apt.conf.d/99archive
+              fi
+              apt-get update
+              apt-get install -y /packages/*.deb xvfb xauth passwd
+              useradd -m smoke
+              executable="$(find /opt -type f -name HxHwang-Gw -perm /111 | head -n 1)"
+              test -n "$executable"
+              set +e
+              su -s /bin/sh smoke -c "timeout 20s xvfb-run -a \"$executable\" --disable-gpu"
+              exit_code=$?
+              set -e
+              test "$exit_code" -eq 124
+            '

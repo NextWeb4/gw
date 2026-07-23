@@ -1,0 +1,50 @@
+{
+  "name": "@hxhwang/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "HxHwang Gw 公文事务与写作管理系统桌面客户端",
+  "homepage": "https://nextweb4.github.io/",
+  "desktopName": "hxhwang-gw.desktop",
+  "main": "electron/main.mjs",
+  "author": {
+    "name": "HaoXiangHwang",
+    "email": "Rays688888@Gmail.com",
+    "url": "https://nextweb4.github.io/"
+  },
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "node --check electron/main.mjs && node --check electron/preload.mjs",
+    "test": "node --check electron/main.mjs && node --check electron/preload.mjs",
+    "lint": "node --check electron/main.mjs && node --check electron/preload.mjs",
+    "format:check": "node --check electron/main.mjs && node --check electron/preload.mjs",
+    "package": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "io.github.nextweb4.hxhwanggw",
+    "productName": "HxHwang Gw",
+    "copyright": "Copyright (c) 2026 HaoXiangHwang. All rights reserved.",
+    "directories": { "output": "release", "buildResources": "build" },
+    "files": ["electron/**/*", "package.json"],
+    "extraResources": [{ "from": "../web/dist", "to": "web", "filter": ["**/*"] }],
+    "win": {
+      "icon": "build/icon.ico",
+      "legalTrademarks": "HaoXiangHwang",
+      "target": [{ "target": "nsis", "arch": ["x64", "arm64"] }]
+    },
+    "nsis": { "oneClick": false, "perMachine": false, "artifactName": "HxHwang-Gw-${version}-${arch}-setup.${ext}" },
+    "linux": {
+      "icon": "build/icon.png",
+      "target": [{ "target": "AppImage", "arch": ["x64", "arm64"] }, { "target": "deb", "arch": ["x64", "arm64"] }],
+      "maintainer": "HaoXiangHwang <Rays688888@Gmail.com>",
+      "category": "Office",
+      "executableName": "HxHwang-Gw",
+      "syncDesktopName": true,
+      "artifactName": "HxHwang-Gw-${version}-${arch}.${ext}"
+    }
+  }
+}

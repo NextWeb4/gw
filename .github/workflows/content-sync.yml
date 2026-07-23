@@ -1,0 +1,29 @@
+name: Refresh public source metadata
+
+on:
+  schedule:
+    - cron: '18 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.9.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm content:sync
+      - run: pnpm content:verify
+      - name: Commit validated metadata
+        run: |
+          git config user.name "hxhwang-content-bot"
+          git config user.email "Rays688888@Gmail.com"
+          git add content/generated
+          git diff --cached --quiet || git commit -m "content: refresh approved source metadata"
+          git push

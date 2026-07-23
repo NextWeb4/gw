@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">HxHwang Gw application icon</title>
+  <desc id="desc">An ivory document with a rust verification path on a deep green field.</desc>
+  <rect width="1024" height="1024" fill="#16201d"/>
+  <path d="M252 154h354l166 166v550H252z" fill="#f4f0e6"/>
+  <path d="M606 154v166h166z" fill="#d8c7a4"/>
+  <path d="M350 424h324M350 516h218" fill="none" stroke="#84928b" stroke-width="34" stroke-linecap="square"/>
+  <path d="M344 678l104 104 242-254" fill="none" stroke="#c85636" stroke-width="54" stroke-linecap="square" stroke-linejoin="miter"/>
+  <rect x="252" y="154" width="38" height="716" fill="#d5a758"/>
+</svg>

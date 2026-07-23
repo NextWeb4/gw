@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-23",
+  "records": [
+    {
+      "id": "licensed-writing-algorithm",
+      "title": "公文写作算法授权资料",
+      "sourceFiles": [
+        "公文写作算法（最新版）.pdf",
+        "公文写作算法_蒸馏笔记.md",
+        "公文写作算法SKILL.md"
+      ],
+      "materialVersion": "2026-07",
+      "authorizationStatus": "user-confirmed",
+      "authorizationScope": [
+        "纳入 HxHwang Gw GitHub 仓库",
+        "通过 GitHub Pages 公开再分发",
+        "生成带来源标记的蒸馏笔记、规则和模板结构"
+      ],
+      "copyrightOwner": "原权利人；具体名称未在当前工作区记录",
+      "evidence": "用户在实施规划中确认已取得书面公开授权；授权书文件未存入当前工作区",
+      "limitations": [
+        "不得扩大到授权范围外的第三方材料",
+        "正式公开发布前应将授权书归档位置或凭证编号补入本记录"
+      ]
+    }
+  ]
+}

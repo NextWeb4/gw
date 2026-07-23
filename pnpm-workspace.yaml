@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+  - packages/*
+allowBuilds:
+  electron-winstaller: true
+  esbuild: true
+minimumReleaseAgeExclude:
+  - electron@43.2.0

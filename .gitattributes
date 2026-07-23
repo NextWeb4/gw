@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+*.ico binary
+*.png binary
+*.pdf binary
+*.md whitespace=-blank-at-eol
+legacy/*.html whitespace=-blank-at-eol

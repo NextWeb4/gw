@@ -1,0 +1,38 @@
+{
+  "name": "hxhwang-gw",
+  "private": true,
+  "version": "0.1.0",
+  "description": "HxHwang Gw 公文事务与写作管理系统",
+  "author": {
+    "name": "HaoXiangHwang",
+    "email": "Rays688888@Gmail.com",
+    "url": "https://nextweb4.github.io/"
+  },
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @hxhwang/web dev",
+    "dev:web:intranet": "pnpm --filter @hxhwang/web dev:intranet",
+    "build": "pnpm content:verify && pnpm -r run build",
+    "test": "pnpm -r run test",
+    "test:e2e": "playwright test",
+    "test:e2e:intranet": "playwright test --config playwright.intranet.config.ts",
+    "lint": "pnpm -r run lint",
+    "format:check": "pnpm -r run format:check",
+    "build:desktop": "pnpm --filter @hxhwang/web build:desktop && pnpm verify:desktop-web && pnpm --filter @hxhwang/desktop package",
+    "build:web:intranet": "pnpm --filter @hxhwang/web build:intranet",
+    "build:desktop:win:x64": "pnpm --filter @hxhwang/web build:desktop && pnpm verify:desktop-web && pnpm --dir apps/desktop exec electron-builder --win nsis --x64",
+    "build:desktop:win:arm64": "pnpm --filter @hxhwang/web build:desktop && pnpm verify:desktop-web && pnpm --dir apps/desktop exec electron-builder --win nsis --arm64",
+    "build:desktop:linux:x64": "pnpm --filter @hxhwang/web build:desktop && pnpm verify:desktop-web && pnpm --dir apps/desktop exec electron-builder --linux AppImage deb --x64",
+    "build:desktop:linux:arm64": "pnpm --filter @hxhwang/web build:desktop && pnpm verify:desktop-web && pnpm --dir apps/desktop exec electron-builder --linux AppImage deb --arm64",
+    "assets:generate": "node scripts/generate-brand-assets.mjs",
+    "assets:verify": "node scripts/verify-brand-assets.mjs",
+    "verify:desktop-web": "node scripts/verify-desktop-web.mjs",
+    "content:sync": "node scripts/sync-content.mjs",
+    "content:verify": "node scripts/verify-content.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "yaml": "^2.8.1"
+  }
+}

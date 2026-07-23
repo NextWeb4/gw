@@ -1,0 +1,246 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-22T17:15:42.503Z",
+  "author": "HaoXiangHwang",
+  "email": "Rays688888@Gmail.com",
+  "website": "https://nextweb4.github.io/",
+  "sources": [
+    {
+      "id": "gb-t-9704-2012",
+      "title": "党政机关公文格式",
+      "kind": "official-standard",
+      "url": "https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=F3CC9BEF482524C895FDA7A08BB4A70E",
+      "status": "reference",
+      "version": "GB/T 9704-2012"
+    },
+    {
+      "id": "licensed-writing-algorithm",
+      "title": "公文写作算法授权资料",
+      "kind": "licensed-material",
+      "url": "https://nextweb4.github.io/",
+      "status": "authorized-reference",
+      "version": "2026-07",
+      "authorizationRef": "content/licensed/authorization.json#licensed-writing-algorithm",
+      "copyrightOwner": "原权利人；具体名称未在当前工作区记录"
+    },
+    {
+      "id": "unit-template-demo",
+      "title": "演示单位模板",
+      "kind": "unit-template",
+      "url": "https://nextweb4.github.io/",
+      "status": "demo-only",
+      "version": "0.1.0"
+    }
+  ],
+  "rules": [
+    {
+      "id": "paper-size-a4",
+      "title": "公文用纸采用 A4",
+      "description": "正式公文版面必须按党政机关公文格式采用 A4 型纸；导出后仍需人工复核字体、页边距和分页。",
+      "severity": "error",
+      "sourceId": "gb-t-9704-2012",
+      "sourceVersion": "GB/T 9704-2012",
+      "documentTypes": [
+        "通知",
+        "报告",
+        "请示",
+        "工作总结",
+        "工作计划"
+      ]
+    },
+    {
+      "id": "sentence-length",
+      "title": "控制单句节奏",
+      "description": "建议将过长句子拆分为目标、措施和结果，避免一段只有空泛判断。",
+      "severity": "advisory",
+      "sourceId": "licensed-writing-algorithm",
+      "sourceVersion": "2026-07",
+      "documentTypes": [
+        "工作总结",
+        "工作计划",
+        "领导讲话"
+      ]
+    },
+    {
+      "id": "fact-first",
+      "title": "事实与数据优先",
+      "description": "成绩表述应保留可核验数据、时间、对象和结果，不允许模型补写未提供的事实。",
+      "severity": "warning",
+      "sourceId": "licensed-writing-algorithm",
+      "sourceVersion": "2026-07",
+      "documentTypes": [
+        "工作总结",
+        "调研报告",
+        "述职报告"
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "work-summary",
+      "name": "工作总结",
+      "documentType": "工作总结",
+      "sourceId": "unit-template-demo",
+      "sourceVersion": "0.1.0",
+      "outline": [
+        "标题",
+        "基本情况",
+        "主要做法",
+        "工作成效",
+        "下一步安排"
+      ]
+    },
+    {
+      "id": "work-plan",
+      "name": "工作计划",
+      "documentType": "工作计划",
+      "sourceId": "unit-template-demo",
+      "sourceVersion": "0.1.0",
+      "outline": [
+        "标题",
+        "总体要求",
+        "重点任务",
+        "保障措施"
+      ]
+    },
+    {
+      "id": "licensed-work-briefing",
+      "name": "工作简报（通用结构）",
+      "documentType": "工作简报",
+      "sourceId": "licensed-writing-algorithm",
+      "sourceVersion": "2026-07",
+      "outline": [
+        "标题",
+        "基本情况与工作依据",
+        "重点措施",
+        "阶段成效",
+        "后续安排"
+      ]
+    },
+    {
+      "id": "licensed-work-report",
+      "name": "工作报告（通用结构）",
+      "documentType": "工作报告",
+      "sourceId": "licensed-writing-algorithm",
+      "sourceVersion": "2026-07",
+      "outline": [
+        "标题",
+        "本年度工作情况",
+        "主要成绩与做法",
+        "存在问题",
+        "形势分析与下一年度目标",
+        "主要工作安排",
+        "结语"
+      ]
+    },
+    {
+      "id": "licensed-work-notice",
+      "name": "工作通知（通用型）",
+      "documentType": "通知",
+      "sourceId": "licensed-writing-algorithm",
+      "sourceVersion": "2026-07",
+      "outline": [
+        "关于有关工作的通知",
+        "背景、目的与工作依据",
+        "总体目标",
+        "核心任务",
+        "工作要求"
+      ]
+    },
+    {
+      "id": "licensed-meeting-notice",
+      "name": "会议通知",
+      "documentType": "会议通知",
+      "sourceId": "licensed-writing-algorithm",
+      "sourceVersion": "2026-07",
+      "outline": [
+        "关于召开有关会议的通知",
+        "会议主题",
+        "会议时间与地点",
+        "参会人员",
+        "会议议程",
+        "有关要求与联系方式"
+      ]
+    },
+    {
+      "id": "licensed-work-program",
+      "name": "工作方案（完整型）",
+      "documentType": "工作方案",
+      "sourceId": "licensed-writing-algorithm",
+      "sourceVersion": "2026-07",
+      "outline": [
+        "标题",
+        "制定背景与目的",
+        "总体要求",
+        "主要任务",
+        "工作措施",
+        "组织保障"
+      ]
+    },
+    {
+      "id": "licensed-research-report",
+      "name": "调研报告（问题型）",
+      "documentType": "调研报告",
+      "sourceId": "licensed-writing-algorithm",
+      "sourceVersion": "2026-07",
+      "outline": [
+        "关于有关工作的调研报告",
+        "调研背景与实施过程",
+        "主要情况",
+        "存在问题",
+        "原因分析",
+        "对策建议"
+      ]
+    },
+    {
+      "id": "licensed-meeting-minutes",
+      "name": "会议纪要（一事一议）",
+      "documentType": "会议纪要",
+      "sourceId": "licensed-writing-algorithm",
+      "sourceVersion": "2026-07",
+      "outline": [
+        "会议纪要",
+        "会议基本情况",
+        "审议通过事项",
+        "研究讨论事项",
+        "议定结果与责任分工",
+        "下一步安排"
+      ]
+    },
+    {
+      "id": "licensed-news-release",
+      "name": "新闻稿（活动类）",
+      "documentType": "新闻稿",
+      "sourceId": "licensed-writing-algorithm",
+      "sourceVersion": "2026-07",
+      "outline": [
+        "标题",
+        "时间、地点、人员与事件",
+        "活动背景",
+        "活动经过",
+        "活动成效"
+      ]
+    },
+    {
+      "id": "licensed-self-review",
+      "name": "对照检查材料",
+      "documentType": "对照检查材料",
+      "sourceId": "licensed-writing-algorithm",
+      "sourceVersion": "2026-07",
+      "outline": [
+        "标题",
+        "会前准备与基本情况",
+        "存在的主要问题",
+        "原因剖析",
+        "整改措施"
+      ]
+    }
+  ],
+  "sourceSnapshots": [
+    {
+      "id": "gb-t-9704-2012",
+      "sha256": "ff9acc724940a7fd4a55ddea4a33cbd1abdc36061dcc11806088947e71d46412",
+      "retrievedAt": "2026-07-22T17:15:42.501Z"
+    }
+  ]
+}

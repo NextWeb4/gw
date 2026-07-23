@@ -1,0 +1,24 @@
+{
+  "name": "@hxhwang/documents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "author": { "name": "HaoXiangHwang", "email": "Rays688888@Gmail.com", "url": "https://nextweb4.github.io/" },
+  "license": "UNLICENSED",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --exclude dist/**",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "format:check": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hxhwang/domain": "workspace:*",
+    "docx": "^9.7.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
+  }
+}

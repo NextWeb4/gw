@@ -1,0 +1,28 @@
+name: Build intranet Web artifact
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.9.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm content:verify
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e:intranet
+      - run: pnpm build:web:intranet
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HxHwang-Gw-intranet-web
+          path: apps/web/dist
