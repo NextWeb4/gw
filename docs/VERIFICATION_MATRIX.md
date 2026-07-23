@@ -12,7 +12,7 @@
 | 内网 Web | `pnpm test:e2e:intranet`、`pnpm build:web:intranet` | 已通过本机构建与 E2E | 1 passed；验证内网模式、真实附件开关、同步/AI 控制、私有 CSP，以及建立连接前无外部请求；尚未部署到实际内网服务器 |
 | GitHub Pages 子路径 | `VITE_BASE_PATH=/hxhwang-gw/ pnpm --filter @hxhwang/web build` + 本地预览访问 `/hxhwang-gw/` | 已通过 | 入口 JS、PWA manifest 与品牌图标均使用 `/hxhwang-gw/` 前缀并返回 HTTP 200；未发现私有 API、模型密钥或 GitHub token |
 | Electron `file://` 资源 | `pnpm build:desktop:win:x64`、`pnpm build:desktop:win:arm64`；`pnpm verify:desktop-web` | 已通过 | 打包前校验 9 个资源均为相对路径，并验证桌面 CSP 仅允许 HTTPS、本机 API且禁止表单提交 |
-| Windows 安装包 | Windows 本机 x64/arm64 electron-builder | 已通过构建 | 最终 x64 安装包 100,883,179 字节，SHA-256 `C4C39D74911506EFE036025C900F238F893C50D63FC79E1A891F501F58731974`；arm64 安装包 93,553,148 字节，SHA-256 `7E086B0D67AFFCFA77CB94FAFC3CC96771F0EF09367E563FE2126E5BB8EAEC86`；x64 解包程序启动后观察到 4 个进程并全部退出；arm64 未在本机启动 |
+| Windows 安装包 | Windows 本机 x64/arm64 electron-builder | 已通过构建 | 基于提交 `e81c1f1` 重建：x64 安装包 100,884,708 字节，SHA-256 `7CA63FD91F96BBCCCC1A24829FFE7ED70E7900518E9196E116068EE2C34E9F7D`；arm64 安装包 93,554,579 字节，SHA-256 `D34D94445281923CCA0E999829E755414485171C52753E2B2199A32C75AE3F67`；x64 解包程序启动后观察到 4 个进程并全部退出；arm64 未在本机启动 |
 | Windows 签名与品牌图标 | 资产结构校验、可执行文件图标提取、`Get-AuthenticodeSignature` | 图标已完成，签名未完成 | 原创 SVG 已生成 192/512 PNG 与 256 PNG-ICO，x64 可执行文件成功提取品牌图标；x64/arm64 安装包仍为 `NotSigned`，正式分发前需要代码签名证书 |
 | 本机 Web 预览 | 普通 Web build 后访问 `http://127.0.0.1:4175/` | 已通过 | 最终普通 Web 构建入口、7 个带哈希的 JS/CSS 资源、manifest 和 192 px 图标均返回 HTTP 200；原生 Playwright 交互检查确认关于页署名、任务入口、控制台、失败请求及外部请求均正常；预览进程仅绑定 `127.0.0.1` |
 | 浏览器安全策略 | 检查 Pages/内网/桌面 CSP 并监听浏览器控制台 | 已通过并记录托管限制 | Pages 仅允许同源连接；内网/桌面允许用户显式 HTTPS 或本机 API；Electron 阻止任意新窗口、导航、webview 和非剪贴板权限；正式防嵌入仍须由 Web 响应头提供 |
@@ -23,4 +23,4 @@
 | Debian 10/12 amd64/arm64 | `.github/workflows/desktop.yml` 四组合 `.deb` 安装与 xvfb 启动门 | 已配置，尚未实际运行 | CI 使用固定 SHA 的 Docker QEMU Action，对 Debian 10/12 的 amd64/arm64 安装并要求程序持续运行 20 秒；Windows 本机交叉尝试只能生成 `linux-unpacked`，AppImage 和 DEB 分别因缺少 Linux `mksquashfs`/`fpm` 失败，且当前无 Docker 或 WSL 发行版，因此没有伪报 Linux 安装包；真实 arm64 设备测试仍保留 |
 | GitHub Release | `v*` 标签触发桌面矩阵、Debian 门禁、校验清单和发布任务 | 已配置，尚未实际运行 | 发布任务要求 Windows x64/arm64、AppImage x86_64/arm64、DEB amd64/arm64 六类产物齐全，并生成 `SHA256SUMS.txt`；使用 runner 自带 `gh` 与 Actions 内置令牌，当前无远端，不能标记已发布 |
 | 外部商业参考站 | 浏览器审查页面、用户协议、隐私政策和 robots | 已完成 | 仅记录 `docs/REFERENCE_AUDIT.md`；未加入 `content/sources/allowlist.yaml`，未复制其内容 |
-| GitHub Pages 正式部署 | GitHub Actions / Pages 实际发布 | 未执行 | 两个仓库均无远端，当前环境也没有 `gh` CLI；对话中暴露的 token 不得使用，需撤销后用受信任登录配置远端，Pages 部署继续使用 Actions 内置权限 |
+| GitHub Pages 正式部署 | GitHub Actions / Pages 实际发布 | 认证阻塞 | 两个仓库均无远端；对话中暴露的 token 不得使用且必须撤销。Codex GitHub 集成本地凭据代理当前未运行，默认隔离浏览器也没有 GitHub 登录态；恢复受信任认证后创建公开/私有仓库，Pages 部署继续只使用 Actions 内置权限 |
