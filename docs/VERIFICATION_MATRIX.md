@@ -21,5 +21,6 @@
 | 服务端静态检查、集成测试、构建 | `pnpm lint`、`pnpm test:integration`、`pnpm build`、`pnpm format:check` | 已通过 | 4 项内存 Store 测试通过、2 项 PostgreSQL 测试按环境跳过；覆盖会话、同步冲突、附件哈希、未确认 AI、桌面 `null` Origin 和未配置公网 Origin |
 | 真实 PostgreSQL | `DATABASE_URL=... pnpm test:postgres`；CI 提供 PostgreSQL 16 服务 | 已加入强制验证门，当前本机未执行 | 缺少 `DATABASE_URL` 会快速失败；契约测试覆盖迁移、同步 checkpoint、冲突保留和附件往返；当前环境未提供实例，不能把内存 Store 测试当作真实数据库验证 |
 | Debian 10/12 amd64/arm64 | `.github/workflows/desktop.yml` 四组合 `.deb` 安装与 xvfb 启动门 | 已配置，尚未实际运行 | CI 使用固定 SHA 的 Docker QEMU Action，对 Debian 10/12 的 amd64/arm64 安装并要求程序持续运行 20 秒；Windows 本机交叉尝试只能生成 `linux-unpacked`，AppImage 和 DEB 分别因缺少 Linux `mksquashfs`/`fpm` 失败，且当前无 Docker 或 WSL 发行版，因此没有伪报 Linux 安装包；真实 arm64 设备测试仍保留 |
+| GitHub Release | `v*` 标签触发桌面矩阵、Debian 门禁、校验清单和发布任务 | 已配置，尚未实际运行 | 发布任务要求 Windows x64/arm64、AppImage x86_64/arm64、DEB amd64/arm64 六类产物齐全，并生成 `SHA256SUMS.txt`；使用 runner 自带 `gh` 与 Actions 内置令牌，当前无远端，不能标记已发布 |
 | 外部商业参考站 | 浏览器审查页面、用户协议、隐私政策和 robots | 已完成 | 仅记录 `docs/REFERENCE_AUDIT.md`；未加入 `content/sources/allowlist.yaml`，未复制其内容 |
 | GitHub Pages 正式部署 | GitHub Actions / Pages 实际发布 | 未执行 | 两个仓库均无远端，当前环境也没有 `gh` CLI；对话中暴露的 token 不得使用，需撤销后用受信任登录配置远端，Pages 部署继续使用 Actions 内置权限 |

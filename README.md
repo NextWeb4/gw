@@ -26,6 +26,7 @@
 - Linux 的 AppImage/DEB 打包命令需要 Linux 宿主或项目提供的 Ubuntu Actions；Windows 上产生的 `linux-unpacked` 目录不是可发布安装包。
 - `pnpm assets:generate`：品牌 SVG 变化后重新生成 Web PNG 与 Electron PNG/ICO；需要先安装 Playwright Chromium。
 - `pnpm assets:verify` 与 `pnpm content:verify`：校验品牌图片/ICO，以及规则、模板、来源和授权元数据的引用完整性。
+- 推送 `v*` 标签后，桌面工作流只有在 Windows 构建、Linux 构建和 Debian 10/12 四组合启动门全部通过时才创建 GitHub Release；Release 同时附带六类安装产物和 `SHA256SUMS.txt`，使用 Actions 内置令牌，不需要个人访问令牌。
 
 架构、依赖许可证和未采用方案见 [`OPEN_SOURCE_AUDIT.md`](./OPEN_SOURCE_AUDIT.md)。
 商业产品的功能参考、版权与数据边界见 [`docs/REFERENCE_AUDIT.md`](./docs/REFERENCE_AUDIT.md)。
