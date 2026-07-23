@@ -12,7 +12,7 @@ export default defineConfig({
   },
   projects: [{ name: 'intranet-chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } }],
   webServer: {
-    command: 'pnpm build:web:intranet && pnpm --filter @hxhwang/web exec vite preview --host 127.0.0.1 --port 4174',
+    command: 'pnpm build:web:intranet && pnpm --filter @hxhwang/web exec vite preview --mode intranet --host 127.0.0.1 --port 4174',
     url: 'http://127.0.0.1:4174',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000

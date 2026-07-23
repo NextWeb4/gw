@@ -239,8 +239,11 @@
   "sourceSnapshots": [
     {
       "id": "gb-t-9704-2012",
+      "url": "https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=F3CC9BEF482524C895FDA7A08BB4A70E",
       "sha256": "ff9acc724940a7fd4a55ddea4a33cbd1abdc36061dcc11806088947e71d46412",
-      "retrievedAt": "2026-07-22T17:15:42.501Z"
+      "retrievedAt": "2026-07-22T17:15:42.501Z",
+      "contentType": "text/html;charset=utf-8",
+      "bytes": 24116
     }
   ]
 }

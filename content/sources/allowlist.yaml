@@ -1,7 +1,8 @@
 version: 1
-policy: public-authority-only
+policy: public-authority-or-authorized-url
 hosts:
   - gov.cn
+  - www.gov.cn
   - openstd.samr.gov.cn
   - std.samr.gov.cn
 sources:

@@ -7,6 +7,7 @@ const privateCsp = "default-src 'self'; script-src 'self'; style-src 'self' 'uns
 
 export default defineConfig(({ mode }) => {
   const privateServicesBuild = mode === 'desktop' || mode === 'intranet';
+  const outDir = mode === 'intranet' ? 'dist-intranet' : 'dist';
   return {
   define: {
     __APP_VERSION__: JSON.stringify('0.1.0'),
@@ -48,6 +49,7 @@ export default defineConfig(({ mode }) => {
   ],
   base: process.env.VITE_BASE_PATH || '/',
   build: {
+    outDir,
     target: 'es2022',
     sourcemap: true,
     rollupOptions: {

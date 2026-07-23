@@ -12,12 +12,13 @@
 
 ## 3. 测试命令
 - `pnpm test` 运行领域、迁移、文档和桌面壳测试。
+- `pnpm test:content` 单独验证权威来源 URL、逐跳重定向和响应体积策略；`pnpm test` 已包含该命令。
 - `pnpm test:e2e` 使用 Playwright 验证离线页面、任务持久化、历史导入和文稿导出。CI 必须先执行 `pnpm exec playwright install --with-deps chromium`。
 - `pnpm test:e2e:intranet` 单独验证内网构建的私有控制、附件开关、CSP 和显式连接前零外联。
 
 ## 4. 构建命令
 - `pnpm build` 构建所有工作区包和 Web。
-- `pnpm build:web:intranet` 构建允许显式 HTTPS/本机 API 连接的内网 Web；不得把该产物发布到公开 Pages。
+- `pnpm build:web:intranet` 构建允许显式 HTTPS/本机 API 连接的内网 Web 到 `apps/web/dist-intranet/`；不得把该产物发布到公开 Pages，也不得与 Pages 的 `apps/web/dist/` 共用输出目录。
 - `pnpm build:desktop` 打包全部已配置目标；`pnpm build:desktop:win:x64`、`pnpm build:desktop:win:arm64`、`pnpm build:desktop:linux:x64`、`pnpm build:desktop:linux:arm64` 可按目标单独构建。
 - Linux 的 AppImage/DEB 命令必须在 Linux 或项目的 Ubuntu Actions 中运行；Windows 只能生成 `linux-unpacked`，缺少 `mksquashfs`/`fpm` 时不得将其标记为安装包。
 - 桌面命令必须先运行 Web 的相对路径构建并通过 `pnpm verify:desktop-web`；不得直接用普通 `/assets` Pages 产物打包 Electron。
@@ -31,13 +32,17 @@
 - React 页面只能调用领域命令和数据适配接口，不得直连 IndexedDB、Electron IPC 或私有 API。
 - Electron renderer 必须保持 sandbox；文件和 PDF 操作只能经 preload 的白名单接口。
 - Pages 演示模式只能使用本地样例适配器，不能请求私有 API。
+- Pages 与内网 E2E 可以并行运行，但必须分别预览 `dist/` 与 `dist-intranet/`；禁止重新合并输出目录。
+- `scripts/content-sync-policy.mjs` 是允许清单抓取的安全边界；非政府来源必须精确匹配授权记录中的 `authorizedSourceUrls` 且 `allowAutomatedRetrieval=true`。同步器只能修改 `content/generated/`，不得自动覆盖人工规则、模板或授权资料。
 - `assets/brand/app-icon.svg` 是品牌图标唯一源文件；生成产物只能写入 `apps/web/public/icons/` 与 `apps/desktop/build/`。
 
 ## 7. 禁止事项
 - 禁止提交 API key、GitHub token、真实材料或未授权字体。
 - 禁止修改 `legacy/` 中的原型以实现新功能。
 - 禁止把抓取的网页内容直接替换人工模板。
+- 禁止在内容同步中接受任意工作流 URL、放宽 HTTPS/域名/重定向/类型/2 MB 上限，或把抓取逻辑放入 Pages 运行时。
 - 商业参考站只能记录在 `docs/REFERENCE_AUDIT.md`；未取得书面再分发授权前，禁止加入 `content/sources/allowlist.yaml`、知识包、模板或样例数据。`robots.txt` 允许访问不等于取得版权许可。
+- `.github/workflows/content-sync.yml` 每周只在 `main` 上更新来源元数据并使用 Actions 内置令牌；启用禁止机器人直推的分支保护前必须先改为自动 PR 流程。
 
 ## 8. 完成标准
 - 任务、文件、写作、周报、历史档案和关于页均可离线使用。

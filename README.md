@@ -14,11 +14,12 @@
 
 - `pnpm dev:web`：启动本地 Web 演示版。
 - `pnpm test`：运行工作区测试。
+- `pnpm test:content`：单独验证权威来源的 HTTPS 允许清单、逐跳重定向和响应体积策略。
 - `pnpm test:e2e`：运行 Chromium 桌面与窄屏端到端测试。
 - `pnpm test:e2e:intranet`：验证内网 Web 的附件、私有控制、CSP 与显式连接前零外联。
 - 首次运行端到端测试前执行 `pnpm exec playwright install chromium`；CI 会自动安装浏览器。
 - `pnpm build`：构建 Web 和可复用包。
-- `pnpm build:web:intranet`：构建内网 Web；该产物允许用户显式配置 HTTPS 或本机 API，不得部署到公开 Pages。
+- `pnpm build:web:intranet`：构建内网 Web 到 `apps/web/dist-intranet/`；该产物允许用户显式配置 HTTPS 或本机 API，不得部署到公开 Pages。
 - `pnpm build:desktop`：构建 Web 后打包 Electron 客户端。
 - 桌面构建会自动执行 `pnpm verify:desktop-web`，拒绝 Electron `file://` 无法加载的绝对资源路径。
 - `pnpm build:desktop:win:x64` / `pnpm build:desktop:win:arm64`：按 Windows 架构打包。
@@ -26,6 +27,7 @@
 - Linux 的 AppImage/DEB 打包命令需要 Linux 宿主或项目提供的 Ubuntu Actions；Windows 上产生的 `linux-unpacked` 目录不是可发布安装包。
 - `pnpm assets:generate`：品牌 SVG 变化后重新生成 Web PNG 与 Electron PNG/ICO；需要先安装 Playwright Chromium。
 - `pnpm assets:verify` 与 `pnpm content:verify`：校验品牌图片/ICO，以及规则、模板、来源和授权元数据的引用完整性。
+- `pnpm content:sync`：显式联网检查允许清单中的公共权威来源；定时 Actions 仅在来源变化时更新元数据、运行完整回归并部署 Pages，不抓取商业参考站或覆盖人工模板。
 - 推送 `v*` 标签后，桌面工作流只有在 Windows 构建、Linux 构建和 Debian 10/12 四组合启动门全部通过时才创建 GitHub Release；Release 同时附带六类安装产物和 `SHA256SUMS.txt`，使用 Actions 内置令牌，不需要个人访问令牌。
 
 架构、依赖许可证和未采用方案见 [`OPEN_SOURCE_AUDIT.md`](./OPEN_SOURCE_AUDIT.md)。
