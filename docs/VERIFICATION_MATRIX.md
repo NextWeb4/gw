@@ -12,7 +12,7 @@
 | 内网 Web | `pnpm test:e2e:intranet`、`pnpm build:web:intranet` | 已通过本机构建与 E2E | 与 Pages E2E 并行回归为 1 passed；验证内网模式、真实附件开关、同步/AI 控制、私有 CSP，以及建立连接前无外部请求；产物固定到独立 `dist-intranet/`，避免覆盖 Pages 的 `dist/`；尚未部署到实际内网服务器 |
 | GitHub Pages 子路径 | `VITE_BASE_PATH=/hxhwang-gw/ pnpm --filter @hxhwang/web build` + 本地预览访问 `/hxhwang-gw/` | 已通过 | 入口 JS、PWA manifest 与品牌图标均使用 `/hxhwang-gw/` 前缀并返回 HTTP 200；未发现私有 API、模型密钥或 GitHub token |
 | Electron `file://` 资源 | `pnpm build:desktop:win:x64`、`pnpm build:desktop:win:arm64`；`pnpm verify:desktop-web` | 已通过 | 打包前校验 9 个资源均为相对路径，并验证桌面 CSP 仅允许 HTTPS、本机 API且禁止表单提交 |
-| Windows 安装包 | Windows 本机 x64/arm64 electron-builder | 已通过构建 | 基于提交 `e81c1f1` 重建：x64 安装包 100,884,708 字节，SHA-256 `7CA63FD91F96BBCCCC1A24829FFE7ED70E7900518E9196E116068EE2C34E9F7D`；arm64 安装包 93,554,579 字节，SHA-256 `D34D94445281923CCA0E999829E755414485171C52753E2B2199A32C75AE3F67`；x64 解包程序启动后观察到 4 个进程并全部退出；arm64 未在本机启动 |
+| Windows 安装包 | Windows 本机 x64/arm64 electron-builder | 已通过构建 | 基于提交 `9813b6f` 重建：x64 安装包 100,884,702 字节，SHA-256 `85D69454DED0EC02EDC5ECD9A8D1DF2A1F71A2D37A6CC3FEC61A271FF1067FAE`；arm64 安装包 93,554,583 字节，SHA-256 `D73B375C649DFEFA365C17F85C0BBBA059610B3094A91FC49016D04B3A71D512`；x64 解包程序启动后观察到 4 个进程并全部退出；arm64 未在本机启动 |
 | Windows 签名与品牌图标 | 资产结构校验、可执行文件图标提取、`Get-AuthenticodeSignature` | 图标已完成，签名未完成 | 原创 SVG 已生成 192/512 PNG 与 256 PNG-ICO，x64 可执行文件成功提取品牌图标；x64/arm64 安装包仍为 `NotSigned`，正式分发前需要代码签名证书 |
 | 本机 Web 预览 | 普通 Web build 后访问 `http://127.0.0.1:4175/` | 已通过 | 最终普通 Web 构建入口、7 个带哈希的 JS/CSS 资源、manifest 和 192 px 图标均返回 HTTP 200；原生 Playwright 交互检查确认关于页署名、任务入口、控制台、失败请求及外部请求均正常；预览进程仅绑定 `127.0.0.1` |
 | 浏览器安全策略 | 检查 Pages/内网/桌面 CSP 并监听浏览器控制台 | 已通过并记录托管限制 | Pages 仅允许同源连接；内网/桌面允许用户显式 HTTPS 或本机 API；Electron 阻止任意新窗口、导航、webview 和非剪贴板权限；正式防嵌入仍须由 Web 响应头提供 |

@@ -20,8 +20,8 @@
 
 ## Windows 构建产物
 
-- `HxHwang-Gw-0.1.0-x64-setup.exe`：100,884,708 字节；SHA-256 `7CA63FD91F96BBCCCC1A24829FFE7ED70E7900518E9196E116068EE2C34E9F7D`；基于提交 `e81c1f1` 重建，x64 解包版已在当前 Windows 环境完成启动冒烟。
-- `HxHwang-Gw-0.1.0-arm64-setup.exe`：93,554,579 字节；SHA-256 `D34D94445281923CCA0E999829E755414485171C52753E2B2199A32C75AE3F67`；基于提交 `e81c1f1` 交叉构建，尚未在 Windows arm64 设备启动。
+- `HxHwang-Gw-0.1.0-x64-setup.exe`：100,884,702 字节；SHA-256 `85D69454DED0EC02EDC5ECD9A8D1DF2A1F71A2D37A6CC3FEC61A271FF1067FAE`；基于提交 `9813b6f` 重建，x64 解包版已在当前 Windows 环境完成启动冒烟。
+- `HxHwang-Gw-0.1.0-arm64-setup.exe`：93,554,583 字节；SHA-256 `D73B375C649DFEFA365C17F85C0BBBA059610B3094A91FC49016D04B3A71D512`；基于提交 `9813b6f` 交叉构建，尚未在 Windows arm64 设备启动。
 - 两个安装包的 Authenticode 状态均为 `NotSigned`，不得作为已签名正式发行物分发。
 
 作者：HaoXiangHwang  
