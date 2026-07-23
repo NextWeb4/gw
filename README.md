@@ -1,6 +1,6 @@
 # HxHwang Gw 管理系统
 
-公开客户端工程，包含 GitHub Pages 演示版、内网 Web 构建、Electron 客户端、领域模型、本地优先数据层、显式私有同步适配器、文档导出和历史数据迁移器。公开 Pages 不显示私有控制，也不调用私有 API。
+公开客户端工程，包含 GitHub Pages 演示版、内网 Web 构建、Electron 客户端、领域模型、本地优先数据层、显式私有同步适配器、文档导出和历史数据迁移器。公开 Pages 不显示私有控制，也不调用私有 API。历史迁移器兼容两份原型的真实 localStorage/IndexedDB 导出结构；由于原导出器使用相同版本标识且遗漏 `wenxi_skills`，无法可靠区分来源时会明确警告，另行补充的 Skill 仍可迁移并保留原始字段。
 
 作者：**HaoXiangHwang**  
 邮箱：[Rays688888@Gmail.com](mailto:Rays688888@Gmail.com)  

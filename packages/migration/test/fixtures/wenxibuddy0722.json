@@ -1,11 +1,10 @@
 {
-  "_meta": { "version": "2", "sourceApp": "WenXiBuddy 0722" },
+  "_meta": { "version": "X05-v1", "sourceApp": "任务管理系统LV08" },
   "localStorage": {
-    "work_tasks_data": "[{\"id\":\"task_new\",\"name\":\"新版任务\",\"status\":\"done\",\"stages\":[{\"id\":\"stage_1\",\"name\":\"报送\",\"partnerStatus\":[]}]}]",
+    "work_tasks_data": "[{\"id\":\"task_new\",\"name\":\"新版任务\",\"status\":\"done\",\"stages\":[{\"id\":\"stage_1\",\"name\":\"报送\",\"partnerStatus\":[{\"name\":\"综合科\",\"status\":\"done\",\"files\":[\"att_new\"]}]}]}]",
     "work_documents_data": "[{\"id\":\"doc_new\",\"title\":\"新版文件\",\"docType\":\"发文\",\"code\":\"测试〔2026〕1号\"}]",
     "work_weekly_data": "[{\"id\":\"weekly_new\",\"title\":\"周报\",\"summary\":\"本周完成整理\"}]",
-    "wenxi_skills": "[{\"id\":\"skill_new\",\"name\":\"新版 Skill\",\"content\":\"# 新版写作规则\"}]",
     "work_required_fields": "{\"tasks\":[\"name\",\"deadline\"]}"
   },
-  "indexedDBFiles": [{ "id": "att_new", "name": "新版附件.docx", "type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "size": 4, "data": "ZGF0YQ==" }]
+  "indexedDBFiles": [{ "id": "att_new", "name": "新版附件.docx", "data": "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,ZGF0YQ==", "uploadedAt": "2026-07-22T01:00:00.000Z" }]
 }

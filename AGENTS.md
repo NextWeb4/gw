@@ -54,4 +54,6 @@
 - GitHub Pages 是公开静态服务，不能用于私有同步或密钥代理。
 - Chromium 与 Word 的中文字体和分页可能不同，必须视觉验证。
 - 旧数据包含 localStorage、IndexedDB 和多版 schema，不能仅按 ID 去重。
+- 两份历史 HTML 的导出器都写入 `sourceApp=任务管理系统LV08`、`version=X05-v1`，且默认不导出 `wenxi_skills`；迁移器不得伪造精确来源版本，缺失 Skill 必须给出报告警告。
+- 历史 IndexedDB 附件使用 Data URL，导入时必须剥离媒体头、按解码字节计算哈希，并汇总任务阶段、配合单位、产出资料和阶段历史中的附件引用。
 - `electron-builder` 在 Windows 上交叉执行 Linux 目标会因 `mksquashfs` 或 `fpm` 缺失失败；正式 Linux 产物以 Ubuntu Actions 输出为准。

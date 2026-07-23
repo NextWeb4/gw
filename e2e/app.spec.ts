@@ -139,7 +139,8 @@ test('imports both legacy fixture formats and keeps archive records read-only', 
 
   await page.getByRole('button', { name: '数据迁移' }).click();
   await importer.setInputFiles(fixture('wenxibuddy0722.json'));
-  await expect(page.getByText('WenXiBuddy 0722')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /导出格式未区分/ })).toBeVisible();
+  await expect(page.getByText(/无法仅凭导出包可靠区分/)).toBeVisible();
   await page.getByRole('button', { name: '历史档案' }).click();
   await expect(page.getByText('周报', { exact: true })).toBeVisible();
 });

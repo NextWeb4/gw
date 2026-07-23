@@ -24,11 +24,33 @@ const parseStored = (storage: Record<string, unknown>, key: string): RawRecord[]
 const text = (value: unknown) => typeof value === 'string' ? value : '';
 const list = (value: unknown) => Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
 
+const records = (value: unknown): RawRecord[] => {
+  if (typeof value === 'string') {
+    try { return records(JSON.parse(value)); } catch { return []; }
+  }
+  return Array.isArray(value) ? value.filter((entry): entry is RawRecord => Boolean(entry) && typeof entry === 'object') : [];
+};
+
+function collectTaskFileIds(raw: RawRecord) {
+  const ids = new Set([...list(raw.files), ...list(raw.outputFiles)]);
+  const collectPartners = (value: unknown) => {
+    for (const partner of records(value)) for (const id of list(partner.files)) ids.add(id);
+  };
+  collectPartners(raw.partnerStatus);
+  for (const stage of records(raw.stages)) collectPartners(stage.partnerStatus);
+  for (const phase of records(raw.phaseHistory)) {
+    for (const id of list(phase.outputFiles)) ids.add(id);
+    for (const stage of records(phase.stageSnapshot)) collectPartners(stage.partnerStatus);
+  }
+  return [...ids];
+}
+
 function sourceVersion(raw: RawRecord) {
   const meta = raw._meta as RawRecord | undefined;
-  if (meta?.sourceApp && typeof meta.sourceApp === 'string') return meta.sourceApp;
   const storage = raw.localStorage as RawRecord | undefined;
-  return storage?.wenxi_skills ? 'WenXiBuddy 0722' : 'WenXiBuddy 升级版04';
+  if (storage?.wenxi_skills || storage?.wenxi_active_skill_id || raw.wenxiSkills || raw.skills) return 'WenXiBuddy 0722';
+  if (meta?.sourceApp && typeof meta.sourceApp === 'string' && meta.sourceApp !== '任务管理系统LV08') return meta.sourceApp;
+  return '任务管理系统LV08（升级版04 / WenXiBuddy 0722 导出格式未区分）';
 }
 
 function taskFromLegacy(raw: RawRecord, version: string): Task {
@@ -39,7 +61,7 @@ function taskFromLegacy(raw: RawRecord, version: string): Task {
     status: ['pending', 'progress', 'done', 'overdue'].includes(text(raw.status)) ? text(raw.status) as Task['status'] : 'pending',
     partnerStatus: Array.isArray(raw.partnerStatus) ? raw.partnerStatus as Task['partnerStatus'] : [],
     stages: Array.isArray(raw.stages) ? raw.stages as Task['stages'] : [], remark: text(raw.remark), workSummary: text(raw.workSummary),
-    files: list(raw.files), createdAt, updatedAt: text(raw.updatedAt) || createdAt, sourceVersion: version, legacyPayload: raw
+    files: collectTaskFileIds(raw), createdAt, updatedAt: text(raw.updatedAt) || createdAt, sourceVersion: version, legacyPayload: raw
   };
 }
 
@@ -76,8 +98,23 @@ function skillFromLegacy(raw: RawRecord, version: string): LegacySkill {
 
 async function attachmentFromLegacy(raw: RawRecord): Promise<Attachment> {
   const id = text(raw.id) || createId('attachment');
-  const data = text(raw.data) || text(raw.base64);
-  return { id, name: text(raw.name) || `附件-${id}`, mimeType: text(raw.type) || text(raw.mimeType) || 'application/octet-stream', size: Number(raw.size) || data.length, data, sha256: await sha256Base64(data), createdAt: text(raw.createdAt) || nowIso() };
+  const sourceData = text(raw.data) || text(raw.base64);
+  const dataUrl = /^data:([^;,]+)?(?:;[^,]*)?;base64,([\s\S]*)$/i.exec(sourceData);
+  const data = (dataUrl?.[2] ?? sourceData).replace(/\s/g, '');
+  const decodedSize = base64ByteLength(data);
+  return {
+    id,
+    name: text(raw.name) || `附件-${id}`,
+    mimeType: text(raw.type) || text(raw.mimeType) || dataUrl?.[1] || 'application/octet-stream',
+    size: Number(raw.size) || decodedSize,
+    data,
+    sha256: await sha256Base64(data),
+    createdAt: text(raw.createdAt) || text(raw.uploadedAt) || nowIso()
+  };
+}
+
+function base64ByteLength(data: string) {
+  try { return atob(data).length; } catch { return 0; }
 }
 
 async function sha256Base64(data: string) {
@@ -103,16 +140,23 @@ export async function migrateLegacyExport(raw: unknown): Promise<MigrationBundle
   const materials = parseStored(values, 'work_materials_data').map((record) => archiveFromLegacy('material', record, version));
   const weekly = parseStored(values, 'work_weekly_data').map((record) => archiveFromLegacy('weekly', record, version));
   const archives: ArchiveRecord[] = [...meetings, ...researches, ...seals, ...materials, ...weekly];
-  const skills = parseStored(values, 'wenxi_skills').map((record) => skillFromLegacy(record, version));
+  const skillRecords = parseStored(values, 'wenxi_skills');
+  if (!skillRecords.length) skillRecords.push(...records(exportObject.wenxiSkills || exportObject.skills));
+  const skills = skillRecords.map((record) => skillFromLegacy(record, version));
   const files = Array.isArray(exportObject.indexedDBFiles) ? exportObject.indexedDBFiles.filter((entry): entry is RawRecord => Boolean(entry) && typeof entry === 'object') : [];
   const settings = Object.entries(values)
     .filter(([key]) => key.startsWith('wenxi_') || key.startsWith('work_') || key.startsWith('attach_'))
     .filter(([key]) => !['work_tasks_data', 'work_documents_data', 'work_meetings_data', 'work_researches_data', 'work_seals_data', 'work_materials_data', 'work_weekly_data', 'wenxi_skills'].includes(key))
     .map(([id, value]) => ({ id, value }));
   const warnings: string[] = [];
+  if (version.includes('未区分')) warnings.push('历史两版导出器使用相同 sourceApp/version，无法仅凭导出包可靠区分升级版04与 WenXiBuddy 0722。');
+  if (!skills.length) warnings.push('导出包未包含 Skill；历史导出器默认只收集 work_/attach_ 前缀，如原系统存在 Skill 需另行补充 wenxi_skills。');
   if (!files.length) warnings.push('未发现 IndexedDB 附件；正文数据已导入。');
+  const attachments = await Promise.all(files.map(attachmentFromLegacy));
+  const invalidAttachments = attachments.filter((attachment) => !attachment.sha256).length;
+  if (invalidAttachments) warnings.push(`${invalidAttachments} 个附件的数据不是有效 Base64，已保留原始字段但无法生成内容哈希。`);
   return {
-    tasks, documents, archives, attachments: await Promise.all(files.map(attachmentFromLegacy)), skills, settings,
+    tasks, documents, archives, attachments, skills, settings,
     report: { sourceVersion: version, imported: { tasks: tasks.length, meetings: meetings.length, documents: documents.length, researches: researches.length, seals: seals.length, materials: materials.length, weekly: weekly.length, skills: skills.length, settings: settings.length }, attachments: files.length, warnings }
   };
 }
