@@ -19,7 +19,7 @@
 | 私有同步与 AI | 单元测试、Pages/内网 E2E、服务端集成测试 | 已通过演示契约 | 访问码仅在内存；同步先拉取主版本并带假定主版本推送任务/文件/草稿，附件走哈希接口；AI 必须先本地脱敏预览并逐次确认，结果不覆盖原稿或确定性规则 |
 | 授权资料元数据 | `pnpm content:verify` | 结构已完成，凭证编号待补 | 已记录来源文件、版本、授权范围、版权归属状态与限制；当前依据用户确认，正式公开前仍应补入授权书归档位置或凭证编号 |
 | 公共权威与授权来源同步 | `pnpm test:content`、`pnpm content:sync`、`pnpm content:verify`；`.github/workflows/content-sync.yml` | 本地已通过，远端待运行 | 政府来源必须使用明确列出的 HTTPS 主机，其他来源必须精确匹配显式允许自动抓取的授权 URL；逐跳校验重定向并限制为 HTML、2 MB 和必含结构。2026-07-24 实际检查 1 个国家标准来源且哈希未变化；每周工作流仅在变化时提交生成元数据并在同一工作流部署 Pages，不改人工模板 |
-| 服务端静态检查、集成测试、构建 | `pnpm lint`、`pnpm test:integration`、`pnpm build`、`pnpm format:check` | 已通过 | 4 项内存 Store 测试通过、2 项 PostgreSQL 测试按环境跳过；覆盖会话、同步冲突、附件哈希、未确认 AI、桌面 `null` Origin 和未配置公网 Origin |
+| 服务端静态检查、集成测试、构建 | `pnpm lint`、`pnpm test:integration`、`pnpm build`、`pnpm format:check` | 已通过 | 2026-07-24 回归为 4 项内存 Store 测试通过、2 项 PostgreSQL 测试按环境跳过；覆盖会话、同步冲突、附件哈希、未确认 AI、桌面 `null` Origin 和未配置公网 Origin |
 | 真实 PostgreSQL | `DATABASE_URL=... pnpm test:postgres`；CI 提供 PostgreSQL 16 服务 | 已加入强制验证门，当前本机未执行 | 缺少 `DATABASE_URL` 会快速失败；契约测试覆盖迁移、同步 checkpoint、冲突保留和附件往返；当前环境未提供实例，不能把内存 Store 测试当作真实数据库验证 |
 | Debian 10/12 amd64/arm64 | `.github/workflows/desktop.yml` 四组合 `.deb` 安装与 xvfb 启动门 | 已配置，尚未实际运行 | CI 使用固定 SHA 的 Docker QEMU Action，对 Debian 10/12 的 amd64/arm64 安装并要求程序持续运行 20 秒；Windows 本机交叉尝试只能生成 `linux-unpacked`，AppImage 和 DEB 分别因缺少 Linux `mksquashfs`/`fpm` 失败，且当前无 Docker 或 WSL 发行版，因此没有伪报 Linux 安装包；真实 arm64 设备测试仍保留 |
 | GitHub Release | `v*` 标签触发桌面矩阵、Debian 门禁、校验清单和发布任务 | 已配置，尚未实际运行 | 发布任务要求 Windows x64/arm64、AppImage x86_64/arm64、DEB amd64/arm64 六类产物齐全，并生成 `SHA256SUMS.txt`；使用 runner 自带 `gh` 与 Actions 内置令牌，当前无远端，不能标记已发布 |
