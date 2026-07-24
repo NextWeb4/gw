@@ -9,7 +9,7 @@
 | 客户端构建 | `pnpm build`、`pnpm content:verify`、`pnpm assets:verify` | 已通过 | Web、领域包、迁移、文档、桌面壳构建通过；3 条规则、11 个模板、1 条授权记录及 Web/Electron 品牌资产校验通过 |
 | 历史 HTML 原件 | 对根目录与 `legacy/` 执行 SHA-256 对比 | 已通过 | `升级版04.html` 与 `wenxibuddy0722.html` 均逐字节一致；0722 仍是需求基线，0723 与 UI glossary 只作补充参考；正式功能未写回历史原型。审计确认两版导出器都写入相同 `sourceApp/version` 且默认只收集 `work_/attach_`，因此迁移报告会披露来源歧义和缺失 Skill，而不虚构版本 |
 | Pages 端到端与离线演示 | `pnpm test:e2e` | 已通过 | 2026-07-24 与内网 E2E 并行回归为 17 passed、3 条件跳过；覆盖零外联、离线重开、Pages 私有控制隐藏、桌面显式会话/同步/脱敏确认契约、任务、双版本迁移、快照、DOCX/PDF 和窄屏 |
-| 内网 Web | `pnpm test:e2e:intranet`、`pnpm build:web:intranet` | 已通过本机构建与 E2E | 与 Pages E2E 并行回归为 1 passed；验证内网模式、真实附件开关、同步/AI 控制、私有 CSP，以及建立连接前无外部请求；产物固定到独立 `dist-intranet/`，避免覆盖 Pages 的 `dist/`；尚未部署到实际内网服务器 |
+| 内网 Web | `pnpm test:e2e:intranet`、`pnpm build:web:intranet`、`pnpm test:workflows` | 已通过本机构建与 E2E | 与 Pages E2E 并行回归为 1 passed；验证内网模式、真实附件开关、同步/AI 控制、私有 CSP，以及建立连接前无外部请求；产物固定到独立 `dist-intranet/`，工作流上传路径已由契约测试锁定，避免误传 Pages 的 `dist/`；尚未部署到实际内网服务器 |
 | GitHub Pages 子路径 | `VITE_BASE_PATH=/hxhwang-gw/ pnpm --filter @hxhwang/web build` + 本地预览访问 `/hxhwang-gw/` | 已通过 | 入口 JS、PWA manifest 与品牌图标均使用 `/hxhwang-gw/` 前缀并返回 HTTP 200；未发现私有 API、模型密钥或 GitHub token |
 | Electron `file://` 资源 | `pnpm build:desktop:win:x64`、`pnpm build:desktop:win:arm64`；`pnpm verify:desktop-web` | 已通过 | 打包前校验 9 个资源均为相对路径，并验证桌面 CSP 仅允许 HTTPS、本机 API且禁止表单提交 |
 | Windows 安装包 | Windows 本机 x64/arm64 electron-builder | 已通过构建 | 基于提交 `9813b6f` 重建：x64 安装包 100,884,702 字节，SHA-256 `85D69454DED0EC02EDC5ECD9A8D1DF2A1F71A2D37A6CC3FEC61A271FF1067FAE`；arm64 安装包 93,554,583 字节，SHA-256 `D73B375C649DFEFA365C17F85C0BBBA059610B3094A91FC49016D04B3A71D512`；x64 解包程序启动后观察到 4 个进程并全部退出；arm64 未在本机启动 |

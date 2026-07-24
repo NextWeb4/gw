@@ -15,6 +15,7 @@
 - `pnpm dev:web`：启动本地 Web 演示版。
 - `pnpm test`：运行工作区测试。
 - `pnpm test:content`：单独验证权威来源的 HTTPS 允许清单、逐跳重定向和响应体积策略。
+- `pnpm test:workflows`：校验公开 Pages 与内网 Web 的构建产物目录保持隔离。
 - `pnpm test:e2e`：运行 Chromium 桌面与窄屏端到端测试。
 - `pnpm test:e2e:intranet`：验证内网 Web 的附件、私有控制、CSP 与显式连接前零外联。
 - 首次运行端到端测试前执行 `pnpm exec playwright install chromium`；CI 会自动安装浏览器。

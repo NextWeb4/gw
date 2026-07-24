@@ -25,4 +25,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: HxHwang-Gw-intranet-web
-          path: apps/web/dist
+          path: apps/web/dist-intranet

@@ -13,6 +13,7 @@
 ## 3. 测试命令
 - `pnpm test` 运行领域、迁移、文档和桌面壳测试。
 - `pnpm test:content` 单独验证权威来源 URL、逐跳重定向和响应体积策略；`pnpm test` 已包含该命令。
+- `pnpm test:workflows` 校验 Pages 与内网工作流上传目录不会互换；`pnpm test` 已包含该命令。
 - `pnpm test:e2e` 使用 Playwright 验证离线页面、任务持久化、历史导入和文稿导出。CI 必须先执行 `pnpm exec playwright install --with-deps chromium`。
 - `pnpm test:e2e:intranet` 单独验证内网构建的私有控制、附件开关、CSP 和显式连接前零外联。
 
