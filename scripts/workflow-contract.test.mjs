@@ -37,3 +37,23 @@ test('public Pages workflows upload only the public build output', async () => {
   assert.equal(uploadPath(pages, 'build', 'actions/upload-pages-artifact@v3'), 'apps/web/dist');
   assert.equal(uploadPath(contentSync, 'sync', 'actions/upload-pages-artifact@v3'), 'apps/web/dist');
 });
+
+test('Debian smoke disables Chromium sandbox only inside the CI container', async () => {
+  const workflow = await readWorkflow('desktop.yml');
+  const smokeStep = workflow.jobs['debian-smoke'].steps.find((step) => step.name === 'Install and launch on Debian');
+  assert.ok(smokeStep, 'desktop workflow must define the Debian launch step');
+  assert.match(smokeStep.run, /docker run --rm/);
+  assert.match(smokeStep.run, /xvfb-run/);
+  assert.match(smokeStep.run, /--no-sandbox/);
+
+  const productionFiles = [
+    'apps/desktop/package.json',
+    'apps/desktop/electron/main.mjs',
+    'apps/desktop/electron/preload.mjs',
+    'apps/desktop/electron/security.mjs',
+  ];
+  for (const file of productionFiles) {
+    const source = await readFile(path.join(root, file), 'utf8');
+    assert.doesNotMatch(source, /--no-sandbox/, `${file} must not disable Chromium sandbox`);
+  }
+});

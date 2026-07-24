@@ -99,7 +99,7 @@ jobs:
               executable="$(find /opt -type f -name HxHwang-Gw -perm /111 | head -n 1)"
               test -n "$executable"
               set +e
-              su -s /bin/sh smoke -c "timeout 20s xvfb-run -a \"$executable\" --disable-gpu"
+              su -s /bin/sh smoke -c "timeout 20s xvfb-run -a \"$executable\" --disable-gpu --no-sandbox"
               exit_code=$?
               set -e
               test "$exit_code" -eq 124

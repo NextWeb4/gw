@@ -23,6 +23,7 @@
 - `pnpm build:desktop` 打包全部已配置目标；`pnpm build:desktop:win:x64`、`pnpm build:desktop:win:arm64`、`pnpm build:desktop:linux:x64`、`pnpm build:desktop:linux:arm64` 可按目标单独构建。
 - Linux 的 AppImage/DEB 命令必须在 Linux 或项目的 Ubuntu Actions 中运行；Windows 只能生成 `linux-unpacked`，缺少 `mksquashfs`/`fpm` 时不得将其标记为安装包。
 - `apps/desktop/package.json` 的 `build.deb.depends` 必须保留 electron-builder 26.15.3 的默认 Debian 依赖，并额外声明 Electron 43 启动所需的 `libasound2` 与 `libgbm1`；不得在 smoke 脚本中单独安装这两个库来掩盖包元数据缺失。
+- Debian Docker smoke 因 GitHub hosted runner 容器禁止 Chromium zygote namespace，只允许在该 CI 启动命令中使用 `--no-sandbox`；应用源码、package 配置、桌面入口和真实安装快捷方式均不得携带该参数。
 - 桌面命令必须先运行 Web 的相对路径构建并通过 `pnpm verify:desktop-web`；不得直接用普通 `/assets` Pages 产物打包 Electron。
 - `pnpm assets:generate` 只在品牌 SVG 发生变化时运行，使用已安装的 Playwright Chromium 生成 Web PNG 和 Electron ICO/PNG；生成后必须重新构建桌面包。
 
@@ -58,6 +59,7 @@
 - 必查 CSP、HTML 清洗、离线无意联网、迁移记录数、附件哈希和字体回退提示。
 - 必查 Windows/Debian amd64/arm64 打包配置与作者署名。
 - 必查生成的 DEB 能仅靠自身依赖在 Debian 10/12 安装并启动；出现缺失共享库时先修复 `build.deb.depends`，不得放宽启动门。
+- 必查 `--no-sandbox` 只存在于隔离的 Debian smoke 命令，生产 Electron 仍保持 `sandbox: true`、`contextIsolation: true` 和 `nodeIntegration: false`。
 - 引用外部站点时，必查服务协议、隐私政策、版权声明和 `robots.txt`，并区分“交互借鉴”“允许链接”“允许再分发”。
 
 ## 10. 常见风险
@@ -71,3 +73,4 @@
 - RxDB 单表以原始 `id` 为主键；跨业务类型同 ID 必须在写入或快照解析阶段明确拒绝，禁止通过 `upsert` 静默改写记录类型。
 - `electron-builder` 在 Windows 上交叉执行 Linux 目标会因 `mksquashfs` 或 `fpm` 缺失失败；正式 Linux 产物以 Ubuntu Actions 输出为准。
 - electron-builder 的默认 DEB 依赖不含 `libasound2` 与 `libgbm1`；覆盖 `build.deb.depends` 时又会替换整份默认列表，因此配置测试必须锁定完整依赖集合。
+- GitHub hosted runner 的 Docker 默认 seccomp/capability 会阻止 Chromium zygote namespace；给容器增加 `SYS_ADMIN`/`--privileged` 风险更高，smoke 仅以 CI 参数关闭 Chromium sandbox，不能把该参数带入真实客户端。
