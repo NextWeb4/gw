@@ -16,6 +16,7 @@
 | Tiptap、docx、Mammoth、PDF.js | MIT、MIT、BSD-2-Clause、Apache-2.0 | 编辑、Word、预览 | 覆盖主要文档流程 | 中文字体和 Word 版式需实机验证 | 活跃 | 不能捆绑未授权字体 | 采用 Tiptap、docx；其余按需引入 |
 | Playwright | [官方](https://playwright.dev/) / Apache-2.0 | 浏览器端到端测试 | 覆盖离线、迁移、导出和窄屏流程 | CI 需下载 Chromium | 活跃 | 仅开发依赖，不进入运行包 | 采用为 `test:e2e`，CI 安装 Chromium |
 | Vite PWA Plugin + Workbox | [官方](https://vite-pwa-org.netlify.app/) / MIT | 静态资源预缓存 | Pages 首次访问后可离线重开 | 增加 Service Worker 更新边界 | 活跃 | 仅缓存同源构建产物，不增加业务网络请求 | 采用，自动更新并清理旧缓存 |
+| Lucide React 0.468.0 | [官方](https://lucide.dev/) / ISC | 统一的 React 线性图标组件 | 图形语言一致、按组件打包、无需图标字体或远程请求 | 大量同时渲染时仍需控制数量 | 活跃；版本已锁定在现有依赖中 | 与离线、CSP 和无公共 CDN 要求相容；不得与表情符号或自绘功能 SVG 混用 | 采用为全部界面功能图标，本次视觉重构未新增依赖 |
 | yaml | [npm](https://www.npmjs.com/package/yaml) / ISC | YAML 结构化解析 | 避免正则误解析允许清单 | 增加一个构建工具依赖 | 活跃 | 仅供内容同步脚本使用，不进入运行包 | 采用，解析来源允许清单 |
 | Docker Setup QEMU Action | [官方仓库](https://github.com/docker/setup-qemu-action) / Apache-2.0 | 在 GitHub Actions x64 runner 注册 arm64 仿真 | 可对 Debian arm64 `.deb` 执行安装与启动门禁 | 仿真不能替代真实 arm64 设备性能测试 | 活跃，审计时 v3.7.0 | 只用于 CI；固定提交 SHA，避免浮动 tag | 采用，用于 Debian 10/12 arm64 冒烟 |
 | Node 24 `fetch`、`crypto`、`node:test` | [Node.js](https://nodejs.org/api/) / MIT | HTTPS 抓取、哈希和策略测试 | 标准运行时内置，不增加供应链或安装体积 | 重定向与体积限制需显式实现 | 随 Node 24 维护 | 只在内容同步脚本和 CI 中使用，不进入浏览器联网路径 | 采用，封装允许清单、逐跳重定向和 2 MB 上限 |
@@ -26,6 +27,7 @@
 
 - 直接复用：Electron 打印能力、RxDB/Dexie 本地存储、Tiptap 编辑、docx 导出、Playwright 验证。
 - 周报闭环直接复用现有 RxDB 类型记录、schema migration 插件、确定性领域汇总、`docx` 与 Electron/浏览器打印能力；任务协同字段和附件操作复用现有领域模型及本地附件库，本次未新增 npm 依赖或联网行为。新增 `weekly` 类型时将 schema 升至 v1 并执行恒等迁移，保留 v0 全部记录；migration 插件使本地存储 chunk 约增加 40.6 kB（gzip 约 11.8 kB），相对避免现有用户数据库无法打开的风险可接受。
+- v0.2.0 视觉系统直接复用现有 React、Lucide 与 CSS 动画能力；指针响应通过本地 CSS 自定义属性驱动，未引入 Motion、WebGL、远程字体、图片 CDN或运行时脚本。`prefers-reduced-motion` 会关闭持续动画，回滚时仅需恢复 `App.tsx` 的展示结构与 `styles.css`，领域数据和 API 不受影响。
 - 仅借鉴：PouchDB/CouchDB 的复制冲突思路；实际同步保留在私有 Fastify API。
 - 不采用：Wails、Tauri 2，原因是 Debian 10 的 WebKit 依赖冲突。
 - 回滚：移除 `test:e2e` 及 Playwright 不影响生产包；本地数据可保留导出快照后替换存储适配器。
@@ -37,4 +39,4 @@
 - 联网只发生在手动执行 `pnpm content:sync` 或每周 Actions 中，Pages、Electron 和内网 Web 的运行时联网边界不变。
 - 工作流仅使用 Actions 内置 `GITHUB_TOKEN` 的 `contents: write`、Pages 与 OIDC 权限；机器人提交不会依赖二次触发 `push`，而是在同一工作流完成验证和 Pages 部署。若未来启用禁止机器人直推的分支保护，应改为自动 PR 后再启用该保护，不能绕过保护规则。
 
-商业产品只做功能参考，不属于开源依赖审计范围；相关版权、联网和数据处理边界单独记录在 [`docs/REFERENCE_AUDIT.md`](./docs/REFERENCE_AUDIT.md)。
+商业产品与设计画廊只做功能或视觉语言参考，不属于开源依赖审计范围；相关版权、联网和数据处理边界单独记录在 [`docs/REFERENCE_AUDIT.md`](./docs/REFERENCE_AUDIT.md)。

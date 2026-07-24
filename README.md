@@ -33,6 +33,7 @@
 
 架构、依赖许可证和未采用方案见 [`OPEN_SOURCE_AUDIT.md`](./OPEN_SOURCE_AUDIT.md)。
 商业产品的功能参考、版权与数据边界见 [`docs/REFERENCE_AUDIT.md`](./docs/REFERENCE_AUDIT.md)。
+视觉语言、图标、动效、响应式和无障碍约束见 [`docs/DESIGN_SYSTEM.md`](./docs/DESIGN_SYSTEM.md)。
 当前验证证据与未完成的平台环境项见 [`docs/VERIFICATION_MATRIX.md`](./docs/VERIFICATION_MATRIX.md)。
 使用和数据边界见 [`docs/HELP.md`](./docs/HELP.md)，版本交付状态见 [`RELEASE_NOTES.md`](./RELEASE_NOTES.md)。
 

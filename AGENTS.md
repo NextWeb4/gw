@@ -14,6 +14,7 @@
 - `pnpm test` 运行领域、迁移、文档和桌面壳测试。
 - `pnpm test:content` 单独验证权威来源 URL、逐跳重定向和响应体积策略；`pnpm test` 已包含该命令。
 - `pnpm test:workflows` 校验 Pages 与内网工作流上传目录不会互换；`pnpm test` 已包含该命令。
+- `pnpm test:ui` 校验 Lucide 图标、无表情符号、无远程视觉资源和 reduced-motion 契约；`pnpm test` 已包含该命令。
 - `pnpm test:e2e` 使用 Playwright 验证离线页面、任务协同字段、附件下载/解除关联、历史导入、文稿导出和周报保存/导出。CI 必须先执行 `pnpm exec playwright install --with-deps chromium`。
 - `pnpm test:e2e:intranet` 单独验证内网构建的私有控制、附件开关、CSP 和显式连接前零外联。
 
@@ -30,6 +31,8 @@
 ## 5. 代码风格
 - `pnpm lint` 与 `pnpm format:check` 均执行 TypeScript/Node 语法与类型检查；当前未发现独立的自动 format 命令。
 - 使用 TypeScript 严格模式、函数式 React 组件和显式导出；禁止 `any` 逃避领域数据校验。
+- 界面图标统一使用 `lucide-react`；禁止使用表情符号、Unicode 图形字符或自行绘制的 SVG 冒充功能图标。品牌安装包图标仍以 `assets/brand/app-icon.svg` 为唯一源文件。
+- Web 运行时不得加载远程字体、公共 CDN 或外部视觉素材；展示字体必须使用本机字体栈，缺失时保持可读回退。
 
 ## 6. 模块边界
 - React 页面只能调用领域命令和数据适配接口，不得直连 IndexedDB、Electron IPC 或私有 API。
@@ -41,6 +44,7 @@
 - 新周报是 `weekly` 类型的可编辑本地记录并参与显式私有同步；历史导入的旧周报仍是只读 `archive`，不得在导入时改写为新记录。
 - `scripts/content-sync-policy.mjs` 是允许清单抓取的安全边界；非政府来源必须精确匹配授权记录中的 `authorizedSourceUrls` 且 `allowAutomatedRetrieval=true`。同步器只能修改 `content/generated/`，不得自动覆盖人工规则、模板或授权资料。
 - `assets/brand/app-icon.svg` 是品牌图标唯一源文件；生成产物只能写入 `apps/web/public/icons/` 与 `apps/desktop/build/`。
+- `KineticBackdrop` 只负责无障碍树外的装饰动效，必须保持 `pointer-events: none`；不得在该组件加入业务状态、网络请求或持久化逻辑。
 
 ## 7. 禁止事项
 - 禁止提交 API key、GitHub token、真实材料或未授权字体。
@@ -55,6 +59,7 @@
 - DOCX 与 PDF 导出在含中文文本时可读且页面为 A4。
 - 两版历史导出可以导入，保留附件与未映射数据。
 - 合并前必须依次通过 `pnpm lint`、`pnpm test`、`pnpm test:e2e`、`pnpm build`；桌面包仅在目标平台实机启动后标记为已验证。
+- 视觉迭代必须在 1440×900 与 390×844 视口检查首屏、任务表格、写作中心和抽屉；不得出现页面级横向溢出，并必须支持 `prefers-reduced-motion`。
 
 ## 9. Review 标准
 - 必查 CSP、HTML 清洗、离线无意联网、迁移记录数、附件哈希和字体回退提示。
@@ -63,6 +68,7 @@
 - 必查生成的 DEB 能仅靠自身依赖在 Debian 10/12 安装并启动；出现缺失共享库时先修复 `build.deb.depends`，不得放宽启动门。
 - 必查 `--no-sandbox` 只存在于隔离的 Debian smoke 命令，生产 Electron 仍保持 `sandbox: true`、`contextIsolation: true` 和 `nodeIntegration: false`。
 - 引用外部站点时，必查服务协议、隐私政策、版权声明和 `robots.txt`，并区分“交互借鉴”“允许链接”“允许再分发”。
+- UI Review 必查所有功能性图标来自 Lucide、页面无表情符号、键盘焦点可见、移动底栏不遮挡正文、动效不阻塞点击或滚动。
 
 ## 10. 常见风险
 - GitHub Pages 是公开静态服务，不能用于私有同步或密钥代理。

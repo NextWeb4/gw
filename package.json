@@ -1,7 +1,7 @@
 {
   "name": "hxhwang-gw",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "HxHwang Gw 公文事务与写作管理系统",
   "author": {
     "name": "HaoXiangHwang",
@@ -14,9 +14,10 @@
     "dev:web": "pnpm --filter @hxhwang/web dev",
     "dev:web:intranet": "pnpm --filter @hxhwang/web dev:intranet",
     "build": "pnpm content:verify && pnpm -r run build",
-    "test": "pnpm -r run test && pnpm test:content && pnpm test:workflows",
+    "test": "pnpm -r run test && pnpm test:content && pnpm test:workflows && pnpm test:ui",
     "test:content": "node --test scripts/content-sync-policy.test.mjs",
     "test:workflows": "node --test scripts/workflow-contract.test.mjs",
+    "test:ui": "node --test scripts/ui-contract.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:intranet": "playwright test --config playwright.intranet.config.ts",
     "lint": "pnpm -r run lint",

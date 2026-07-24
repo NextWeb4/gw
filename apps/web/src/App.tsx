@@ -3,9 +3,9 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import {
-  Archive, ArrowDownToLine, BookOpen, Check, ChevronRight, ClipboardList, CloudOff, FileArchive, FileOutput,
-  FileText, FolderOpen, Info, LayoutDashboard, Menu, Pencil, Plus, RefreshCw, Save, Search,
-  ShieldCheck, Sparkles, Upload, X
+  Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowUpRight, BookOpen, Check, ChevronRight, ClipboardList,
+  CloudOff, FileArchive, FileOutput, FileText, FolderOpen, Info, LayoutDashboard, Menu, Orbit, Pencil, Plus,
+  RefreshCw, Save, Search, ShieldCheck, Sparkles, Upload, X
 } from 'lucide-react';
 import {
   buildWeeklyReportSummary, createId, nowIso, type ArchiveRecord, type Attachment, type Draft, type KnowledgePack, type MigrationReport,
@@ -24,7 +24,6 @@ import { syncPrivateWorkspace } from './private-services';
 type Tab = 'dashboard' | 'tasks' | 'documents' | 'writing' | 'weekly' | 'archive' | 'migration' | 'about';
 type HxWindow = Window & { hxhwang?: { printPdf: (html: string, title: string) => Promise<boolean> } };
 const desktopBridge = () => (window as HxWindow).hxhwang;
-const brandIconUrl = `${import.meta.env.BASE_URL}icons/icon-192.png`;
 
 const navItems: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: '工作台', icon: LayoutDashboard },
@@ -161,19 +160,21 @@ function App() {
     return <AboutView desktop={isDesktop} privateServices={privateServicesEnabled} tasks={tasks} documents={documents} weeklyReports={weeklyReports} attachments={attachments} draft={draft} onReload={reload} setToast={setToast} />;
   };
 
-  return <div className="shell">
+  const activeNavIndex = navItems.findIndex((item) => item.id === tab);
+  return <div className="shell" data-tab={tab}>
+    <KineticBackdrop />
     <aside className="sidebar">
-      <div className="brand-lockup"><img className="brand-mark" src={brandIconUrl} alt="" aria-hidden="true" /><div><strong>HxHwang Gw</strong><span>公文事务台</span></div></div>
+      <div className="brand-lockup"><span className="brand-mark" aria-hidden="true"><Orbit size={21} strokeWidth={1.5} /></span><div><strong>HxHwang Gw</strong><span>GOVERNANCE WORKSPACE</span></div></div>
       <div className="mode-label"><span className="status-dot" /><span>{privateServicesEnabled ? (isDesktop ? '桌面本地模式' : '内网模式') : '本地演示模式'}</span></div>
       <nav className="nav-list" aria-label="主导航">
-        {navItems.map(({ id, label, icon: Icon }) => <button aria-label={label} className={`nav-button ${tab === id ? 'active' : ''}`} key={id} onClick={() => { setTab(id); setSearch(''); }}><Icon size={17} strokeWidth={1.8} /><span>{label}</span>{tab === id && <ChevronRight size={14} />}</button>)}
+        {navItems.map(({ id, label, icon: Icon }, index) => <button aria-label={label} className={`nav-button ${tab === id ? 'active' : ''}`} key={id} onClick={() => { setTab(id); setSearch(''); }}><span className="nav-index">{String(index + 1).padStart(2, '0')}</span><Icon size={17} strokeWidth={1.6} /><span>{label}</span>{tab === id && <ArrowUpRight size={14} />}</button>)}
       </nav>
-      <div className="sidebar-bottom"><button aria-label="关于与设置" className="nav-button" onClick={() => setTab('about')}><Info size={17} /><span>关于与设置</span></button><div className="sidebar-credit">© HaoXiangHwang<br /><a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a></div></div>
+      <div className="sidebar-bottom"><button aria-label="关于与设置" className={`nav-button ${tab === 'about' ? 'active' : ''}`} onClick={() => setTab('about')}><span className="nav-index">08</span><Info size={17} /><span>关于与设置</span>{tab === 'about' && <ArrowUpRight size={14} />}</button><div className="sidebar-credit"><span>ORIGIN / LOCAL</span><strong>© HaoXiangHwang</strong><a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a></div></div>
     </aside>
     <main className="main-area">
-      <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="breadcrumbs">工作台 <span>/</span> {navItems.find((item) => item.id === tab)?.label ?? '关于'}</div><div className="topbar-actions"><span className="connection">{privateServicesEnabled ? <ShieldCheck size={15} /> : <CloudOff size={15} />} {privateServicesEnabled ? '本机存储 · 同步需手动触发' : '数据仅保存在本机'}</span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
+      <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="topbar-context"><span>HX / {String(activeNavIndex >= 0 ? activeNavIndex + 1 : 8).padStart(2, '0')}</span><strong>{navItems.find((item) => item.id === tab)?.label ?? '关于与设置'}</strong></div><div className="breadcrumbs">本地工作流 <span>/</span> 数据不离开当前设备</div><div className="topbar-actions"><span className="connection"><Activity size={15} /><span>{privateServicesEnabled ? 'LOCAL + MANUAL SYNC' : 'LOCAL ONLY'}</span><strong>{privateServicesEnabled ? '本机存储 · 同步需手动触发' : '数据仅保存在本机'}</strong></span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
       <div className="content-wrap">{renderContent()}</div>
-      <footer className="page-footer">© HaoXiangHwang · <a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a> · <a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer">nextweb4.github.io</a></footer>
+      <footer className="page-footer"><span>HXHWANG GW / {__APP_VERSION__}</span><span>© HaoXiangHwang · <a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a> · <a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer">nextweb4.github.io</a></span></footer>
     </main>
     {taskEditor && <TaskEditor task={taskEditor} attachments={attachments} canAttach={privateServicesEnabled} onChange={setTaskEditor} onAttach={(files) => void addAttachments(files, taskEditor.files, (ids) => setTaskEditor({ ...taskEditor, files: ids }))} onSave={() => void saveTask(taskEditor)} onClose={() => setTaskEditor(null)} />}
     {documentEditor && <DocumentEditor document={documentEditor} attachments={attachments} canAttach={privateServicesEnabled} onChange={setDocumentEditor} onAttach={(files) => void addAttachments(files, documentEditor.files, (ids) => setDocumentEditor({ ...documentEditor, files: ids }))} onSave={() => void saveDocument(documentEditor)} onClose={() => setDocumentEditor(null)} />}
@@ -181,15 +182,32 @@ function App() {
   </div>;
 }
 
+function KineticBackdrop() {
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const updatePointer = (event: PointerEvent) => {
+      document.documentElement.style.setProperty('--pointer-x', `${(event.clientX / window.innerWidth) * 100}%`);
+      document.documentElement.style.setProperty('--pointer-y', `${(event.clientY / window.innerHeight) * 100}%`);
+    };
+    window.addEventListener('pointermove', updatePointer, { passive: true });
+    return () => window.removeEventListener('pointermove', updatePointer);
+  }, []);
+  return <div className="kinetic-field" aria-hidden="true"><span className="kinetic-grid" /><span className="kinetic-glow" /><span className="kinetic-orbit orbit-one" /><span className="kinetic-orbit orbit-two" /><span className="kinetic-noise" /></div>;
+}
+
 function PageHeading({ eyebrow, title, detail, action }: { eyebrow: string; title: string; detail: string; action?: React.ReactNode }) {
-  return <div className="page-heading"><div><span className="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{detail}</p></div>{action && <div className="heading-action">{action}</div>}</div>;
+  return <div className="page-heading"><div className="heading-copy"><span className="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{detail}</p></div>{action && <div className="heading-action">{action}</div>}<span className="heading-signal" aria-hidden="true">HX</span></div>;
 }
 
 function Dashboard({ tasks, documents, archives, onNavigate }: { tasks: Task[]; documents: OfficialDocument[]; archives: ArchiveRecord[]; onNavigate: (tab: Tab) => void }) {
   const active = tasks.filter((task) => task.status !== 'done').length;
   const dueSoon = tasks.filter((task) => task.deadline && task.deadline <= new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10) && task.status !== 'done').length;
   return <>
-    <PageHeading eyebrow="今日工作" title="把材料，变成可推进的事项。" detail="本地优先保存，按任务、文件和文稿建立可追溯的工作链。" action={<button className="primary-button" onClick={() => onNavigate('tasks')}><Plus size={16} />新建任务</button>} />
+    <section className="dashboard-hero">
+      <div className="hero-copy"><span className="eyebrow">今日工作 / LOCAL OPERATIONS</span><h1><span>让事务</span><span className="hero-outline">有迹可循</span></h1><p>把任务、文件与文稿组织成一条可以回看、可以验证、可以继续推进的工作链。</p><button className="primary-button hero-action" onClick={() => onNavigate('tasks')}><Plus size={16} />新建任务<ArrowUpRight size={15} /></button></div>
+      <div className="hero-visual" aria-hidden="true"><div className="hero-orbit orbit-a" /><div className="hero-orbit orbit-b" /><div className="hero-orbit orbit-c" /><span className="hero-core"><Orbit size={46} strokeWidth={1} /></span><span className="signal-label signal-one">TASK / {active}</span><span className="signal-label signal-two">DOC / {documents.length}</span><span className="signal-label signal-three">ARCHIVE / {archives.length}</span></div>
+      <div className="hero-meta"><span>01 / PRIVATE BY DEFAULT</span><span>02 / DETERMINISTIC RULES</span><span>03 / TRACEABLE RECORDS</span></div>
+    </section>
     <section className="metric-grid"><Metric label="进行中任务" value={active} note="未完成事项" accent="rust" /><Metric label="近七日到期" value={dueSoon} note="需要优先处理" accent="gold" /><Metric label="登记文件" value={documents.length} note="本机索引" accent="green" /><Metric label="历史档案" value={archives.length} note="只读保留" accent="ink" /></section>
     <div className="dashboard-grid"><section className="panel"><div className="panel-heading"><div><span className="eyebrow">优先事项</span><h2>任务队列</h2></div><button className="text-button" onClick={() => onNavigate('tasks')}>查看全部 <ChevronRight size={15} /></button></div><div className="task-queue">{tasks.slice(0, 5).map((task) => <div className="queue-row" key={task.id}><span className={`priority-bar ${task.status}`} /><div className="queue-main"><strong>{task.name}</strong><span>{task.category} · {task.assigner || '未指定交办人'}</span></div><StatusPill status={task.status} /><span className="queue-date">{task.deadline || '未设截止'}</span></div>)}{!tasks.length && <EmptyState text="还没有任务" />}</div></section><section className="panel paper-panel"><div className="paper-index">公文写作速查</div><h2>先立意，再落笔。</h2><p>将“依据—行动—结果”拆开，把可核验的数据留在句子里。正式规范与写作建议分别标注，不让模型替你做判断。</p><button className="secondary-button" onClick={() => onNavigate('writing')}><Sparkles size={16} />打开写作中心</button></section></div>
     <section className="panel quick-panel"><div className="panel-heading"><div><span className="eyebrow">工作入口</span><h2>继续处理</h2></div></div><div className="quick-actions"><button onClick={() => onNavigate('documents')}><FileText size={18} /><span>登记新文件</span><small>收文、发文、附件</small></button><button onClick={() => onNavigate('writing')}><BookOpen size={18} /><span>开始写作</span><small>模板、规则、版本</small></button><button onClick={() => onNavigate('migration')}><Upload size={18} /><span>导入旧数据</span><small>支持 JSON 导出文件</small></button></div></section>
@@ -329,7 +347,7 @@ function WritingStudio({ draft, setDraft, setToast }: { draft: Draft; setDraft: 
   </>;
 }
 
-function CheckItem({ ok, title, detail }: { ok: boolean; title: string; detail: string }) { return <div className="check-item"><span className={`check-icon ${ok ? 'ok' : 'pending'}`}>{ok ? <Check size={13} /> : '!'}</span><div><strong>{title}</strong><small>{detail}</small></div></div>; }
+function CheckItem({ ok, title, detail }: { ok: boolean; title: string; detail: string }) { return <div className="check-item"><span className={`check-icon ${ok ? 'ok' : 'pending'}`}>{ok ? <Check size={13} /> : <AlertTriangle size={13} />}</span><div><strong>{title}</strong><small>{detail}</small></div></div>; }
 
 function localDateInput(date: Date) { const year = date.getFullYear(); const month = String(date.getMonth() + 1).padStart(2, '0'); const day = String(date.getDate()).padStart(2, '0'); return `${year}-${month}-${day}`; }
 function defaultWeekRange() { const end = new Date(); const start = new Date(end); start.setDate(end.getDate() - ((end.getDay() + 6) % 7)); return { startDate: localDateInput(start), endDate: localDateInput(end) }; }
@@ -422,7 +440,7 @@ function MigrationView({ canImport, onImport, onRestore, onReload, setToast }: {
         {snapshot && <small className="success-text">{snapshot}</small>}
       </section>
     </div>
-    {report && <section className="panel report-panel"><div className="panel-heading"><div><span className="eyebrow">迁移报告</span><h2>{report.sourceVersion}</h2></div><button className="icon-button" title="刷新数据" onClick={() => void onReload()}><RefreshCw size={16} /></button></div><div className="report-metrics">{Object.entries(report.imported).map(([key, value]) => <div key={key}><strong>{value}</strong><span>{key}</span></div>)}<div><strong>{report.attachments}</strong><span>附件</span></div></div>{report.warnings.map((warning) => <p className="warning-line" key={warning}>! {warning}</p>)}</section>}
+    {report && <section className="panel report-panel"><div className="panel-heading"><div><span className="eyebrow">迁移报告</span><h2>{report.sourceVersion}</h2></div><button className="icon-button" title="刷新数据" onClick={() => void onReload()}><RefreshCw size={16} /></button></div><div className="report-metrics">{Object.entries(report.imported).map(([key, value]) => <div key={key}><strong>{value}</strong><span>{key}</span></div>)}<div><strong>{report.attachments}</strong><span>附件</span></div></div>{report.warnings.map((warning) => <p className="warning-line" key={warning}><AlertTriangle size={14} />{warning}</p>)}</section>}
   </>;
 }
 
@@ -466,7 +484,7 @@ function AboutView({ desktop, privateServices, tasks, documents, weeklyReports, 
       setToast('AI 结果已返回；原稿未被覆盖');
     } catch (error) { setToast(error instanceof Error ? error.message : 'AI 请求失败'); }
   };
-  return <><PageHeading eyebrow="系统信息" title="关于 HxHwang Gw" detail="一个面向公文事务和写作工作的本地优先工作台。" /><section className="about-grid"><div className="panel about-hero"><img className="about-mark" src={brandIconUrl} alt="" aria-hidden="true" /><span className="eyebrow">HxHwang Gw · v{__APP_VERSION__}</span><h2>让材料有来源，让事项有去处。</h2><p>公开演示版不请求后端、不保存云端数据、不连接 AI。桌面端或内网 Web 可在下方明确配置后启用私有同步与 AI 网关。</p><div className="about-links"><a href="mailto:Rays688888@Gmail.com"><Info size={15} />Rays688888@Gmail.com</a><a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer"><BookOpen size={15} />nextweb4.github.io</a></div></div><div className="panel about-list"><div><span>作者</span><strong>HaoXiangHwang</strong></div><div><span>版本</span><strong>{__APP_VERSION__}</strong></div><div><span>构建时间</span><strong>{new Date(__BUILD_TIME__).toLocaleString('zh-CN')}</strong></div><div><span>运行模式</span><strong>{desktop ? '桌面本地模式' : privateServices ? '内网 Web 模式' : 'Pages 本地演示模式'}</strong></div><div><span>数据位置</span><strong>浏览器 IndexedDB</strong></div><div><span>已保存周报</span><strong>{weeklyReports.length}</strong></div><div><span>项目许可</span><strong>保留全部权利</strong></div><div><span>版权</span><strong>Copyright (c) 2026 HaoXiangHwang</strong></div><div><span>规则包</span><strong>v{(knowledgePack as KnowledgePack).version} · 来源已标注</strong></div></div></section>{privateServices && <section className="desktop-services"><div className="panel service-panel"><div className="panel-heading"><div><span className="eyebrow">可选内网能力</span><h2>同步连接</h2></div><span className={`status-pill ${client ? 'done' : 'pending'}`}>{client ? '已连接' : '未连接'}</span></div><Field label="私有 API 地址" value={baseUrl} onChange={setBaseUrl} placeholder="https://intranet.example/api" /><Field label="一次性访问码" type="password" value={accessCode} onChange={setAccessCode} /><div className="button-row"><button className="secondary-button" onClick={() => void connect()}><ShieldCheck size={16} />建立会话</button><button className="primary-button" disabled={!client} onClick={() => void sync()}><RefreshCw size={16} />同步业务数据</button></div><p className="service-note">访问码仅用于建立本次内存会话，不写入 IndexedDB。任务、文件、文稿和周报只在手动触发时同步，冲突不会被静默覆盖。</p></div><div className="panel service-panel"><div className="panel-heading"><div><span className="eyebrow">逐次确认</span><h2>脱敏 AI 网关</h2></div></div><Field label="用途" value={purpose} onChange={setPurpose} /><TextArea label="待处理材料" value={redactionSource} onChange={setRedactionSource} placeholder="粘贴待脱敏材料" /><button className="secondary-button" onClick={previewRedaction}><ShieldCheck size={16} />生成脱敏预览</button>{redactedContent && <><TextArea label="脱敏预览（可继续修改）" value={redactedContent} onChange={setRedactedContent} /><button className="primary-button" disabled={!client} onClick={() => void sendAi()}><Sparkles size={16} />确认本次发送</button></>}{aiResult && <pre className="ai-result">{aiResult}</pre>}<p className="service-note">每次请求都必须先生成并检查脱敏预览；结果只读展示，不覆盖原稿或确定性格式规则。</p></div></section>}</>;
+  return <><PageHeading eyebrow="系统信息" title="关于 HxHwang Gw" detail="一个面向公文事务和写作工作的本地优先工作台。" /><section className="about-grid"><div className="panel about-hero"><span className="about-mark" aria-hidden="true"><Orbit size={28} strokeWidth={1.2} /></span><span className="eyebrow">HxHwang Gw · v{__APP_VERSION__}</span><h2>让材料有来源，让事项有去处。</h2><p>公开演示版不请求后端、不保存云端数据、不连接 AI。桌面端或内网 Web 可在下方明确配置后启用私有同步与 AI 网关。</p><div className="about-links"><a href="mailto:Rays688888@Gmail.com"><Info size={15} />Rays688888@Gmail.com</a><a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer"><BookOpen size={15} />nextweb4.github.io</a></div></div><div className="panel about-list"><div><span>作者</span><strong>HaoXiangHwang</strong></div><div><span>版本</span><strong>{__APP_VERSION__}</strong></div><div><span>构建时间</span><strong>{new Date(__BUILD_TIME__).toLocaleString('zh-CN')}</strong></div><div><span>运行模式</span><strong>{desktop ? '桌面本地模式' : privateServices ? '内网 Web 模式' : 'Pages 本地演示模式'}</strong></div><div><span>数据位置</span><strong>浏览器 IndexedDB</strong></div><div><span>已保存周报</span><strong>{weeklyReports.length}</strong></div><div><span>项目许可</span><strong>保留全部权利</strong></div><div><span>版权</span><strong>Copyright (c) 2026 HaoXiangHwang</strong></div><div><span>规则包</span><strong>v{(knowledgePack as KnowledgePack).version} · 来源已标注</strong></div></div></section>{privateServices && <section className="desktop-services"><div className="panel service-panel"><div className="panel-heading"><div><span className="eyebrow">可选内网能力</span><h2>同步连接</h2></div><span className={`status-pill ${client ? 'done' : 'pending'}`}>{client ? '已连接' : '未连接'}</span></div><Field label="私有 API 地址" value={baseUrl} onChange={setBaseUrl} placeholder="https://intranet.example/api" /><Field label="一次性访问码" type="password" value={accessCode} onChange={setAccessCode} /><div className="button-row"><button className="secondary-button" onClick={() => void connect()}><ShieldCheck size={16} />建立会话</button><button className="primary-button" disabled={!client} onClick={() => void sync()}><RefreshCw size={16} />同步业务数据</button></div><p className="service-note">访问码仅用于建立本次内存会话，不写入 IndexedDB。任务、文件、文稿和周报只在手动触发时同步，冲突不会被静默覆盖。</p></div><div className="panel service-panel"><div className="panel-heading"><div><span className="eyebrow">逐次确认</span><h2>脱敏 AI 网关</h2></div></div><Field label="用途" value={purpose} onChange={setPurpose} /><TextArea label="待处理材料" value={redactionSource} onChange={setRedactionSource} placeholder="粘贴待脱敏材料" /><button className="secondary-button" onClick={previewRedaction}><ShieldCheck size={16} />生成脱敏预览</button>{redactedContent && <><TextArea label="脱敏预览（可继续修改）" value={redactedContent} onChange={setRedactedContent} /><button className="primary-button" disabled={!client} onClick={() => void sendAi()}><Sparkles size={16} />确认本次发送</button></>}{aiResult && <pre className="ai-result">{aiResult}</pre>}<p className="service-note">每次请求都必须先生成并检查脱敏预览；结果只读展示，不覆盖原稿或确定性格式规则。</p></div></section>}</>;
 }
 
 export default App;
