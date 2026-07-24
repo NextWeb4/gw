@@ -22,6 +22,7 @@
 - `pnpm build:web:intranet` 构建允许显式 HTTPS/本机 API 连接的内网 Web 到 `apps/web/dist-intranet/`；不得把该产物发布到公开 Pages，也不得与 Pages 的 `apps/web/dist/` 共用输出目录。
 - `pnpm build:desktop` 打包全部已配置目标；`pnpm build:desktop:win:x64`、`pnpm build:desktop:win:arm64`、`pnpm build:desktop:linux:x64`、`pnpm build:desktop:linux:arm64` 可按目标单独构建。
 - Linux 的 AppImage/DEB 命令必须在 Linux 或项目的 Ubuntu Actions 中运行；Windows 只能生成 `linux-unpacked`，缺少 `mksquashfs`/`fpm` 时不得将其标记为安装包。
+- `apps/desktop/package.json` 的 `build.deb.depends` 必须保留 electron-builder 26.15.3 的默认 Debian 依赖，并额外声明 Electron 43 启动所需的 `libasound2` 与 `libgbm1`；不得在 smoke 脚本中单独安装这两个库来掩盖包元数据缺失。
 - 桌面命令必须先运行 Web 的相对路径构建并通过 `pnpm verify:desktop-web`；不得直接用普通 `/assets` Pages 产物打包 Electron。
 - `pnpm assets:generate` 只在品牌 SVG 发生变化时运行，使用已安装的 Playwright Chromium 生成 Web PNG 和 Electron ICO/PNG；生成后必须重新构建桌面包。
 
@@ -56,6 +57,7 @@
 ## 9. Review 标准
 - 必查 CSP、HTML 清洗、离线无意联网、迁移记录数、附件哈希和字体回退提示。
 - 必查 Windows/Debian amd64/arm64 打包配置与作者署名。
+- 必查生成的 DEB 能仅靠自身依赖在 Debian 10/12 安装并启动；出现缺失共享库时先修复 `build.deb.depends`，不得放宽启动门。
 - 引用外部站点时，必查服务协议、隐私政策、版权声明和 `robots.txt`，并区分“交互借鉴”“允许链接”“允许再分发”。
 
 ## 10. 常见风险
@@ -68,3 +70,4 @@
 - 迁移报告必须披露重复附件 ID 和悬空附件引用；附件统计使用去重后的实际记录数。
 - RxDB 单表以原始 `id` 为主键；跨业务类型同 ID 必须在写入或快照解析阶段明确拒绝，禁止通过 `upsert` 静默改写记录类型。
 - `electron-builder` 在 Windows 上交叉执行 Linux 目标会因 `mksquashfs` 或 `fpm` 缺失失败；正式 Linux 产物以 Ubuntu Actions 输出为准。
+- electron-builder 的默认 DEB 依赖不含 `libasound2` 与 `libgbm1`；覆盖 `build.deb.depends` 时又会替换整份默认列表，因此配置测试必须锁定完整依赖集合。
