@@ -1,4 +1,4 @@
-import type { Attachment, Draft, OfficialDocument, Task } from '@hxhwang/domain';
+import type { Attachment, Draft, OfficialDocument, Task, WeeklyReport } from '@hxhwang/domain';
 import { putRecord } from '@hxhwang/local-data';
 import type { AttachmentTransfer, PrivateSyncClient, PullResponse, SyncRecord } from '@hxhwang/sync-client';
 
@@ -6,6 +6,7 @@ interface WorkspaceData {
   tasks: Task[];
   documents: OfficialDocument[];
   drafts: Draft[];
+  weeklyReports: WeeklyReport[];
   attachments: Attachment[];
 }
 
@@ -18,7 +19,7 @@ export interface WorkspaceSyncResult {
   warnings: string[];
 }
 
-type SyncedKind = 'task' | 'document' | 'draft' | 'attachment';
+type SyncedKind = 'task' | 'document' | 'draft' | 'weekly' | 'attachment';
 type RecordWriter = (kind: SyncedKind, id: string, payload: object) => Promise<void>;
 const persistRecord: RecordWriter = (kind, id, payload) => putRecord(kind, id, payload as Record<string, unknown>);
 
@@ -37,7 +38,7 @@ async function pullAll<T extends SyncRecord>(client: PrivateSyncClient, collecti
 async function syncCollection<T extends { id: string; updatedAt: string }>(
   client: PrivateSyncClient,
   collection: string,
-  kind: 'task' | 'document' | 'draft',
+  kind: 'task' | 'document' | 'draft' | 'weekly',
   localDocuments: T[],
   writeRecord: RecordWriter
 ) {
@@ -78,7 +79,8 @@ export async function syncPrivateWorkspace(client: PrivateSyncClient, data: Work
   const collections = await Promise.all([
     syncCollection(client, 'tasks', 'task', data.tasks, writeRecord),
     syncCollection(client, 'documents', 'document', data.documents, writeRecord),
-    syncCollection(client, 'drafts', 'draft', data.drafts, writeRecord)
+    syncCollection(client, 'drafts', 'draft', data.drafts, writeRecord),
+    syncCollection(client, 'weekly-reports', 'weekly', data.weeklyReports, writeRecord)
   ]);
   const result: WorkspaceSyncResult = {
     pulled: collections.reduce((total, item) => total + item.pulled, 0),

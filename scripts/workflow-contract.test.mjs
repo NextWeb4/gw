@@ -57,3 +57,22 @@ test('Debian smoke disables Chromium sandbox only inside the CI container', asyn
     assert.doesNotMatch(source, /--no-sandbox/, `${file} must not disable Chromium sandbox`);
   }
 });
+
+test('release-facing workspace manifests share one version', async () => {
+  const manifests = [
+    'package.json',
+    'apps/web/package.json',
+    'apps/desktop/package.json',
+    'packages/domain/package.json',
+    'packages/documents/package.json',
+    'packages/local-data/package.json',
+    'packages/migration/package.json',
+    'packages/sync-client/package.json',
+  ];
+  const versions = await Promise.all(manifests.map(async (file) => {
+    const manifest = JSON.parse(await readFile(path.join(root, file), 'utf8'));
+    return [file, manifest.version];
+  }));
+  const expected = versions[0][1];
+  for (const [file, version] of versions) assert.equal(version, expected, `${file} version must match the root manifest`);
+});

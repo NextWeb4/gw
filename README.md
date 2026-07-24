@@ -1,6 +1,6 @@
 # HxHwang Gw 管理系统
 
-公开客户端工程，包含 GitHub Pages 演示版、内网 Web 构建、Electron 客户端、领域模型、本地优先数据层、显式私有同步适配器、文档导出和历史数据迁移器。公开 Pages 不显示私有控制，也不调用私有 API。历史迁移器兼容两份原型的真实 localStorage/IndexedDB 导出结构；由于原导出器使用相同版本标识且遗漏 `wenxi_skills`，无法可靠区分来源时会明确警告，另行补充的 Skill 仍可迁移并保留原始字段。
+公开客户端工程，包含 GitHub Pages 演示版、内网 Web 构建、Electron 客户端、领域模型、本地优先数据层、显式私有同步适配器、可保存周报、文档导出和历史数据迁移器。公开 Pages 不显示私有控制，也不调用私有 API。历史迁移器兼容两份原型的真实 localStorage/IndexedDB 导出结构；由于原导出器使用相同版本标识且遗漏 `wenxi_skills`，无法可靠区分来源时会明确警告，另行补充的 Skill 仍可迁移并保留原始字段。
 
 作者：**HaoXiangHwang**  
 邮箱：[Rays688888@Gmail.com](mailto:Rays688888@Gmail.com)  
@@ -35,6 +35,8 @@
 商业产品的功能参考、版权与数据边界见 [`docs/REFERENCE_AUDIT.md`](./docs/REFERENCE_AUDIT.md)。
 当前验证证据与未完成的平台环境项见 [`docs/VERIFICATION_MATRIX.md`](./docs/VERIFICATION_MATRIX.md)。
 使用和数据边界见 [`docs/HELP.md`](./docs/HELP.md)，版本交付状态见 [`RELEASE_NOTES.md`](./RELEASE_NOTES.md)。
+
+任务编辑器保留配合单位和阶段状态；任务与文件附件可在本机下载或解除当前记录关联。周报按日期范围从已有任务/文件字段确定性汇总，可人工编辑、保存版本、纳入本地快照与显式私有同步，并复用同一 A4 文档引擎导出 DOCX/PDF。历史导入的旧周报、Skill、配置和未映射原始字段均在“历史档案”中以纯文本只读保留。公开 Pages 禁止导入业务 JSON、真实附件和恢复快照，完整导入仅在桌面端或内网 Web 启用。
 
 当前 Windows x64/arm64 安装包已在本机完成构建，x64 解包版已完成启动冒烟；[GitHub Pages 演示版](https://nextweb4.github.io/hxhwang-gw/) 已由 Actions 正式部署，私有服务端的 PostgreSQL 16 CI 已通过。桌面 Actions 已构建 Windows/Linux x64、arm64，并通过 Debian 10/12 的 x64/arm64 四组合安装启动门。[v0.1.0](https://github.com/NextWeb4/hxhwang-gw/releases/tag/v0.1.0) 已由 [Release Actions run 30094346043](https://github.com/NextWeb4/hxhwang-gw/actions/runs/30094346043) 正式发布，共包含六个安装产物及 `SHA256SUMS.txt`；六个文件校验值均与 GitHub 资产摘要一致。真实 arm64 设备和 Authenticode 签名仍是明确的外部验证项，不应标记为已完成。
 

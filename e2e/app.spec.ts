@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
 const fixture = (name: string) => path.resolve('packages', 'migration', 'test', 'fixtures', name);
@@ -55,6 +56,13 @@ test('creates, persists, edits and deletes an editable task', async ({ page }) =
   await page.getByRole('button', { name: '新建任务' }).click();
   await page.getByLabel('任务名称').fill(originalName);
   await page.getByLabel('截止日期').fill('2026-07-31');
+  await page.getByRole('button', { name: '添加配合单位' }).click();
+  await page.getByLabel('配合单位名称 1').fill('综合协调单位');
+  await page.getByLabel('配合单位状态 1').selectOption('progress');
+  await page.getByRole('button', { name: '添加阶段' }).click();
+  await page.getByLabel('阶段名称 1').fill('材料汇总');
+  await page.getByRole('button', { name: '添加阶段 1 配合单位' }).click();
+  await page.getByLabel('阶段 1 配合单位名称 1').fill('数据提供单位');
   await page.locator('.attachment-picker input[type="file"]').setInputFiles({ name: '测试佐证.txt', mimeType: 'text/plain', buffer: Buffer.from('local evidence') });
   await expect(page.getByText('测试佐证.txt')).toBeVisible();
   await page.getByRole('button', { name: '保存任务' }).click();
@@ -66,9 +74,18 @@ test('creates, persists, edits and deletes an editable task', async ({ page }) =
   const taskRow = page.locator('.table-row').filter({ hasText: originalName });
   await expect(taskRow).toBeVisible();
   await taskRow.getByTitle('编辑任务').click();
+  await expect(page.getByLabel('配合单位名称 1', { exact: true })).toHaveValue('综合协调单位');
+  await expect(page.getByLabel('配合单位状态 1', { exact: true })).toHaveValue('progress');
+  await expect(page.getByLabel('阶段名称 1')).toHaveValue('材料汇总');
+  await expect(page.getByLabel('阶段 1 配合单位名称 1')).toHaveValue('数据提供单位');
+  const attachmentDownload = page.waitForEvent('download');
+  await page.getByTitle('下载附件 测试佐证.txt').click();
+  expect((await attachmentDownload).suggestedFilename()).toBe('测试佐证.txt');
+  await page.getByTitle('解除关联 测试佐证.txt').click();
   await page.getByLabel('任务名称').fill(updatedName);
   await page.getByRole('button', { name: '保存任务' }).click();
   await expect(page.getByText(updatedName)).toBeVisible();
+  await expect(page.locator('.table-row').filter({ hasText: updatedName })).toContainText('附件 0');
 
   const updatedTaskRow = page.locator('.table-row').filter({ hasText: updatedName });
   await updatedTaskRow.getByTitle('删除任务').click();
@@ -80,6 +97,10 @@ test('keeps real attachment selection disabled on the public Pages build', async
   await page.getByRole('button', { name: '登记文件' }).click();
   await expect(page.getByText('公开演示版禁用真实附件')).toBeVisible();
   await expect(page.locator('.attachment-picker input[type="file"]')).toBeDisabled();
+  await page.getByTitle('关闭').click();
+  await page.getByRole('button', { name: '数据迁移' }).click();
+  await expect(page.locator('.file-drop input[type="file"]')).toBeDisabled();
+  await expect(page.getByText('公开演示版已禁用导入')).toBeVisible();
 });
 
 test('keeps private sync and AI controls absent from the public Pages view', async ({ page }) => {
@@ -112,12 +133,13 @@ test('requires a desktop bridge, local redaction preview and explicit AI confirm
   await page.getByRole('button', { name: '建立会话' }).click();
   await expect(page.getByRole('status')).toHaveText(/内网会话已建立/);
   await expect.poll(() => requests.map((request) => `${request.url}:${JSON.stringify(request.body)}`)).toContainEqual(expect.stringContaining('/v1/demo/session'));
-  await expect(page.getByRole('button', { name: '同步任务与文件' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '同步业务数据' })).toBeEnabled();
   await expect(page.getByLabel('一次性访问码')).toHaveValue('');
-  await page.getByRole('button', { name: '同步任务与文件' }).click();
+  await page.getByRole('button', { name: '同步业务数据' }).click();
   await expect(page.getByRole('status')).toHaveText(/同步完成：/);
   expect(requests.some((request) => request.url.includes('/v1/sync/tasks/pull'))).toBe(true);
   expect(requests.some((request) => request.url.includes('/v1/sync/tasks/push'))).toBe(true);
+  expect(requests.some((request) => request.url.includes('/v1/sync/weekly-reports/pull'))).toBe(true);
   await page.getByLabel('待处理材料').fill('联系人：张三，手机13812345678，邮箱a.b@example.com');
   await page.getByRole('button', { name: '生成脱敏预览' }).click();
   await expect(page.getByLabel('脱敏预览（可继续修改）')).toHaveValue('联系人：[姓名]，手机[手机号]，邮箱[邮箱]');
@@ -129,15 +151,23 @@ test('requires a desktop bridge, local redaction preview and explicit AI confirm
 });
 
 test('imports both legacy fixture formats and keeps archive records read-only', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'hxhwang', { configurable: true, value: { printPdf: async () => true } });
+  });
+  await page.reload();
   await page.getByRole('button', { name: '数据迁移' }).click();
   const importer = page.locator('input[type="file"]');
 
   await importer.setInputFiles(fixture('upgrade04.json'));
   await expect(page.getByText('任务管理系统LV08')).toBeVisible();
   await page.getByRole('button', { name: '历史档案' }).click();
-  await expect(page.getByText('旧版会议')).toBeVisible();
-  await expect(page.getByText('旧版用章')).toBeVisible();
-  await expect(page.getByText('旧版物资')).toBeVisible();
+  await expect(page.getByText('旧版会议', { exact: true })).toBeVisible();
+  await expect(page.getByText('旧版用章', { exact: true })).toBeVisible();
+  await expect(page.getByText('旧版物资', { exact: true })).toBeVisible();
+  const materialRow = page.locator('.table-row').filter({ hasText: '旧版物资' });
+  await materialRow.getByText('查看迁移原始字段').click();
+  await expect(materialRow.locator('.legacy-payload pre')).toContainText('"materialName": "旧版物资"');
+  await expect(page.getByText('work_categories', { exact: true })).toBeVisible();
   const materialDownload = page.waitForEvent('download');
   await page.getByRole('button', { name: '下载附件 物资清单.txt' }).click();
   expect((await materialDownload).suggestedFilename()).toBe('物资清单.txt');
@@ -149,9 +179,25 @@ test('imports both legacy fixture formats and keeps archive records read-only', 
   await expect(page.getByText(/无法仅凭导出包可靠区分/)).toBeVisible();
   await page.getByRole('button', { name: '历史档案' }).click();
   await expect(page.getByText('周报', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: '数据迁移' }).click();
+  const enriched = JSON.parse(readFileSync(fixture('wenxibuddy0722.json'), 'utf8')) as Record<string, unknown>;
+  enriched.wenxiSkills = [{ id: 'skill_e2e', name: '迁移 Skill 示例', content: '# 只读写作规则', legacySkillOnly: 'keep-skill' }];
+  await importer.setInputFiles({ name: 'wenxibuddy0722-with-skill.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(enriched)) });
+  await page.getByRole('button', { name: '历史档案' }).click();
+  const skill = page.locator('.legacy-setting').filter({ hasText: '迁移 Skill 示例' });
+  await expect(skill).toBeVisible();
+  await skill.locator('summary').click();
+  await expect(skill).toContainText('# 只读写作规则');
+  await expect(skill).toContainText('keep-skill');
+  expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test('exports and restores a local snapshot', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'hxhwang', { configurable: true, value: { printPdf: async () => true } });
+  });
+  await page.reload();
   const restoredTask = '推进基层治理年度工作总结';
   await page.getByRole('button', { name: '数据迁移' }).click();
   const downloadPromise = page.waitForEvent('download');
@@ -202,6 +248,39 @@ test('saves a draft, exports DOCX and delegates PDF export to the desktop bridge
   expect((await download).suggestedFilename()).toMatch(/\.docx$/);
   await page.getByRole('button', { name: '导出 PDF' }).click();
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem('e2e-pdf'))).toBe('测试会议纪要:true');
+});
+
+test('generates, edits, persists and exports a weekly report', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Weekly persistence and export are verified once.');
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'hxhwang', {
+      configurable: true,
+      value: { printPdf: async (html: string, title: string) => { window.localStorage.setItem('e2e-weekly-pdf', `${title}:${html.includes('@page')}`); return true; } }
+    });
+  });
+  await page.reload();
+  await page.getByRole('button', { name: '周报生成' }).click();
+  await page.getByLabel('开始日期').fill('2026-07-20');
+  await page.getByLabel('结束日期').fill('2026-07-28');
+  await page.getByRole('button', { name: '重新汇总' }).click();
+  await expect(page.getByLabel('周报正文')).toHaveValue(/已完成任务清单整理/);
+  await expect(page.getByLabel('周报正文')).toHaveValue(/关于做好年度重点工作的通知/);
+  await page.getByLabel('周报标题').fill('端到端测试周报');
+  await page.getByLabel('周报正文').fill(`${await page.getByLabel('周报正文').inputValue()}\n人工补充：数据均已复核。`);
+  await page.getByRole('button', { name: '保存版本' }).click();
+  await expect(page.getByRole('status')).toHaveText(/周报已保存/);
+
+  await page.reload();
+  await page.getByRole('button', { name: '周报生成' }).click();
+  await page.locator('.weekly-history-open').filter({ hasText: '端到端测试周报' }).click();
+  await expect(page.getByLabel('周报正文')).toHaveValue(/人工补充：数据均已复核/);
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出 DOCX' }).click();
+  expect((await download).suggestedFilename()).toBe('端到端测试周报.docx');
+  await page.getByRole('button', { name: '导出 PDF' }).click();
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem('e2e-weekly-pdf'))).toBe('端到端测试周报:true');
+  await page.getByTitle('删除周报 端到端测试周报').click();
+  await expect(page.getByRole('button', { name: /端到端测试周报/ })).toHaveCount(0);
 });
 
 test('keeps the application shell within the narrow viewport', async ({ page }, testInfo) => {

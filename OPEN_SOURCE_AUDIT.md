@@ -25,6 +25,7 @@
 ## 采用边界
 
 - 直接复用：Electron 打印能力、RxDB/Dexie 本地存储、Tiptap 编辑、docx 导出、Playwright 验证。
+- 周报闭环直接复用现有 RxDB 类型记录、schema migration 插件、确定性领域汇总、`docx` 与 Electron/浏览器打印能力；任务协同字段和附件操作复用现有领域模型及本地附件库，本次未新增 npm 依赖或联网行为。新增 `weekly` 类型时将 schema 升至 v1 并执行恒等迁移，保留 v0 全部记录；migration 插件使本地存储 chunk 约增加 40.6 kB（gzip 约 11.8 kB），相对避免现有用户数据库无法打开的风险可接受。
 - 仅借鉴：PouchDB/CouchDB 的复制冲突思路；实际同步保留在私有 Fastify API。
 - 不采用：Wails、Tauri 2，原因是 Debian 10 的 WebKit 依赖冲突。
 - 回滚：移除 `test:e2e` 及 Playwright 不影响生产包；本地数据可保留导出快照后替换存储适配器。

@@ -94,6 +94,19 @@ export interface Draft {
   updatedAt: string;
 }
 
+export interface WeeklyReport {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  contentText: string;
+  taskIds: string[];
+  documentIds: string[];
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ArchiveRecord {
   id: string;
   type: ArchiveType;
@@ -133,6 +146,49 @@ export interface KnowledgePack {
 export const nowIso = () => new Date().toISOString();
 
 export const createId = (prefix: string) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+const isoDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : value.slice(0, 10);
+const inRange = (value: string, startDate: string, endDate: string) => {
+  const date = isoDate(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= startDate && date <= endDate;
+};
+
+export function buildWeeklyReportSummary(tasks: Task[], documents: OfficialDocument[], startDate: string, endDate: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || startDate > endDate) {
+    throw new Error('周报起止日期无效');
+  }
+  const selectedTasks = tasks.filter((task) => {
+    const eventDates = [task.assignDate, task.deadline, task.createdAt, task.updatedAt];
+    if (eventDates.some((date) => date && inRange(date, startDate, endDate))) return true;
+    return task.status !== 'done' && (!task.assignDate || isoDate(task.assignDate) <= endDate) && (!task.deadline || isoDate(task.deadline) >= startDate);
+  });
+  const selectedDocuments = documents.filter((document) => [document.docDate, document.createdAt, document.updatedAt].some((date) => date && inRange(date, startDate, endDate)));
+  const statusLabels: Record<Status, string> = { pending: '未启动', progress: '推进中', done: '已办结', overdue: '已超期' };
+  const progressLines = selectedTasks.length
+    ? selectedTasks.map((task, index) => {
+      const detail = task.workSummary.trim().replace(/\s+/g, ' ') || `当前状态为${statusLabels[task.status]}`;
+      return `${index + 1}. ${task.name}：${detail}${/[。！？!?]$/.test(detail) ? '' : '。'}`;
+    })
+    : ['本期没有匹配日期范围的任务记录。'];
+  const documentLines = selectedDocuments.length
+    ? selectedDocuments.map((document, index) => `${index + 1}. ${document.title}${document.code ? `（${document.code}）` : ''}，${document.receiptStatus || '待登记'}。`)
+    : ['本期没有匹配日期范围的文件记录。'];
+  const pendingTasks = selectedTasks.filter((task) => task.status !== 'done');
+  const nextLines = pendingTasks.length
+    ? pendingTasks.map((task, index) => `${index + 1}. 继续推进${task.name}${task.deadline ? `，计划于${task.deadline}前完成` : ''}。`)
+    : ['按既定安排跟踪后续事项，及时补充数据和佐证材料。'];
+  const contentText = [
+    '一、总体情况',
+    `本期共跟进${selectedTasks.length}项任务，登记${selectedDocuments.length}份文件。`,
+    '二、重点进展',
+    ...progressLines,
+    '三、文件办理',
+    ...documentLines,
+    '四、下期安排',
+    ...nextLines
+  ].join('\n');
+  return { contentText, taskIds: selectedTasks.map((task) => task.id), documentIds: selectedDocuments.map((document) => document.id) };
+}
 
 export const sampleTasks: Task[] = [
   {

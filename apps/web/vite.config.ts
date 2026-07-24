@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import packageJson from './package.json' with { type: 'json' };
 
 const webCsp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'";
 const privateCsp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'";
@@ -10,7 +11,7 @@ export default defineConfig(({ mode }) => {
   const outDir = mode === 'intranet' ? 'dist-intranet' : 'dist';
   return {
   define: {
-    __APP_VERSION__: JSON.stringify('0.1.0'),
+    __APP_VERSION__: JSON.stringify(packageJson.version),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
     __PRIVATE_SERVICES__: JSON.stringify(privateServicesBuild)
   },

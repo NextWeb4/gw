@@ -21,6 +21,9 @@ test('enables private controls without contacting a service before explicit conn
   await page.getByRole('button', { name: '文件收发' }).click();
   await page.getByRole('button', { name: '登记文件' }).click();
   await expect(page.locator('.attachment-picker input[type="file"]')).toBeEnabled();
+  await page.getByTitle('关闭').click();
+  await page.getByRole('button', { name: '数据迁移' }).click();
+  await expect(page.locator('.file-drop input[type="file"]')).toBeEnabled();
   expect(unexpectedRequests).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });

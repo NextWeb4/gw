@@ -1,19 +1,22 @@
-import { createRxDatabase, type RxCollection, type RxDatabase } from 'rxdb';
+import { addRxPlugin, createRxDatabase, type RxCollection, type RxDatabase } from 'rxdb';
+import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
-import type { ArchiveRecord, Attachment, Draft, OfficialDocument, Task } from '@hxhwang/domain';
+import type { ArchiveRecord, Attachment, Draft, OfficialDocument, Task, WeeklyReport } from '@hxhwang/domain';
 import { sampleDocuments, sampleTasks } from '@hxhwang/domain';
 
-type Kind = 'task' | 'document' | 'attachment' | 'draft' | 'archive' | 'setting';
-type RecordPayload = Task | OfficialDocument | Attachment | Draft | ArchiveRecord | Record<string, unknown>;
+type Kind = 'task' | 'document' | 'attachment' | 'draft' | 'weekly' | 'archive' | 'setting';
+type RecordPayload = Task | OfficialDocument | Attachment | Draft | WeeklyReport | ArchiveRecord | Record<string, unknown>;
 interface StoredRecord { id: string; kind: Kind; payload: RecordPayload; updatedAt: string; }
 interface SnapshotRecord { id: string; kind: Kind; payload: RecordPayload; updatedAt?: string; }
-const allowedKinds = new Set<Kind>(['task', 'document', 'attachment', 'draft', 'archive', 'setting']);
+const allowedKinds = new Set<Kind>(['task', 'document', 'attachment', 'draft', 'weekly', 'archive', 'setting']);
+export const LOCAL_SCHEMA_VERSION = 1;
+addRxPlugin(RxDBMigrationSchemaPlugin);
 
 const schema = {
-  title: 'hxhwang record schema', version: 0, primaryKey: 'id', type: 'object', additionalProperties: false,
+  title: 'hxhwang record schema', version: LOCAL_SCHEMA_VERSION, primaryKey: 'id', type: 'object', additionalProperties: false,
   properties: {
     id: { type: 'string', maxLength: 180 },
-    kind: { type: 'string', enum: ['task', 'document', 'attachment', 'draft', 'archive', 'setting'] },
+    kind: { type: 'string', enum: ['task', 'document', 'attachment', 'draft', 'weekly', 'archive', 'setting'] },
     payload: { type: 'object', additionalProperties: true },
     updatedAt: { type: 'string', maxLength: 50 }
   }, required: ['id', 'kind', 'payload', 'updatedAt']
@@ -27,7 +30,8 @@ const databaseGlobal = globalThis as DatabaseGlobal;
 async function getDb() {
   const database = databaseGlobal.__hxhwangLocalDatabase ??= createRxDatabase<LocalCollections>({ name: 'hxhwang_gw_local', storage: getRxStorageDexie(), multiInstance: false })
       .then(async (database) => {
-        await database.addCollections({ records: { schema } });
+        await database.addCollections({ records: { schema, migrationStrategies: { 1: (document: StoredRecord) => document } } });
+        await database.records.migratePromise();
         return database;
       });
   const db = await database;
@@ -115,7 +119,7 @@ export function parseLocalSnapshot(snapshot: unknown): { records: SnapshotRecord
 export async function importLocalSnapshot(snapshot: unknown): Promise<{ imported: number; byKind: Record<Kind, number>; warnings: string[] }> {
   const { records, warnings } = parseLocalSnapshot(snapshot);
   let imported = 0;
-  const byKind: Record<Kind, number> = { task: 0, document: 0, attachment: 0, draft: 0, archive: 0, setting: 0 };
+  const byKind: Record<Kind, number> = { task: 0, document: 0, attachment: 0, draft: 0, weekly: 0, archive: 0, setting: 0 };
   for (const record of records) {
     await putRecord(record.kind, record.id, record.payload);
     imported++;
