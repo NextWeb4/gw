@@ -36,7 +36,7 @@
 当前验证证据与未完成的平台环境项见 [`docs/VERIFICATION_MATRIX.md`](./docs/VERIFICATION_MATRIX.md)。
 使用和数据边界见 [`docs/HELP.md`](./docs/HELP.md)，版本交付状态见 [`RELEASE_NOTES.md`](./RELEASE_NOTES.md)。
 
-当前 Windows x64/arm64 安装包已在本机完成构建，x64 解包版已完成启动冒烟；arm64 实机、Debian 10/12 四组合、真实 PostgreSQL、GitHub Pages 正式部署和 Authenticode 签名仍是明确的外部验证项，不应标记为已完成。
+当前 Windows x64/arm64 安装包已在本机完成构建，x64 解包版已完成启动冒烟；[GitHub Pages 演示版](https://nextweb4.github.io/hxhwang-gw/) 已由 Actions 正式部署，私有服务端的 PostgreSQL 16 CI 已通过。arm64 实机、Debian 10/12 四组合和 Authenticode 签名仍是明确的外部验证项，不应标记为已完成。
 
 ## 托管边界
 
