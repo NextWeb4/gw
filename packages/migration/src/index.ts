@@ -77,11 +77,11 @@ function documentFromLegacy(raw: RawRecord, version: string): OfficialDocument {
   };
 }
 
-function archiveFromLegacy(type: ArchiveRecord['type'], raw: RawRecord, version: string): ArchiveRecord {
-  const title = text(raw.subject) || text(raw.docName) || text(raw.name) || text(raw.title) || '历史记录';
-  const date = text(raw.meetingTime) || text(raw.researchTime) || text(raw.sealTime) || text(raw.createdAt);
+function archiveFromLegacy(type: ArchiveRecord['type'], raw: RawRecord, version: string, extraFiles: string[] = []): ArchiveRecord {
+  const title = text(raw.subject) || text(raw.docName) || text(raw.materialName) || text(raw.name) || text(raw.title) || '历史记录';
+  const date = text(raw.meetingTime) || text(raw.researchTime) || text(raw.sealTime) || text(raw.handlerTime) || text(raw.createdAt);
   const summary = text(raw.remark) || text(raw.summary) || text(raw.achievements);
-  const files = list(raw.files).concat(list(raw.photos));
+  const files = [...new Set([...list(raw.files), ...list(raw.photos), ...extraFiles])];
   return { id: `${type}_${text(raw.id) || createId('legacy')}`, type, title, date, summary, sourceVersion: version, legacyPayload: raw, files, createdAt: text(raw.createdAt) || nowIso() };
 }
 
@@ -105,16 +105,21 @@ async function attachmentFromLegacy(raw: RawRecord): Promise<Attachment> {
   return {
     id,
     name: text(raw.name) || `附件-${id}`,
-    mimeType: text(raw.type) || text(raw.mimeType) || dataUrl?.[1] || 'application/octet-stream',
-    size: Number(raw.size) || decodedSize,
+    mimeType: dataUrl?.[1] || text(raw.mimeType) || (text(raw.type).includes('/') ? text(raw.type) : '') || 'application/octet-stream',
+    size: decodedSize ?? (Number(raw.size) || 0),
     data,
     sha256: await sha256Base64(data),
     createdAt: text(raw.createdAt) || text(raw.uploadedAt) || nowIso()
   };
 }
 
+function inlineMaterialAttachmentId(material: RawRecord, materialIndex: number, attachmentIndex: number) {
+  const materialId = (text(material.id) || String(materialIndex)).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+  return `material_inline_${materialId}_${attachmentIndex}`;
+}
+
 function base64ByteLength(data: string) {
-  try { return atob(data).length; } catch { return 0; }
+  try { return atob(data).length; } catch { return undefined; }
 }
 
 async function sha256Base64(data: string) {
@@ -137,7 +142,16 @@ export async function migrateLegacyExport(raw: unknown): Promise<MigrationBundle
   const meetings = parseStored(values, 'work_meetings_data').map((record) => archiveFromLegacy('meeting', record, version));
   const researches = parseStored(values, 'work_researches_data').map((record) => archiveFromLegacy('research', record, version));
   const seals = parseStored(values, 'work_seals_data').map((record) => archiveFromLegacy('seal', record, version));
-  const materials = parseStored(values, 'work_materials_data').map((record) => archiveFromLegacy('material', record, version));
+  const materialRecords = parseStored(values, 'work_materials_data');
+  const inlineMaterialRecords: RawRecord[] = [];
+  const materials = materialRecords.map((record, materialIndex) => {
+    const inlineIds = records(record.attachments).map((attachment, attachmentIndex) => {
+      const id = text(attachment.id) || inlineMaterialAttachmentId(record, materialIndex, attachmentIndex);
+      inlineMaterialRecords.push({ ...attachment, id, createdAt: text(attachment.createdAt) || text(record.createdAt) });
+      return id;
+    });
+    return archiveFromLegacy('material', record, version, inlineIds);
+  });
   const weekly = parseStored(values, 'work_weekly_data').map((record) => archiveFromLegacy('weekly', record, version));
   const archives: ArchiveRecord[] = [...meetings, ...researches, ...seals, ...materials, ...weekly];
   const skillRecords = parseStored(values, 'wenxi_skills');
@@ -152,11 +166,25 @@ export async function migrateLegacyExport(raw: unknown): Promise<MigrationBundle
   if (version.includes('未区分')) warnings.push('历史两版导出器使用相同 sourceApp/version，无法仅凭导出包可靠区分升级版04与 WenXiBuddy 0722。');
   if (!skills.length) warnings.push('导出包未包含 Skill；历史导出器默认只收集 work_/attach_ 前缀，如原系统存在 Skill 需另行补充 wenxi_skills。');
   if (!files.length) warnings.push('未发现 IndexedDB 附件；正文数据已导入。');
-  const attachments = await Promise.all(files.map(attachmentFromLegacy));
+  const migratedAttachments = await Promise.all([...files, ...inlineMaterialRecords].map(attachmentFromLegacy));
+  const attachmentById = new Map<string, Attachment>();
+  for (const attachment of migratedAttachments) {
+    if (attachmentById.has(attachment.id)) { warnings.push(`附件 ID 重复，已保留首条记录：${attachment.id}`); continue; }
+    attachmentById.set(attachment.id, attachment);
+  }
+  const attachments = [...attachmentById.values()];
+  const referencedAttachmentIds = new Set([
+    ...tasks.flatMap((task) => task.files),
+    ...documents.flatMap((document) => document.files),
+    ...archives.flatMap((archive) => archive.files)
+  ]);
+  const missingAttachmentIds = [...referencedAttachmentIds].filter((id) => !attachmentById.has(id));
+  if (missingAttachmentIds.length) warnings.push(`${missingAttachmentIds.length} 个附件引用未包含在导出包中：${missingAttachmentIds.slice(0, 10).join('、')}`);
   const invalidAttachments = attachments.filter((attachment) => !attachment.sha256).length;
+  if (inlineMaterialRecords.length) warnings.push(`已从物资记录迁移 ${inlineMaterialRecords.length} 个内嵌附件。`);
   if (invalidAttachments) warnings.push(`${invalidAttachments} 个附件的数据不是有效 Base64，已保留原始字段但无法生成内容哈希。`);
   return {
     tasks, documents, archives, attachments, skills, settings,
-    report: { sourceVersion: version, imported: { tasks: tasks.length, meetings: meetings.length, documents: documents.length, researches: researches.length, seals: seals.length, materials: materials.length, weekly: weekly.length, skills: skills.length, settings: settings.length }, attachments: files.length, warnings }
+    report: { sourceVersion: version, imported: { tasks: tasks.length, meetings: meetings.length, documents: documents.length, researches: researches.length, seals: seals.length, materials: materials.length, weekly: weekly.length, skills: skills.length, settings: settings.length }, attachments: attachments.length, warnings }
   };
 }

@@ -48,6 +48,8 @@ export async function getRecord<T extends RecordPayload>(id: string): Promise<T 
 
 export async function putRecord<T extends RecordPayload>(kind: Kind, id: string, payload: T): Promise<void> {
   const collection = await getDb();
+  const existing = await collection.findOne(id).exec();
+  if (existing && existing.kind !== kind) throw new Error(`记录 ID ${id} 已被 ${existing.kind} 类型占用，拒绝覆盖为 ${kind}`);
   await collection.upsert({ id, kind, payload, updatedAt: new Date().toISOString() });
 }
 
@@ -91,13 +93,21 @@ export function parseLocalSnapshot(snapshot: unknown): { records: SnapshotRecord
   if (rawSnapshot.records.length > 50_000) throw new Error('本地快照记录数超过 50000 条限制');
 
   const records: SnapshotRecord[] = [];
+  const seenKinds = new Map<string, Kind>();
   for (const entry of rawSnapshot.records) {
     if (!entry || typeof entry !== 'object') { warnings.push('跳过非对象记录'); continue; }
     const record = entry as { id?: unknown; kind?: unknown; payload?: unknown; updatedAt?: unknown };
     if (typeof record.id !== 'string' || !record.id || record.id.length > 180) { warnings.push('跳过无效 id 的记录'); continue; }
     if (typeof record.kind !== 'string' || !allowedKinds.has(record.kind as Kind)) { warnings.push(`跳过未知类型记录：${record.id}`); continue; }
     if (!record.payload || typeof record.payload !== 'object' || Array.isArray(record.payload)) { warnings.push(`跳过无效 payload：${record.id}`); continue; }
-    records.push({ id: record.id, kind: record.kind as Kind, payload: record.payload as RecordPayload, updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : undefined });
+    const kind = record.kind as Kind;
+    const seenKind = seenKinds.get(record.id);
+    if (seenKind) {
+      warnings.push(seenKind === kind ? `跳过重复记录 ID：${record.id}` : `跳过跨类型 ID 冲突：${record.id}（${seenKind}/${kind}）`);
+      continue;
+    }
+    seenKinds.set(record.id, kind);
+    records.push({ id: record.id, kind, payload: record.payload as RecordPayload, updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : undefined });
   }
   return { records, warnings };
 }

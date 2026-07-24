@@ -31,7 +31,9 @@
 
 ## 6. 模块边界
 - React 页面只能调用领域命令和数据适配接口，不得直连 IndexedDB、Electron IPC 或私有 API。
+- 私有同步客户端必须拒绝 URL 内嵌凭据并禁止自动重定向，避免会话头离开用户明确配置的基址。
 - Electron renderer 必须保持 sandbox；文件和 PDF 操作只能经 preload 的白名单接口。
+- 打包后的 Electron 禁止读取 `HXHWANG_WEB_URL`；未打包开发模式也只允许本机 HTTP 地址。
 - Pages 演示模式只能使用本地样例适配器，不能请求私有 API。
 - Pages 与内网 E2E 可以并行运行，但必须分别预览 `dist/` 与 `dist-intranet/`；禁止重新合并输出目录。
 - `scripts/content-sync-policy.mjs` 是允许清单抓取的安全边界；非政府来源必须精确匹配授权记录中的 `authorizedSourceUrls` 且 `allowAutomatedRetrieval=true`。同步器只能修改 `content/generated/`，不得自动覆盖人工规则、模板或授权资料。
@@ -62,4 +64,7 @@
 - 旧数据包含 localStorage、IndexedDB 和多版 schema，不能仅按 ID 去重。
 - 两份历史 HTML 的导出器都写入 `sourceApp=任务管理系统LV08`、`version=X05-v1`，且默认不导出 `wenxi_skills`；迁移器不得伪造精确来源版本，缺失 Skill 必须给出报告警告。
 - 历史 IndexedDB 附件使用 Data URL，导入时必须剥离媒体头、按解码字节计算哈希，并汇总任务阶段、配合单位、产出资料和阶段历史中的附件引用。
+- 物资历史记录的 `attachments` 是内嵌 Data URL，不在 IndexedDB；迁移时必须生成稳定附件 ID、计算哈希并回填只读档案引用。
+- 迁移报告必须披露重复附件 ID 和悬空附件引用；附件统计使用去重后的实际记录数。
+- RxDB 单表以原始 `id` 为主键；跨业务类型同 ID 必须在写入或快照解析阶段明确拒绝，禁止通过 `upsert` 静默改写记录类型。
 - `electron-builder` 在 Windows 上交叉执行 Linux 目标会因 `mksquashfs` 或 `fpm` 缺失失败；正式 Linux 产物以 Ubuntu Actions 输出为准。

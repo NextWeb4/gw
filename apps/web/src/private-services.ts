@@ -64,7 +64,7 @@ async function syncCollection<T extends { id: string; updatedAt: string }>(
   return { pulled, pushed: rows.length - pushed.conflicts.length, conflicts: pushed.conflicts.length, remoteDocuments };
 }
 
-const toTransfer = (attachment: Attachment): AttachmentTransfer | undefined => attachment.data && attachment.sha256 ? {
+const toTransfer = (attachment: Attachment): AttachmentTransfer | undefined => attachment.data !== undefined && attachment.sha256 ? {
   id: attachment.id,
   name: attachment.name,
   mimeType: attachment.mimeType,

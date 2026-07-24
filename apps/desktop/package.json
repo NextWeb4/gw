@@ -14,10 +14,10 @@
   },
   "license": "UNLICENSED",
   "scripts": {
-    "build": "node --check electron/main.mjs && node --check electron/preload.mjs",
-    "test": "node --check electron/main.mjs && node --check electron/preload.mjs",
-    "lint": "node --check electron/main.mjs && node --check electron/preload.mjs",
-    "format:check": "node --check electron/main.mjs && node --check electron/preload.mjs",
+    "build": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs",
+    "test": "node --test test/security.test.mjs",
+    "lint": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs && node --check test/security.test.mjs",
+    "format:check": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs && node --check test/security.test.mjs",
     "package": "electron-builder"
   },
   "devDependencies": {

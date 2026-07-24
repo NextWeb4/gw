@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
   expect(consoleErrors).toEqual([]);
 });
 
-test('loads the offline demo without third-party or private API traffic', async ({ page }) => {
+test('loads the offline demo without third-party or private API traffic', async ({ page }, testInfo) => {
   const unexpectedRequests: string[] = [];
   const pageOrigin = new URL(page.url()).origin;
   page.on('request', (request) => {
@@ -22,6 +22,7 @@ test('loads the offline demo without third-party or private API traffic', async 
   await page.reload();
   await expect(page.getByText('推进基层治理年度工作总结')).toBeVisible();
   await expect(page.getByText('整理上级来文并建立关联')).toBeVisible();
+  if (testInfo.project.name === 'chromium') await expect(page.getByText('数据仅保存在本机')).toBeVisible();
   await expect(page.getByText('Rays688888@Gmail.com').last()).toBeVisible();
   expect(unexpectedRequests).toEqual([]);
 });
@@ -104,6 +105,7 @@ test('requires a desktop bridge, local redaction preview and explicit AI confirm
     return route.abort();
   });
   await page.reload();
+  await expect(page.getByText('本机存储 · 同步需手动触发')).toBeVisible();
   await page.getByRole('button', { name: '关于与设置' }).click();
   await page.getByLabel('私有 API 地址').fill(new URL(page.url()).origin);
   await page.getByLabel('一次性访问码').fill('long-access-code');
@@ -135,7 +137,11 @@ test('imports both legacy fixture formats and keeps archive records read-only', 
   await page.getByRole('button', { name: '历史档案' }).click();
   await expect(page.getByText('旧版会议')).toBeVisible();
   await expect(page.getByText('旧版用章')).toBeVisible();
-  await expect(page.locator('.archive-columns [title]')).toHaveCount(0);
+  await expect(page.getByText('旧版物资')).toBeVisible();
+  const materialDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: '下载附件 物资清单.txt' }).click();
+  expect((await materialDownload).suggestedFilename()).toBe('物资清单.txt');
+  await expect(page.locator('.archive-columns button:not([aria-label^="下载附件"])')).toHaveCount(0);
 
   await page.getByRole('button', { name: '数据迁移' }).click();
   await importer.setInputFiles(fixture('wenxibuddy0722.json'));
@@ -180,16 +186,22 @@ test('saves a draft, exports DOCX and delegates PDF export to the desktop bridge
   await expect(page.getByText('严重程度：确定性规则')).toBeVisible();
   await page.getByLabel('搜索写作模板').fill('会议纪要');
   await page.getByRole('button', { name: '会议纪要（一事一议）' }).click();
+  await expect(page.getByLabel('文稿标题')).toHaveValue('会议纪要');
+  await page.getByLabel('文稿标题').fill('测试会议纪要');
   await expect(page.locator('.ProseMirror')).toContainText('审议通过事项');
   await expect(page.getByText('授权教材建议').first()).toBeVisible();
   await page.getByRole('button', { name: '保存版本' }).click();
   await expect(page.getByText('文稿版本已保存')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: '公文写作' }).click();
+  await expect(page.getByLabel('文稿标题')).toHaveValue('测试会议纪要');
+  await expect(page.locator('.ProseMirror')).toContainText('审议通过事项');
 
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: '导出 DOCX' }).click();
   expect((await download).suggestedFilename()).toMatch(/\.docx$/);
   await page.getByRole('button', { name: '导出 PDF' }).click();
-  await expect.poll(() => page.evaluate(() => window.localStorage.getItem('e2e-pdf'))).toContain(':true');
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem('e2e-pdf'))).toBe('测试会议纪要:true');
 });
 
 test('keeps the application shell within the narrow viewport', async ({ page }, testInfo) => {

@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveDevelopmentUrl } from './security.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow;
@@ -36,7 +37,7 @@ async function createWindow() {
       webSecurity: true
     }
   });
-  const devUrl = process.env.HXHWANG_WEB_URL;
+  const devUrl = resolveDevelopmentUrl(process.env.HXHWANG_WEB_URL, app.isPackaged);
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     const trusted = trustedExternalUrl(url);
     if (trusted) void shell.openExternal(trusted);

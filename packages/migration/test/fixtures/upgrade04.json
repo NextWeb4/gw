@@ -6,7 +6,7 @@
     "work_meetings_data": "[{\"id\":\"meeting_old\",\"subject\":\"旧版会议\",\"meetingTime\":\"2026-07-01\"}]",
     "work_researches_data": "[{\"id\":\"research_old\",\"subject\":\"旧版调研\",\"researchTime\":\"2026-07-02\"}]",
     "work_seals_data": "[{\"id\":\"seal_old\",\"docName\":\"旧版用章\",\"sealTime\":\"2026-07-03\"}]",
-    "work_materials_data": "[{\"id\":\"material_old\",\"name\":\"旧版物资\",\"createdAt\":\"2026-07-04\"}]",
+    "work_materials_data": "[{\"id\":\"material_old\",\"materialName\":\"旧版物资\",\"handlerTime\":\"2026-07-04\",\"createdAt\":\"2026-07-04T00:00:00.000Z\",\"attachments\":[{\"data\":\"data:text/plain;base64,aW5saW5l\",\"name\":\"物资清单.txt\",\"type\":\"other\",\"size\":6}]}]",
     "work_categories": "[\"重点项目\",\"日常工作\"]"
   },
   "indexedDBFiles": [{ "id": "att_old", "name": "证明材料.txt", "type": "text/plain", "size": 3, "data": "data:text/plain;base64,YWJj", "uploadedAt": "2026-07-01T01:00:00.000Z" }]

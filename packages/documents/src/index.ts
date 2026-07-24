@@ -12,8 +12,14 @@ export const htmlToText = (html: string) => {
 
 export const splitDraftLines = (text: string) => text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 
-export async function exportDraftDocx(draft: Draft): Promise<Blob> {
+export const draftBodyLines = (draft: Draft) => {
   const lines = splitDraftLines(draft.contentText);
+  const first = lines[0];
+  return first && (first === draft.title.trim() || first === '标题') ? lines.slice(1) : lines;
+};
+
+export async function exportDraftDocx(draft: Draft): Promise<Blob> {
+  const lines = draftBodyLines(draft);
   const children = [
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -51,7 +57,7 @@ export function downloadBlob(blob: Blob, fileName: string) {
 
 export function buildPrintableDocument(draft: Draft) {
   const title = escapeHtml(draft.title || '未命名文稿');
-  const paragraphs = splitDraftLines(draft.contentText).map((line) => {
+  const paragraphs = draftBodyLines(draft).map((line) => {
     const className = /^[一二三四五六七八九十]+、/.test(line) ? 'print-h1' : /^（[一二三四五六七八九十]+）/.test(line) ? 'print-h2' : 'print-p';
     return `<p class="${className}">${escapeHtml(line)}</p>`;
   }).join('');

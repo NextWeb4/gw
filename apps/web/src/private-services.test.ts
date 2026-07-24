@@ -9,20 +9,22 @@ describe('private workspace sync', () => {
     const remoteTask: Task & SyncRecord = { ...localTask, name: '服务端较新任务', updatedAt: '2026-07-23T02:00:00.000Z' };
     const draft: Draft = { id: 'draft-sync', title: '待同步文稿', documentType: '报告', contentHtml: '<p>正文</p>', contentText: '正文', templateId: 'work-summary', version: 1, updatedAt: '2026-07-23T03:00:00.000Z' };
     const attachment: Attachment = { id: 'attachment-sync', name: 'evidence.txt', mimeType: 'text/plain', size: 3, data: 'YWJj', sha256: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad', createdAt: '2026-07-23T01:00:00.000Z' };
+    const emptyAttachment: Attachment = { id: 'attachment-empty', name: 'empty.txt', mimeType: 'text/plain', size: 0, data: '', sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', createdAt: '2026-07-23T01:00:00.000Z' };
     const pull = vi.fn(async (collection: string) => ({ documents: collection === 'tasks' ? [remoteTask] : [], checkpoint: null }));
     const push = vi.fn(async (_collection: string, _rows: unknown[]) => ({ conflicts: [] }));
     const putAttachment = vi.fn(async (value: unknown) => value);
     const writeRecord = vi.fn(async (_kind: string, _id: string, _payload: object) => {});
     const client = { pull, push, putAttachment, getAttachment: vi.fn() } as unknown as PrivateSyncClient;
 
-    const result = await syncPrivateWorkspace(client, { tasks: [localTask], documents: [], drafts: [draft], attachments: [attachment] }, writeRecord);
+    const result = await syncPrivateWorkspace(client, { tasks: [localTask], documents: [], drafts: [draft], attachments: [attachment, emptyAttachment] }, writeRecord);
 
     expect(writeRecord).toHaveBeenCalledWith('task', localTask.id, expect.objectContaining({ name: '服务端较新任务', updatedAt: remoteTask.updatedAt }));
     expect(push).toHaveBeenCalledTimes(1);
     expect(push.mock.calls[0]?.[0]).toBe('drafts');
     expect(push.mock.calls[0]?.[1]?.[0]).toMatchObject({ newDocumentState: { id: draft.id }, assumedMasterState: null });
     expect(putAttachment).toHaveBeenCalledWith(expect.objectContaining({ id: attachment.id, dataBase64: 'YWJj' }));
-    expect(result).toMatchObject({ pulled: 1, pushed: 1, conflicts: 0, attachmentsUploaded: 1 });
+    expect(putAttachment).toHaveBeenCalledWith(expect.objectContaining({ id: emptyAttachment.id, dataBase64: '', size: 0 }));
+    expect(result).toMatchObject({ pulled: 1, pushed: 1, conflicts: 0, attachmentsUploaded: 2 });
   });
 
   it('pushes a newer local state with the exact remote master assumption', async () => {

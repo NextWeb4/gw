@@ -17,13 +17,14 @@ export class PrivateSyncClient {
   constructor(options: SyncClientOptions) {
     const baseUrl = new URL(options.baseUrl);
     if (baseUrl.protocol !== 'https:' && !(baseUrl.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(baseUrl.hostname))) throw new Error('同步地址必须使用 HTTPS，或仅允许本机 HTTP');
+    if (baseUrl.username || baseUrl.password) throw new Error('同步地址不得包含凭据');
     this.baseUrl = new URL(baseUrl.href.endsWith('/') ? baseUrl.href : `${baseUrl.href}/`);
     this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
     this.sessionToken = options.sessionToken;
   }
 
   async createSession(accessCode: string) {
-    const response = await this.fetcher(new URL('v1/demo/session', this.baseUrl), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ accessCode }) });
+    const response = await this.fetcher(new URL('v1/demo/session', this.baseUrl), { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ accessCode }) });
     if (!response.ok) throw new Error(`同步会话创建失败：${response.status}`);
     const payload = await response.json() as { token?: string; expiresIn?: number; warning?: string };
     if (!payload.token) throw new Error('同步服务未返回会话令牌');
@@ -49,14 +50,14 @@ export class PrivateSyncClient {
 
   async getAttachment(id: string) {
     if (!this.sessionToken) throw new Error('同步会话尚未建立');
-    const response = await this.fetcher(new URL(`v1/attachments/${encodeURIComponent(id)}`, this.baseUrl), { headers: { 'x-demo-session': this.sessionToken } });
+    const response = await this.fetcher(new URL(`v1/attachments/${encodeURIComponent(id)}`, this.baseUrl), { redirect: 'error', headers: { 'x-demo-session': this.sessionToken } });
     if (!response.ok) throw new Error(`同步请求失败：${response.status}`);
     return await response.json() as Required<AttachmentTransfer>;
   }
 
   private async request<T>(path: string, body: unknown): Promise<T> {
     if (!this.sessionToken) throw new Error('同步会话尚未建立');
-    const response = await this.fetcher(new URL(path, this.baseUrl), { method: 'POST', headers: { 'content-type': 'application/json', 'x-demo-session': this.sessionToken }, body: JSON.stringify(body) });
+    const response = await this.fetcher(new URL(path, this.baseUrl), { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json', 'x-demo-session': this.sessionToken }, body: JSON.stringify(body) });
     if (!response.ok) throw new Error(`同步请求失败：${response.status}`);
     return await response.json() as T;
   }

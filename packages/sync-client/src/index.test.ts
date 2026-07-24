@@ -10,6 +10,7 @@ describe('private sync client', () => {
   it('requires safe base URLs and an explicit session', async () => {
     expect(() => new PrivateSyncClient({ baseUrl: 'https://sync.example.test' })).not.toThrow();
     expect(() => new PrivateSyncClient({ baseUrl: 'http://sync.example.test' })).toThrow(/HTTPS/);
+    expect(() => new PrivateSyncClient({ baseUrl: 'https://user:pass@sync.example.test' })).toThrow(/不得包含凭据/);
     const client = new PrivateSyncClient({ baseUrl: 'https://sync.example.test' });
     await expect(client.pull('tasks')).rejects.toThrow('同步会话尚未建立');
   });
@@ -38,7 +39,8 @@ describe('private sync client', () => {
     await client.createSession('long-access-code');
     const response = await client.push('tasks', [{ newDocumentState: { id: 'task-1', updatedAt: 'later' }, assumedMasterState: null }]);
     expect(response.conflicts[0]?.title).toBe('master');
-    expect(fetcher.mock.calls[1]?.[1]).toMatchObject({ headers: { 'x-demo-session': 'session-token' } });
+    expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ redirect: 'error' });
+    expect(fetcher.mock.calls[1]?.[1]).toMatchObject({ redirect: 'error', headers: { 'x-demo-session': 'session-token' } });
   });
 
   it('only sends AI content after the caller supplies the explicit redaction confirmation contract', async () => {
@@ -62,6 +64,6 @@ describe('private sync client', () => {
     await client.createSession('long-access-code');
     await expect(client.putAttachment(attachment)).resolves.toEqual(attachment);
     await expect(client.getAttachment(attachment.id)).resolves.toEqual(attachment);
-    expect(fetcher.mock.calls[2]?.[1]).toMatchObject({ headers: { 'x-demo-session': 'session-token' } });
+    expect(fetcher.mock.calls[2]?.[1]).toMatchObject({ redirect: 'error', headers: { 'x-demo-session': 'session-token' } });
   });
 });

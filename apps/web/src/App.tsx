@@ -17,7 +17,7 @@ import {
 import { migrateLegacyExport, type MigrationBundle } from '@hxhwang/migration';
 import type { PrivateSyncClient } from '@hxhwang/sync-client';
 import { redactSensitiveContent } from '@hxhwang/sync-client/redaction';
-import { buildPrintableDocument, downloadBlob, exportDraftDocx } from '@hxhwang/documents';
+import { buildPrintableDocument, downloadBlob, draftBodyLines, exportDraftDocx } from '@hxhwang/documents';
 import knowledgePack from '../../../content/generated/knowledge-pack.json';
 import { syncPrivateWorkspace } from './private-services';
 
@@ -133,7 +133,7 @@ function App() {
     if (tab === 'documents') return <DocumentView documents={filteredDocuments} search={search} setSearch={setSearch} attachments={attachments} canAttach={privateServicesEnabled} onNew={() => setDocumentEditor(emptyDocument())} onEdit={setDocumentEditor} onDelete={deleteDocument} />;
     if (tab === 'writing') return <WritingStudio draft={draft} setDraft={setDraft} setToast={setToast} />;
     if (tab === 'weekly') return <WeeklyView tasks={tasks} documents={documents} />;
-    if (tab === 'archive') return <ArchiveView archives={archives} />;
+    if (tab === 'archive') return <ArchiveView archives={archives} attachments={attachments} />;
     if (tab === 'migration') return <MigrationView onImport={importLegacy} onRestore={restoreSnapshot} onReload={reload} setToast={setToast} />;
     return <AboutView desktop={isDesktop} privateServices={privateServicesEnabled} tasks={tasks} documents={documents} attachments={attachments} draft={draft} onReload={reload} setToast={setToast} />;
   };
@@ -148,7 +148,7 @@ function App() {
       <div className="sidebar-bottom"><button aria-label="关于与设置" className="nav-button" onClick={() => setTab('about')}><Info size={17} /><span>关于与设置</span></button><div className="sidebar-credit">© HaoXiangHwang<br /><a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a></div></div>
     </aside>
     <main className="main-area">
-      <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="breadcrumbs">工作台 <span>/</span> {navItems.find((item) => item.id === tab)?.label ?? '关于'}</div><div className="topbar-actions"><span className="connection"><CloudOff size={15} /> 数据仅保存在本机</span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
+      <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="breadcrumbs">工作台 <span>/</span> {navItems.find((item) => item.id === tab)?.label ?? '关于'}</div><div className="topbar-actions"><span className="connection">{privateServicesEnabled ? <ShieldCheck size={15} /> : <CloudOff size={15} />} {privateServicesEnabled ? '本机存储 · 同步需手动触发' : '数据仅保存在本机'}</span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
       <div className="content-wrap">{renderContent()}</div>
       <footer className="page-footer">© HaoXiangHwang · <a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a> · <a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer">nextweb4.github.io</a></footer>
     </main>
@@ -204,18 +204,18 @@ function AttachmentHint({ count, canAttach }: { count: number; canAttach: boolea
 function bytesToBase64(bytes: Uint8Array) { let binary = ''; for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000)); return btoa(binary); }
 function formatBytes(size: number) { if (size < 1024) return `${size} B`; if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`; return `${(size / 1024 / 1024).toFixed(1)} MB`; }
 
-function WritingStudio({ draft, setDraft, setToast }: { draft: Draft; setDraft: (draft: Draft) => void; setToast: (text: string) => void }) {
+function WritingStudio({ draft, setDraft, setToast }: { draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>; setToast: (text: string) => void }) {
   const pack = knowledgePack as KnowledgePack;
   const templates = pack.templates as WritingTemplate[];
   const [templateQuery, setTemplateQuery] = useState('');
-  const editor = useEditor({ extensions: [StarterKit, Placeholder.configure({ placeholder: '从标题或第一段开始，把事实、数据和动作写下来……' })], content: draft.contentHtml || `<h1>${draft.title}</h1><p>一、基本情况</p><p>围绕年度重点工作，系统梳理工作进展、主要做法和实际成效。</p><p>二、主要做法</p><p>坚持目标导向，细化任务清单，明确责任分工和完成时限。</p><p>三、下一步安排</p><p>持续跟踪重点事项，及时补充数据和佐证材料。</p>`, onUpdate: ({ editor: current }) => setDraft({ ...draft, contentHtml: current.getHTML(), contentText: current.getText(), updatedAt: nowIso() }) });
-  useEffect(() => { if (editor && draft.contentHtml && editor.getHTML() !== draft.contentHtml) editor.commands.setContent(draft.contentHtml); }, [editor]);
+  const editor = useEditor({ extensions: [StarterKit, Placeholder.configure({ placeholder: '从第一段开始，把事实、数据和动作写下来……' })], content: draft.contentHtml || `<p>一、基本情况</p><p>围绕年度重点工作，系统梳理工作进展、主要做法和实际成效。</p><p>二、主要做法</p><p>坚持目标导向，细化任务清单，明确责任分工和完成时限。</p><p>三、下一步安排</p><p>持续跟踪重点事项，及时补充数据和佐证材料。</p>`, onUpdate: ({ editor: current }) => setDraft((currentDraft) => ({ ...currentDraft, contentHtml: current.getHTML(), contentText: current.getText(), updatedAt: nowIso() })) });
+  useEffect(() => { if (editor && draft.contentHtml && editor.getHTML() !== draft.contentHtml) editor.commands.setContent(draft.contentHtml); }, [editor, draft.contentHtml]);
   const selectedTemplate = templates.find((template) => template.id === draft.templateId) || templates[0];
   const lines = (draft.contentText || editor?.getText() || '').split(/\r?\n/).filter(Boolean);
   const longLines = lines.filter((line) => line.length > 45);
   const visibleTemplates = templates.filter((template) => `${template.name} ${template.documentType}`.toLowerCase().includes(templateQuery.trim().toLowerCase()));
   const saveDraft = async () => { const next = { ...draft, contentHtml: editor?.getHTML() || draft.contentHtml, contentText: editor?.getText() || draft.contentText, updatedAt: nowIso(), version: draft.version + 1 }; await putRecord('draft', next.id, next); setDraft(next); setToast('文稿版本已保存'); };
-  const applyTemplate = (template: WritingTemplate) => { const content = template.outline.map((item, index) => `${index === 0 ? '' : `${['一', '二', '三', '四', '五'][index - 1] || index}、`}${item}`).join('\n'); editor?.commands.setContent(content.split('\n').map((line) => `<p>${line}</p>`).join('')); setDraft({ ...draft, title: template.name, documentType: template.documentType, templateId: template.id, contentText: content }); };
+  const applyTemplate = (template: WritingTemplate) => { const [outlineTitle, ...outlineBody] = template.outline; const title = outlineTitle && outlineTitle !== '标题' ? outlineTitle : template.name; const content = outlineBody.map((item, index) => `${['一', '二', '三', '四', '五'][index] || index + 1}、${item}`).join('\n'); const contentHtml = content.split('\n').map((line) => `<p>${line}</p>`).join(''); editor?.commands.setContent(contentHtml); setDraft((currentDraft) => ({ ...currentDraft, title, documentType: template.documentType, templateId: template.id, contentHtml, contentText: content })); };
   const downloadWord = async () => { const next = { ...draft, contentText: editor?.getText() || draft.contentText, contentHtml: editor?.getHTML() || draft.contentHtml }; downloadBlob(await exportDraftDocx(next), `${next.title || '公文文稿'}.docx`); setToast('DOCX 已生成'); };
   const downloadPdf = async () => { const next = { ...draft, contentText: editor?.getText() || draft.contentText, contentHtml: editor?.getHTML() || draft.contentHtml }; const printable = buildPrintableDocument(next); const handled = await (window as HxWindow).hxhwang?.printPdf(printable, next.title || '公文文稿'); if (!handled) { document.body.classList.add('printing-draft'); window.print(); window.setTimeout(() => document.body.classList.remove('printing-draft'), 500); } };
   const sourceLabel = (sourceId: string) => { const source = pack.sources.find((item) => item.id === sourceId); const kinds: Record<string, string> = { 'official-standard': '官方规范', 'unit-template': '单位模板', 'licensed-material': '授权教材建议' }; return { title: source?.title || sourceId, kind: kinds[source?.kind || ''] || source?.kind || '未知来源', version: source?.version || '未标版本' }; };
@@ -245,7 +245,7 @@ function WritingStudio({ draft, setDraft, setToast }: { draft: Draft; setDraft: 
       </aside>
       <section className="editor-panel panel">
         <div className="editor-toolbar"><div className="editor-mode"><span className="mode-dot" />离线编辑</div><div className="toolbar-hint">第 {draft.version} 个版本 · {draft.updatedAt.slice(0, 10)}</div></div>
-        <div className="editor-paper"><EditorContent editor={editor} /></div>
+        <div className="editor-paper"><input className="draft-title-input" aria-label="文稿标题" value={draft.title} onChange={(event) => setDraft((currentDraft) => ({ ...currentDraft, title: event.target.value, updatedAt: nowIso() }))} placeholder="请输入文稿标题" /><EditorContent editor={editor} /></div>
       </section>
       <aside className="writing-sidebar panel">
         <div className="panel-heading"><div><span className="eyebrow">校核提醒</span><h2>落笔检查</h2></div></div>
@@ -254,14 +254,22 @@ function WritingStudio({ draft, setDraft, setToast }: { draft: Draft; setDraft: 
         <div className="ai-disabled"><CloudOff size={15} /><span>公开演示版未连接 AI 网关</span></div>
       </aside>
     </div>
-    <div className="print-only"><h1>{draft.title}</h1><div>{(draft.contentText || '').split(/\r?\n/).map((line) => <p key={line}>{line}</p>)}</div></div>
+    <div className="print-only"><h1>{draft.title}</h1><div>{draftBodyLines(draft).map((line, index) => <p key={`${index}:${line}`}>{line}</p>)}</div></div>
   </>;
 }
 
 function CheckItem({ ok, title, detail }: { ok: boolean; title: string; detail: string }) { return <div className="check-item"><span className={`check-icon ${ok ? 'ok' : 'pending'}`}>{ok ? <Check size={13} /> : '!'}</span><div><strong>{title}</strong><small>{detail}</small></div></div>; }
 
 function WeeklyView({ tasks, documents }: { tasks: Task[]; documents: OfficialDocument[] }) { const content = [`工作梳理汇总`, `一、总体情况`, `本周共跟进${tasks.length}项任务，登记${documents.length}份文件。`, `二、重点进展`, ...tasks.filter((task) => task.status !== 'pending').map((task) => `推进${task.name}，当前状态为${task.status === 'done' ? '已办结' : '推进中'}。`), `三、下周安排`, `持续跟进未完成事项，补充数据和佐证材料。`].join('\n'); return <><PageHeading eyebrow="阶段汇总" title="周报生成" detail="先从本地任务和文件汇总素材，再复制到写作中心继续调整。" action={<button className="secondary-button" onClick={() => navigator.clipboard?.writeText(content)}><ClipboardList size={16} />复制汇总</button>} /><section className="panel weekly-panel"><div className="weekly-meta"><span>素材范围：本地全部任务与文件</span><span>生成时间：{new Date().toLocaleString('zh-CN')}</span></div><pre>{content}</pre></section></>; }
-function ArchiveView({ archives }: { archives: ArchiveRecord[] }) { return <><PageHeading eyebrow="历史保留" title="历史档案" detail="旧版本的会议、外出、用章、物资和周报数据只读保留，原始字段不会被丢弃。" /><section className="panel table-panel"><div className="table-head archive-columns"><span>类型</span><span>记录标题</span><span>日期</span><span>来源版本</span></div>{archives.map((record) => <div className="table-row archive-columns" key={record.id}><span className="archive-type">{record.type}</span><div className="row-title"><strong>{record.title}</strong><small>{record.summary || '无摘要'}</small></div><span className="muted-cell">{record.date || '—'}</span><span className="muted-cell">{record.sourceVersion}</span></div>)}{!archives.length && <EmptyState text="暂无历史档案，可从数据迁移导入" />}</section></>; }
+function ArchiveView({ archives, attachments }: { archives: ArchiveRecord[]; attachments: Attachment[] }) {
+  const downloadAttachment = (attachment: Attachment) => {
+    if (attachment.data === undefined || !attachment.sha256) return;
+    const binary = atob(attachment.data);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    downloadBlob(new Blob([bytes], { type: attachment.mimeType }), attachment.name);
+  };
+  return <><PageHeading eyebrow="历史保留" title="历史档案" detail="旧版本的会议、外出、用章、物资和周报数据只读保留，原始字段不会被丢弃。" /><section className="panel table-panel"><div className="table-head archive-columns"><span>类型</span><span>记录标题</span><span>日期</span><span>来源版本</span></div>{archives.map((record) => { const linkedAttachments = record.files.map((id) => attachments.find((attachment) => attachment.id === id)).filter((attachment): attachment is Attachment => Boolean(attachment)); return <div className="table-row archive-columns" key={record.id}><span className="archive-type">{record.type}</span><div className="row-title"><strong>{record.title}</strong><small>{record.summary || '无摘要'}</small>{linkedAttachments.length > 0 && <div className="archive-attachments">{linkedAttachments.map((attachment) => { const available = attachment.data !== undefined && Boolean(attachment.sha256); return <button key={attachment.id} aria-label={`下载附件 ${attachment.name}`} title={available ? '下载本地附件' : '附件内容不可用'} disabled={!available} onClick={() => downloadAttachment(attachment)}><ArrowDownToLine size={13} /><span>{attachment.name}</span></button>; })}</div>}</div><span className="muted-cell">{record.date || '—'}</span><span className="muted-cell">{record.sourceVersion}</span></div>; })}{!archives.length && <EmptyState text="暂无历史档案，可从数据迁移导入" />}</section></>;
+}
 
 function MigrationView({ onImport, onRestore, onReload, setToast }: {
   onImport: (bundle: MigrationBundle) => Promise<MigrationReport>;
