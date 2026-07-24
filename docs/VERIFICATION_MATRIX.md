@@ -11,6 +11,7 @@
 | Pages 端到端与离线演示 | `pnpm test:e2e` | 已通过 | 2026-07-24 与内网 E2E 并行回归为 17 passed、3 条件跳过；覆盖零外联、离线重开、Pages 私有控制隐藏、桌面显式会话/同步/脱敏确认契约、任务、双版本迁移、快照、DOCX/PDF 和窄屏 |
 | 内网 Web | `pnpm test:e2e:intranet`、`pnpm build:web:intranet`、`pnpm test:workflows` | 已通过本机构建与 E2E | 与 Pages E2E 并行回归为 1 passed；验证内网模式、真实附件开关、同步/AI 控制、私有 CSP，以及建立连接前无外部请求；产物固定到独立 `dist-intranet/`，工作流上传路径已由契约测试锁定，避免误传 Pages 的 `dist/`；尚未部署到实际内网服务器 |
 | GitHub Pages 子路径 | `VITE_BASE_PATH=/hxhwang-gw/ pnpm --filter @hxhwang/web build` + 本地预览访问 `/hxhwang-gw/` | 已通过 | 入口 JS、PWA manifest 与品牌图标均使用 `/hxhwang-gw/` 前缀并返回 HTTP 200；未发现私有 API、模型密钥或 GitHub token |
+| 发布前仓库敏感信息扫描 | 对两个仓库全部 Git 历史执行 PAT、模型密钥、Bearer 凭据、API key 和含密码数据库 URL 模式扫描 | 已通过 | 公开客户端 86 个跟踪文件无匹配；私有服务端无 PAT、模型密钥、Bearer 凭据或 API key，含密码数据库 URL 仅存在于 `.env.example` 与 CI 的显式测试凭据；两个工作区均无未提交文件，未发现超过 GitHub 100 MB 单文件限制的对象 |
 | Electron `file://` 资源 | `pnpm build:desktop:win:x64`、`pnpm build:desktop:win:arm64`；`pnpm verify:desktop-web` | 已通过 | 打包前校验 9 个资源均为相对路径，并验证桌面 CSP 仅允许 HTTPS、本机 API且禁止表单提交；ASAR 包含开发地址策略模块且不包含对应测试文件 |
 | Windows 安装包 | Windows 本机 x64/arm64 electron-builder | 已通过构建 | x64 安装包 100,887,834 字节，SHA-256 `B39A27E1370ED82C6BB1FF11D4CA1086DF4104ABDF1593653A55B26769230360`；arm64 安装包 93,557,443 字节，SHA-256 `C014513CBB17E5C1D04D849BC8C1974068208F2E36D632B96C6ED8BCC276DC4B`；x64 解包程序启动后观察到 4 个进程并全部退出；arm64 未在本机启动 |
 | Windows 签名与品牌图标 | 资产结构校验、可执行文件图标提取、`Get-AuthenticodeSignature` | 图标已完成，签名未完成 | 原创 SVG 已生成 192/512 PNG 与 256 PNG-ICO，x64 可执行文件成功提取品牌图标；x64/arm64 安装包仍为 `NotSigned`，正式分发前需要代码签名证书 |
