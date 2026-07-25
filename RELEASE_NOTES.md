@@ -81,6 +81,28 @@
 
 ## GitHub Release
 
+### v0.3.1
+
+- [v0.3.1](https://github.com/NextWeb4/gw/releases/tag/v0.3.1) 已正式发布，不是草稿或预发布版本；标签指向提交 `7d0d936a9a8d6b7c8fb812a8b69b9cb9f722372b`。
+- [Release Actions run 30165346085](https://github.com/NextWeb4/gw/actions/runs/30165346085) 的 18 个任务全部成功：8 个 Windows/Linux × x64/arm64 × internet/intranet 构建、8 个 Debian 10/12 分版安装启动门、验证和发布任务均通过。
+- Release 共包含十三个资产：下列十二个安装文件及 [`SHA256SUMS.txt`](https://github.com/NextWeb4/gw/releases/download/v0.3.1/SHA256SUMS.txt)。十三个下载地址均返回 HTTP 200，清单的十二条 SHA-256 与 GitHub 资产摘要逐项一致。
+- [Pages Actions run 30165295284](https://github.com/NextWeb4/gw/actions/runs/30165295284) 已将 v0.3.1 部署到 [https://nextweb4.github.io/gw/](https://nextweb4.github.io/gw/)。
+
+| Release 资产 | SHA-256 |
+| --- | --- |
+| `HxHwang-Gw-0.3.1-internet-amd64.deb` | `0137dbe8258ad079bf75dac09bc572dc77112dfa2fd7944720f05e26fb79ea18` |
+| `HxHwang-Gw-0.3.1-internet-arm64-setup.exe` | `c3737fcb014c6c126401f9c4b79e72167f9949e839a3ca6685b217c746aebfdf` |
+| `HxHwang-Gw-0.3.1-internet-arm64.AppImage` | `d44b9828af02e48724cac35d13c4cc6c799ea171b923fe8548116919a9968e43` |
+| `HxHwang-Gw-0.3.1-internet-arm64.deb` | `2f42ae3d7be2223693b836255abf654a76fae844a93a0f37450c62a381231b85` |
+| `HxHwang-Gw-0.3.1-internet-x64-setup.exe` | `e74da73bc55aaa2db3ab0d61876b71ab01f50288079e666f8284923dd43017f3` |
+| `HxHwang-Gw-0.3.1-internet-x86_64.AppImage` | `4f63050f18b792a7e76e283dd2bde2739d2a8cd3ebbe570399b5605fca28f823` |
+| `HxHwang-Gw-0.3.1-intranet-amd64.deb` | `24d3ca7a8bfab5b7ded5c99f4f98d6395b0c4f81607353502f590585026d1829` |
+| `HxHwang-Gw-0.3.1-intranet-arm64-setup.exe` | `3e4b146fc872826ee97239a3960e237215f9237aa7cd2e9a63e3a7be93a78c86` |
+| `HxHwang-Gw-0.3.1-intranet-arm64.AppImage` | `482111dde4bb7f82ad9aa3064826037395d3bdc69a9799f3c5316ba61b842e2a` |
+| `HxHwang-Gw-0.3.1-intranet-arm64.deb` | `702ead8236bc260b0c0890129becd309c35e8e1cd2f261cfcd48a0405cf9a2b3` |
+| `HxHwang-Gw-0.3.1-intranet-x64-setup.exe` | `1972188cf793fb72d39669934ef4ca49cd7788f9b585396984b9dfb977c298bf` |
+| `HxHwang-Gw-0.3.1-intranet-x86_64.AppImage` | `b2bc76992b0ac346ee2d7a4eda5d3d7f5a2d4f77154d1f02842977c656c9cfd5` |
+
 ### v0.2.1
 
 - [v0.2.1](https://github.com/NextWeb4/gw/releases/tag/v0.2.1) 已正式发布，不是草稿或预发布版本；标签指向提交 `a46de79a74b0c2b75363e76a1fb20d2457b335f6`。
