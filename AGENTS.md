@@ -25,6 +25,8 @@
 - `pnpm build:web:intranet` 构建允许显式 HTTPS/本机 API 连接的内网 Web 到 `apps/web/dist-intranet/`；不得把该产物发布到公开 Pages，也不得与 Pages 的 `apps/web/dist/` 共用输出目录。
 - `pnpm build:web:internet` 构建互联网 Web 到 `apps/web/dist-internet/`；不得与 Pages 或内网产物共用输出目录。
 - 桌面分版命令固定为 `pnpm build:desktop:<win|linux>:<x64|arm64>:<internet|intranet>`；发布资产名必须包含 edition，Release 应包含 12 个安装产物及校验清单。
+- `apps/desktop/scripts/edition-config.mjs` 是分版产品名和 Debian 包名的唯一配置源；`productName` 必须为可打印 ASCII，`deb.packageName` 必须满足 Debian 小写包名规则且两版不能相同。
+- Windows Defender 等进程可能短暂锁定新建的 `win-unpacked` 文件；打包脚本只允许对 `EBUSY` 做最多三次有界重试，每次仍须清理本次架构的 staging 目录，不得吞掉其他构建错误。
 - `pnpm build:desktop` 默认打包 Windows x64 互联网版；不带 edition 的 `pnpm build:desktop:<win|linux>:<x64|arm64>` 别名也默认互联网版。需要内网版时必须使用上一条的完整分版命令。
 - Linux 的 AppImage/DEB 命令必须在 Linux 或项目的 Ubuntu Actions 中运行；Windows 只能生成 `linux-unpacked`，缺少 `mksquashfs`/`fpm` 时不得将其标记为安装包。
 - `apps/desktop/package.json` 的 `build.deb.depends` 必须保留 electron-builder 26.15.3 的默认 Debian 依赖，并额外声明 Electron 43 启动所需的 `libasound2` 与 `libgbm1`；不得在 smoke 脚本中单独安装这两个库来掩盖包元数据缺失。
@@ -42,6 +44,7 @@
 - React 页面只能调用领域命令和数据适配接口，不得直连 IndexedDB、Electron IPC 或私有 API。
 - 文稿导入器只负责 DOCX/HTML/TXT 转换和清洗；Mammoth 输出仍必须经过项目标签/属性允许清单，不得直接写入 Tiptap。
 - 四位年份日期是领域不变量：所有可编辑日期复用 `DateField`，保存任务、文件或周报时再次调用真实日历日期校验。
+- `docs/HELP.md` 必须与根 `package.json` 版本一致，并覆盖导航中的八个模块；修改模块名称、入口、保存语义、分版能力或安装资产名时必须同步说明书和文档契约测试。
 - 私有同步客户端必须拒绝 URL 内嵌凭据并禁止自动重定向，避免会话头离开用户明确配置的基址。
 - Electron renderer 必须保持 sandbox；文件和 PDF 操作只能经 preload 的白名单接口。
 - 互联网桌面版可使用受限 AI IPC；内网桌面包即使 renderer 误调用该 IPC，主进程也必须拒绝公网直连。
@@ -79,6 +82,7 @@
 - 历史 Skill、配置和 `legacyPayload` 只能通过 React 文本节点或 JSON 序列化展示，禁止作为 HTML 注入页面。
 - 必查 Windows/Debian amd64/arm64 打包配置与作者署名。
 - 必查生成的 DEB 能仅靠自身依赖在 Debian 10/12 安装并启动；出现缺失共享库时先修复 `build.deb.depends`，不得放宽启动门。
+- 必查分版 DEB 的 `Package` 字段仅含 Debian 允许字符；不得把“互联网版/内网版”等中文展示标签复用为包管理器标识。
 - 必查 `--no-sandbox` 只存在于隔离的 Debian smoke 命令，生产 Electron 仍保持 `sandbox: true`、`contextIsolation: true` 和 `nodeIntegration: false`。
 - 引用外部站点时，必查服务协议、隐私政策、版权声明和 `robots.txt`，并区分“交互借鉴”“允许链接”“允许再分发”。
 - UI Review 必查所有功能性图标来自 Lucide、页面无表情符号、键盘焦点可见、移动底栏不遮挡正文、动效不阻塞点击或滚动。

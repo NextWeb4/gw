@@ -27,6 +27,19 @@ describe('domain fixtures', () => {
     expect(() => buildWeeklyReportSummary([], [], '2026-07-27', '2026-07-20')).toThrow(/起止日期无效/);
   });
 
+  it('rejects impossible or extended-year weekly dates at the domain boundary', () => {
+    expect(() => buildWeeklyReportSummary([], [], '2026-02-30', '2026-03-01')).toThrow(/起止日期无效/);
+    expect(() => buildWeeklyReportSummary([], [], '200000-01-01', '200000-01-07')).toThrow(/起止日期无效/);
+  });
+
+  it('does not treat impossible source dates as weekly activity', () => {
+    const task = { ...sampleTasks[0], id: 'task_invalid_date', assignDate: '2026-02-30', deadline: '2026-02-30', status: 'done' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
+    const document = { ...sampleDocuments[0], id: 'doc_invalid_date', docDate: '2026-02-30', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
+    const report = buildWeeklyReportSummary([task], [document], '2026-02-28', '2026-03-01');
+    expect(report.taskIds).toEqual([]);
+    expect(report.documentIds).toEqual([]);
+  });
+
   it('accepts only real four-digit ISO dates', () => {
     expect(isValidIsoDate('2026-07-28')).toBe(true);
     expect(isValidIsoDate('200000-07-28')).toBe(false);

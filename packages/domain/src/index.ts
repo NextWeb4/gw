@@ -193,17 +193,21 @@ export function generateTaskWorkSummary(task: Task, template: WorkSummaryTemplat
 const isoDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : value.slice(0, 10);
 const inRange = (value: string, startDate: string, endDate: string) => {
   const date = isoDate(value);
-  return /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= startDate && date <= endDate;
+  return isValidIsoDate(date, false) && date >= startDate && date <= endDate;
 };
 
 export function buildWeeklyReportSummary(tasks: Task[], documents: OfficialDocument[], startDate: string, endDate: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || startDate > endDate) {
+  if (!isValidIsoDate(startDate, false) || !isValidIsoDate(endDate, false) || startDate > endDate) {
     throw new Error('周报起止日期无效');
   }
   const selectedTasks = tasks.filter((task) => {
     const eventDates = [task.assignDate, task.deadline, task.createdAt, task.updatedAt];
     if (eventDates.some((date) => date && inRange(date, startDate, endDate))) return true;
-    return task.status !== 'done' && (!task.assignDate || isoDate(task.assignDate) <= endDate) && (!task.deadline || isoDate(task.deadline) >= startDate);
+    const assignDate = isoDate(task.assignDate);
+    const deadline = isoDate(task.deadline);
+    return task.status !== 'done'
+      && (!task.assignDate || (isValidIsoDate(assignDate, false) && assignDate <= endDate))
+      && (!task.deadline || (isValidIsoDate(deadline, false) && deadline >= startDate));
   });
   const selectedDocuments = documents.filter((document) => [document.docDate, document.createdAt, document.updatedAt].some((date) => date && inRange(date, startDate, endDate)));
   const statusLabels: Record<Status, string> = { pending: '未启动', progress: '推进中', done: '已办结', overdue: '已超期' };

@@ -12,7 +12,7 @@
 
 A local-first system for official-document work, task and file tracking, drafting, weekly reports, document export, and controlled private synchronization.
 
-![Version](https://img.shields.io/badge/version-0.3.0-0969da?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.3.1-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,7 +22,7 @@ A local-first system for official-document work, task and file tracking, draftin
 
 HxHwang Gw is a pnpm monorepo that shares one domain model across a public GitHub Pages demonstration, separate Internet and intranet Web builds, and separate Internet and intranet Electron clients. It stores operational data locally first, separates network capabilities at build time, and provides explicit adapters for synchronization and AI requests.
 
-Version 0.3.0 moves Pages to [https://nextweb4.github.io/gw/](https://nextweb4.github.io/gw/), enforces four-digit real dates, reuses people and organization entries, generates deterministic task summaries, imports DOCX/HTML/TXT, saves local custom writing formats, and discovers models through edition-specific AI paths.
+Version 0.3.1 builds on the `/gw/` deployment, real four-digit date validation, reusable people and organizations, deterministic task summaries, DOCX/HTML/TXT import, local custom formats, and edition-specific AI paths. It also fixes edition-specific Debian package names and expands the module-by-module user manual.
 
 The public demonstration does not display private controls, import real business snapshots, call the private API, or enable AI. Use it to inspect the interface with sample data: [GitHub Pages demonstration](https://nextweb4.github.io/gw/).
 
@@ -57,7 +57,7 @@ All variants remain local-first. Private synchronization begins only after a use
 - Windows for NSIS installers; Linux for AppImage/DEB packaging and final Linux compatibility checks.
 - A Chromium-class browser for the Web builds.
 
-The repository version is `0.3.0`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
+The repository version is `0.3.1`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
 
 ## Install and Run
 

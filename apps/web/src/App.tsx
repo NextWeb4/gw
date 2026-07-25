@@ -135,7 +135,7 @@ function App() {
   const deleteDocument = async (id: string) => { await removeRecord(id); await reload(); setToast('文件已删除'); };
   const saveWeeklyReport = async (report: WeeklyReport) => {
     if (!report.title.trim() || !report.contentText.trim()) throw new Error('请填写周报标题和正文');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(report.startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(report.endDate) || report.startDate > report.endDate) throw new Error('周报起止日期无效');
+    if (!isValidIsoDate(report.startDate, false) || !isValidIsoDate(report.endDate, false) || report.startDate > report.endDate) throw new Error('周报起止日期无效');
     const saved: WeeklyReport = {
       ...report,
       id: report.id || createId('weekly'),

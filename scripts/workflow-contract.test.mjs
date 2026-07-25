@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import path from 'node:path';
 import { parse } from 'yaml';
+import { desktopEditionMetadata } from '../apps/desktop/scripts/edition-config.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 
@@ -54,7 +55,20 @@ test('desktop release workflow builds both editions and verifies twelve edition-
   const packager = await readFile(path.join(root, 'apps', 'desktop', 'scripts', 'package-edition.mjs'), 'utf8');
   assert.match(packager, /extraMetadata:\s*\{ hxhwangEdition: edition \}/);
   assert.ok(packager.includes('artifactName: `HxHwang-Gw-\\${version}-${edition}-\\${arch}'), 'edition-specific artifact name must retain electron-builder version/arch placeholders');
-  assert.match(packager, /rm\(path\.join\(projectDir, 'release', unpackedDirectory\)/, 'sequential edition builds must clean only their generated unpacked staging directory');
+  assert.match(packager, /const unpackedPath = path\.join\(projectDir, 'release', unpackedDirectory\)/, 'sequential edition builds must target only their generated unpacked staging directory');
+  assert.match(packager, /rm\(unpackedPath, \{ recursive: true, force: true/, 'each packaging attempt must start with a clean edition staging directory');
+  assert.match(packager, /maxBuildAttempts = process\.platform === 'win32' \? 3 : 1/, 'only Windows packaging may use the bounded transient-lock retry');
+  assert.match(packager, /error\?\.code === 'EBUSY'/, 'packaging retries must be limited to EBUSY file locks');
+});
+
+test('desktop edition metadata produces valid ASCII Debian package names', async () => {
+  const packager = await readFile(path.join(root, 'apps', 'desktop', 'scripts', 'package-edition.mjs'), 'utf8');
+  assert.match(packager, /packageName: editionMetadata\.debianPackageName/, 'DEB package name must be set explicitly for each edition');
+  for (const [edition, metadata] of Object.entries(desktopEditionMetadata)) {
+    assert.match(metadata.productName, /^[\x20-\x7e]+$/, `${edition} productName must contain printable ASCII only`);
+    assert.match(metadata.debianPackageName, /^[a-z0-9][a-z0-9+.-]+$/, `${edition} Debian Package field must satisfy Debian naming rules`);
+  }
+  assert.notEqual(desktopEditionMetadata.internet.debianPackageName, desktopEditionMetadata.intranet.debianPackageName);
 });
 
 test('Debian smoke disables Chromium sandbox only inside the CI container', async () => {
@@ -94,4 +108,18 @@ test('release-facing workspace manifests share one version', async () => {
   }));
   const expected = versions[0][1];
   for (const [file, version] of versions) assert.equal(version, expected, `${file} version must match the root manifest`);
+});
+
+test('Chinese user manual matches the current release and every navigation module', async () => {
+  const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+  const help = await readFile(path.join(root, 'docs', 'HELP.md'), 'utf8');
+  assert.match(help, new RegExp(`版本：v${manifest.version.replaceAll('.', '\\.')}(?:\\s|$)`));
+  assert.match(help, /https:\/\/nextweb4\.github\.io\/gw\//);
+  assert.match(help, /https:\/\/github\.com\/NextWeb4\/gw\/releases\/latest/);
+  for (const moduleName of ['工作台', '任务管理', '文件收发', '公文写作', '周报生成', '历史档案', '数据迁移', '关于与设置']) {
+    assert.match(help, new RegExp(moduleName), `manual must explain ${moduleName}`);
+  }
+  for (const operation of ['新建任务', '保存任务', '保存文件', '导入文档', '保存自定义格式', '重新汇总', '导出快照', '同步业务数据', '获取 AI 模型']) {
+    assert.match(help, new RegExp(operation), `manual must explain ${operation}`);
+  }
 });

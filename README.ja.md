@@ -12,7 +12,7 @@
 
 公文事務、タスクとファイルの追跡、文書作成、週報、文書出力、制御されたプライベート同期のためのローカルファーストシステムです。
 
-![バージョン](https://img.shields.io/badge/version-0.3.0-0969da?style=flat-square)
+![バージョン](https://img.shields.io/badge/version-0.3.1-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,7 +22,7 @@
 
 HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラネット Web ビルド、インターネット/イントラネット Electron クライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、ネットワーク機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
 
-v0.3.0 は Pages を `/gw/` へ移行し、4 桁の実在日付検証、担当者/組織の再利用、決定的な作業要約、DOCX/HTML/TXT 取込、ローカルカスタム書式、エディション別モデル取得を追加します。
+v0.3.1 は `/gw/` 配備、4 桁の実在日付検証、担当者/組織の再利用、決定的な作業要約、DOCX/HTML/TXT 取込、ローカルカスタム書式、エディション別 AI 経路を維持しつつ、Debian のエディション別パッケージ名とモジュール別取扱説明書を修正します。
 
 公開デモはプライベート操作を表示せず、実業務のスナップショットを取り込まず、プライベート API を呼び出さず、AI も有効にしません。組み込みサンプルで画面を確認できます：[GitHub Pages デモ](https://nextweb4.github.io/gw/)。
 
@@ -57,7 +57,7 @@ v0.3.0 は Pages を `/gw/` へ移行し、4 桁の実在日付検証、担当�
 - NSIS インストーラーには Windows、AppImage/DEB のパッケージ化と最終 Linux 互換性確認には Linux。
 - Web ビルドには Chromium 系ブラウザー。
 
-リポジトリのバージョンは `0.3.0` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
+リポジトリのバージョンは `0.3.1` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
 
 ## インストールと実行
 

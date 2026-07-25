@@ -1,6 +1,6 @@
 {
   "name": "@hxhwang/desktop",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "HxHwang Gw 公文事务与写作管理系统桌面客户端",
@@ -14,10 +14,10 @@
   },
   "license": "UNLICENSED",
   "scripts": {
-    "build": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs && node --check electron/ai.mjs",
+    "build": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs && node --check electron/ai.mjs && node --check scripts/edition-config.mjs && node --check scripts/package-edition.mjs",
     "test": "node --test test/security.test.mjs test/ai.test.mjs",
-    "lint": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs && node --check electron/ai.mjs && node --check test/security.test.mjs && node --check test/ai.test.mjs",
-    "format:check": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs && node --check electron/ai.mjs && node --check test/security.test.mjs && node --check test/ai.test.mjs",
+    "lint": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs && node --check electron/ai.mjs && node --check scripts/edition-config.mjs && node --check scripts/package-edition.mjs && node --check test/security.test.mjs && node --check test/ai.test.mjs",
+    "format:check": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs && node --check electron/ai.mjs && node --check scripts/edition-config.mjs && node --check scripts/package-edition.mjs && node --check test/security.test.mjs && node --check test/ai.test.mjs",
     "package": "electron-builder",
     "package:internet:win:x64": "node scripts/package-edition.mjs internet win x64",
     "package:internet:win:arm64": "node scripts/package-edition.mjs internet win arm64",

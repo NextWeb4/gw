@@ -12,7 +12,7 @@
 
 一个本地优先的公文事务、任务与文件跟踪、文稿写作、周报、文档导出和受控私有同步系统。
 
-![版本](https://img.shields.io/badge/version-0.3.0-0969da?style=flat-square)
+![版本](https://img.shields.io/badge/version-0.3.1-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,7 +22,7 @@
 
 HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联网/内网 Web 构建和互联网/内网 Electron 客户端之间共享同一套领域模型。系统首先把业务数据保存在本地，在构建时隔离不同联网能力，并通过显式适配器提供同步和 AI 请求。
 
-v0.3.0 将 Pages 迁移到 `/gw/`，新增四位真实日期校验、人员/单位复用、确定性工作小结、DOCX/HTML/TXT 导入、本机自定义格式，以及按版本隔离的模型发现和 AI 请求。
+v0.3.1 在 `/gw/` 部署、四位真实日期校验、人员/单位复用、确定性工作小结、DOCX/HTML/TXT 导入、本机自定义格式和分版 AI 能力基础上，修复了 Debian 分版包名，并补齐逐模块使用说明。
 
 公开演示版不显示私有控制，不导入真实业务快照，不调用私有 API，也不启用 AI。可使用内置样例查看界面：[GitHub Pages 演示版](https://nextweb4.github.io/gw/)。
 
@@ -57,7 +57,7 @@ v0.3.0 将 Pages 迁移到 `/gw/`，新增四位真实日期校验、人员/单�
 - NSIS 安装包需要 Windows；AppImage/DEB 打包和最终 Linux 兼容性检查需要 Linux。
 - Web 构建需要 Chromium 类浏览器。
 
-仓库版本为 `0.3.0`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
+仓库版本为 `0.3.1`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
 
 ## 安装与运行
 
