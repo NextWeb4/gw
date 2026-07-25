@@ -7,6 +7,7 @@
 - 使用 `xbrowser` 复核 1440×900 桌面工作台，以及 390×844 的工作台指标、任务抽屉保存操作、写作中心和页脚；移动实测正文区域为 `0..760`，导航为 `770..834`，页面宽度等于 390。
 - 未新增依赖、联网行为、数据库变更或 API 变更；Pages 离线与私有 API 边界保持不变。
 - Windows x64 本机构建产物 `HxHwang-Gw-0.2.1-x64-setup.exe` 为 100,950,085 字节，SHA-256 `D80844FE1453F89E35218C789A766839CD82E6788C946FC7759D539B67D2827C`；解包程序启动后观察到 4 个进程并全部退出。
+- [Pages Actions run 30147717322](https://github.com/NextWeb4/hxhwang-gw/actions/runs/30147717322) 已完成线上部署；[Release Actions run 30148327399](https://github.com/NextWeb4/hxhwang-gw/actions/runs/30148327399) 已完成正式多架构构建、Debian 10/12 四组合启动门和 Release 发布。
 
 ## v0.2.0
 
@@ -57,6 +58,21 @@
 - 当前 Windows 安装包未做 Authenticode 签名，只适合内部演示；正式分发前需补充代码签名证书。
 
 ## GitHub Release
+
+### v0.2.1
+
+- [v0.2.1](https://github.com/NextWeb4/hxhwang-gw/releases/tag/v0.2.1) 已正式发布，不是草稿或预发布版本；标签指向提交 `a46de79a74b0c2b75363e76a1fb20d2457b335f6`。
+- [Release Actions run 30148327399](https://github.com/NextWeb4/hxhwang-gw/actions/runs/30148327399) 已成功完成 Windows/Linux x64、arm64 构建、Debian 10/12 四组合启动门、校验清单生成和 Release 发布。
+- Release 共包含七个资产：下列六个安装文件及 [`SHA256SUMS.txt`](https://github.com/NextWeb4/hxhwang-gw/releases/download/v0.2.1/SHA256SUMS.txt)。七个下载地址均返回 HTTP 200，清单中的六个 SHA-256 均与 GitHub 对应资产摘要一致。
+
+| Release 资产 | SHA-256 |
+| --- | --- |
+| `HxHwang-Gw-0.2.1-amd64.deb` | `46cacbfb5a2726e3b82626fb6aced87c5d579ac23a87f89ea81626b98eb8c6d8` |
+| `HxHwang-Gw-0.2.1-arm64-setup.exe` | `aa0eceb58fa93221a5cab7303bd82e8ad9695e55b7067ccb7648fa1e00388665` |
+| `HxHwang-Gw-0.2.1-arm64.AppImage` | `e05965cbdf28ec79bc9ec42b1e0b6509fbb141b7269f1adb44e216c29d748f87` |
+| `HxHwang-Gw-0.2.1-arm64.deb` | `b336398c72c3e65f7d4ce4b7c761898603c3dc76ed3202fee11a9a084007a998` |
+| `HxHwang-Gw-0.2.1-x64-setup.exe` | `37ceeb7bc04812000247c484b6a641c9078a68286f1b41596c9b3289f497fcda` |
+| `HxHwang-Gw-0.2.1-x86_64.AppImage` | `4e45d286dea733b38a4ed10d6ba9422c696f4f1d07ff562aa59dc1a326c267e9` |
 
 ### v0.2.0
 
