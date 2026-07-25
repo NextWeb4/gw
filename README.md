@@ -39,7 +39,7 @@
 
 任务编辑器保留配合单位和阶段状态；任务与文件附件可在本机下载或解除当前记录关联。周报按日期范围从已有任务/文件字段确定性汇总，可人工编辑、保存版本、纳入本地快照与显式私有同步，并复用同一 A4 文档引擎导出 DOCX/PDF。历史导入的旧周报、Skill、配置和未映射原始字段均在“历史档案”中以纯文本只读保留。公开 Pages 禁止导入业务 JSON、真实附件和恢复快照，完整导入仅在桌面端或内网 Web 启用。
 
-当前 v0.1.1 Windows x64 安装包已在本机完成构建和解包版启动冒烟；[GitHub Pages 演示版](https://nextweb4.github.io/hxhwang-gw/) 已由 [Pages Actions run 30106200906](https://github.com/NextWeb4/hxhwang-gw/actions/runs/30106200906) 正式部署，私有服务端的 PostgreSQL 16 CI 已通过。[v0.1.1](https://github.com/NextWeb4/hxhwang-gw/releases/tag/v0.1.1) 已由 [Release Actions run 30106372149](https://github.com/NextWeb4/hxhwang-gw/actions/runs/30106372149) 构建 Windows/Linux x64、arm64，并通过 Debian 10/12 的 x64/arm64 四组合安装启动门；Release 包含六个安装产物及 `SHA256SUMS.txt`，清单中的六个校验值均与 GitHub 资产摘要一致。真实 arm64 设备和 Authenticode 签名仍是明确的外部验证项，不应标记为已完成。
+当前 v0.2.0 Windows x64 安装包已在本机完成构建和解包版启动冒烟；[GitHub Pages 演示版](https://nextweb4.github.io/hxhwang-gw/) 已由 [Pages Actions run 30111303251](https://github.com/NextWeb4/hxhwang-gw/actions/runs/30111303251) 正式部署，私有服务端的 PostgreSQL 16 CI 已通过。[v0.2.0](https://github.com/NextWeb4/hxhwang-gw/releases/tag/v0.2.0) 已由 [Release Actions run 30111552737](https://github.com/NextWeb4/hxhwang-gw/actions/runs/30111552737) 构建 Windows/Linux x64、arm64，并通过 Debian 10/12 的 x64/arm64 四组合安装启动门；Release 包含六个安装产物及 `SHA256SUMS.txt`，清单中的六个校验值均与 GitHub 资产摘要一致。真实 arm64 设备和 Authenticode 签名仍是明确的外部验证项，不应标记为已完成。
 
 ## 托管边界
 
