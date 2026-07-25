@@ -4,6 +4,7 @@ import test from 'node:test';
 import { resolveDevelopmentUrl } from '../electron/security.mjs';
 
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+const mainSource = readFileSync(new URL('../electron/main.mjs', import.meta.url), 'utf8');
 
 test('allows only loopback HTTP development URLs in unpackaged builds', () => {
   assert.equal(resolveDevelopmentUrl('http://127.0.0.1:5173', false), 'http://127.0.0.1:5173/');
@@ -32,4 +33,10 @@ test('declares complete Debian runtime dependencies', () => {
     'libasound2',
     'libgbm1',
   ]);
+});
+
+test('uses the canonical package author email for the mailto allowlist', () => {
+  assert.equal(packageJson.author.email, 'Rays688888@Gmail.com');
+  assert.match(mainSource, /const contactEmail = packageMetadata\.author\.email;/);
+  assert.doesNotMatch(mainSource, /rays688888@gmail\.com/);
 });

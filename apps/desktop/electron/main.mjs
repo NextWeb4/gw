@@ -9,6 +9,7 @@ import { assertDirectAiAllowed, requestAiCompletion, requestAiModels } from './a
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow;
 const desktopEdition = packageMetadata.hxhwangEdition === 'intranet' ? 'intranet' : 'internet';
+const contactEmail = packageMetadata.author.email;
 
 function localEntry() {
   if (app.isPackaged) return path.join(process.resourcesPath, 'web', 'index.html');
@@ -19,7 +20,7 @@ function trustedExternalUrl(rawUrl) {
   try {
     const url = new URL(rawUrl);
     if (url.protocol === 'https:' && url.hostname === 'nextweb4.github.io') return url.href;
-    if (url.protocol === 'mailto:' && url.pathname.toLowerCase() === 'rays688888@gmail.com') return url.href;
+    if (url.protocol === 'mailto:' && url.pathname.toLowerCase() === contactEmail.toLowerCase()) return url.href;
   } catch {}
   return undefined;
 }
