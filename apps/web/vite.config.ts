@@ -7,13 +7,15 @@ const webCsp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-
 const privateCsp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src https: http://127.0.0.1:* http://localhost:*; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'";
 
 export default defineConfig(({ mode }) => {
-  const privateServicesBuild = mode === 'desktop' || mode === 'intranet';
-  const outDir = mode === 'intranet' ? 'dist-intranet' : 'dist';
+  const distributionMode = mode.includes('internet') ? 'internet' : mode === 'intranet' || mode === 'desktop' || mode.includes('intranet') ? 'intranet' : 'public';
+  const privateServicesBuild = distributionMode !== 'public';
+  const outDir = mode === 'intranet' ? 'dist-intranet' : mode === 'internet' ? 'dist-internet' : 'dist';
   return {
   define: {
     __APP_VERSION__: JSON.stringify(packageJson.version),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
-    __PRIVATE_SERVICES__: JSON.stringify(privateServicesBuild)
+    __PRIVATE_SERVICES__: JSON.stringify(privateServicesBuild),
+    __DISTRIBUTION_MODE__: JSON.stringify(distributionMode)
   },
   plugins: [
     {

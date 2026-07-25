@@ -12,7 +12,7 @@
 
 一个本地优先的公文事务、任务与文件跟踪、文稿写作、周报、文档导出和受控私有同步系统。
 
-![版本](https://img.shields.io/badge/version-0.2.1-0969da?style=flat-square)
+![版本](https://img.shields.io/badge/version-0.3.0-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -20,20 +20,22 @@
 
 ## 项目概览
 
-HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、内网 Web 构建和 Electron 桌面客户端之间共享同一套领域模型。系统首先把业务数据保存在本地，在构建时隔离公开能力与私有服务能力，并通过显式适配器提供同步和 AI 请求。
+HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联网/内网 Web 构建和互联网/内网 Electron 客户端之间共享同一套领域模型。系统首先把业务数据保存在本地，在构建时隔离不同联网能力，并通过显式适配器提供同步和 AI 请求。
 
-公开演示版不显示私有控制，不导入真实业务快照，不调用私有 API，也不启用 AI。可使用内置样例查看界面：[GitHub Pages 演示版](https://nextweb4.github.io/hxhwang-gw/)。
+v0.3.0 将 Pages 迁移到 `/gw/`，新增四位真实日期校验、人员/单位复用、确定性工作小结、DOCX/HTML/TXT 导入、本机自定义格式，以及按版本隔离的模型发现和 AI 请求。
+
+公开演示版不显示私有控制，不导入真实业务快照，不调用私有 API，也不启用 AI。可使用内置样例查看界面：[GitHub Pages 演示版](https://nextweb4.github.io/gw/)。
 
 ## 核心能力
 
 | 领域 | 已实现内容 |
 | --- | --- |
-| 事务管理 | 任务、配合单位、阶段/状态跟踪、文件索引、附件和可搜索本地记录 |
-| 写作 | 富文本起草、可复用本地知识、确定性周报生成、可编辑周报版本和历史档案 |
+| 事务管理 | 任务、可复用交办人/承办人/单位、中文状态、阶段跟踪、确定性工作小结、附件和可搜索本地记录 |
+| 写作 | 富文本起草、经清洗的 DOCX/HTML/TXT 导入、本机自定义格式、确定性周报、可编辑版本和历史档案 |
 | 文档 | DOCX 与 PDF 共用的 A4 导出引擎；Web 使用浏览器打印，桌面端使用 Electron 打印 |
 | 迁移 | 兼容两份历史原型导出结构；当共同版本标识无法可靠辨别来源时给出警告 |
 | 本地数据 | 基于 IndexedDB 的仓储、快照、附件引用以及显式恢复/导出操作 |
-| 私有服务 | 仅在桌面端和内网构建中提供按需同步、附件传输和经确认的脱敏 AI 请求 |
+| 分版服务 | 互联网版使用会话级 API Key 和 OpenAI 兼容地址；内网版只使用已认证私有同步与内部 AI 网关 |
 
 历史 Skill、配置、周报和未映射源字段会以只读纯文本保留，导入的 HTML 或脚本文本不会执行。
 
@@ -42,8 +44,8 @@ HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、内网 W
 | 形态 | 私有控制 | 适用场景 | 重要边界 |
 | --- | --- | --- | --- |
 | 公开 Pages | 关闭 | 使用内置样例的产品演示 | 禁止业务 JSON、真实附件、快照恢复、私有 API 和 AI |
-| 内网 Web | 开启 | 受控内部来源中的浏览器使用 | 私有服务端必须允许准确的 HTTPS Origin，不支持 CORS 通配符 |
-| Electron 桌面端 | 开启 | 本地桌面工作与 A4 PDF 导出 | 访问码只保留在页面内存，不写入 IndexedDB |
+| 互联网 Web / 桌面端 | 仅直连 AI | 使用 OpenAI 兼容 HTTPS 接口的非涉密工作 | API Key 只保留在会话内存；浏览器还要求 provider CORS |
+| 内网 Web / 桌面端 | 内部同步和 AI 网关 | 受控内网工作 | provider key 只在服务端；内网桌面主进程阻断直连公网 AI |
 
 所有形态都保持本地优先。只有用户填写服务端地址和访问码后，私有同步才会开始。
 
@@ -55,7 +57,7 @@ HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、内网 W
 - NSIS 安装包需要 Windows；AppImage/DEB 打包和最终 Linux 兼容性检查需要 Linux。
 - Web 构建需要 Chromium 类浏览器。
 
-仓库版本为 `0.2.1`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
+仓库版本为 `0.3.0`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
 
 ## 安装与运行
 
@@ -69,6 +71,12 @@ pnpm dev:web
 
 ```bash
 pnpm dev:web:intranet
+```
+
+需要测试 OpenAI 兼容互联网接口时使用：
+
+```bash
+pnpm dev:web:internet
 ```
 
 不要让公开 Pages 构建连接私有 API。配置、真实附件和业务快照只能进入桌面端或受控内网环境。
@@ -111,6 +119,7 @@ pnpm content:verify
 pnpm assets:verify
 pnpm exec playwright install chromium
 pnpm test:e2e
+pnpm test:e2e:internet
 pnpm test:e2e:intranet
 ```
 
@@ -122,17 +131,18 @@ pnpm test:e2e:intranet
 
 ```bash
 pnpm build
+pnpm build:web:internet
 pnpm build:web:intranet
 pnpm build:desktop
-pnpm build:desktop:win:x64
-pnpm build:desktop:win:arm64
-pnpm build:desktop:linux:x64
-pnpm build:desktop:linux:arm64
+pnpm build:desktop:win:x64:internet
+pnpm build:desktop:win:x64:intranet
+pnpm build:desktop:linux:x64:internet
+pnpm build:desktop:linux:x64:intranet
 ```
 
-公开 Web 构建输出到 `apps/web/dist/`，内网构建隔离输出到 `apps/web/dist-intranet/`。桌面打包会先构建兼容 `file://` 的 Web bundle，并拒绝 Electron 无法加载的绝对资源路径。
+公开 Web 构建输出到 `apps/web/dist/`，互联网/内网构建分别隔离到 `dist-internet/` 和 `dist-intranet/`；将 `x64` 改为 `arm64` 可构建 ARM。桌面打包会先构建兼容 `file://` 的 Web bundle，并拒绝 Electron 无法加载的绝对资源路径。
 
-匹配 `v*` 的标签会触发 Windows 和 Linux 打包。只有 Windows 构建、Linux 构建和 Debian 安装启动门全部通过后才创建 Release。已发布的 `v0.2.1` 包含各平台包与 `SHA256SUMS.txt`：[Release v0.2.1](https://github.com/NextWeb4/hxhwang-gw/releases/tag/v0.2.1)。
+匹配 `v*` 的标签会触发 Windows/Linux、x64/arm64、互联网/内网矩阵。只有全部安装包和 Debian 10/12 启动门通过后才创建 Release，矩阵生成 12 个分版安装包及 `SHA256SUMS.txt`。
 
 ## 架构与模块边界
 
@@ -146,14 +156,14 @@ packages/migration   历史导出识别、映射、警告与档案保留
 packages/sync-client 显式私有同步、附件、脱敏和 AI 客户端
 content           授权来源、白名单、生成知识包和归属说明
 scripts           内容策略、资产生成、构建与 workflow contract 检查
-e2e               公开与内网 Playwright 场景
+e2e               公开、互联网与内网 Playwright 场景
 ```
 
 UI 组件必须使用 package API，不能直接访问持久化内部实现。联网行为只属于 `packages/sync-client`，本地存储不能获得隐式联网能力。Electron 保持 context isolation 与 sandbox，并只暴露狭窄 preload contract。
 
 ## 状态与已知限制
 
-- 公开演示版已经部署，`v0.2.1` 安装包可以获取，但这不代表私有 API 的共享访问码认证已经适合生产。
+- 公开演示版目标地址为 `https://nextweb4.github.io/gw/`；部署和安装包检查不代表私有 API 的共享访问码认证已经适合生产。
 - 应用面向公开或内部非涉密工作，不适合涉密记录。
 - 浏览器数据持久性取决于浏览器配置和用户的快照习惯。
 - DOCX/PDF 输出依赖字体和最终编辑器/查看器，正式文件仍需人工复核。

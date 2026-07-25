@@ -31,7 +31,7 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
       - run: pnpm --filter @hxhwang/web build
-        env: { VITE_BASE_PATH: /hxhwang-gw/ }
+        env: { VITE_BASE_PATH: /gw/ }
       - uses: actions/upload-pages-artifact@v3
         with: { path: apps/web/dist }
   deploy:

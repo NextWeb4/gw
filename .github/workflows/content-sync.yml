@@ -46,7 +46,7 @@ jobs:
         run: pnpm test
       - if: steps.changes.outputs.changed == 'true'
         run: pnpm --filter @hxhwang/web build
-        env: { VITE_BASE_PATH: /hxhwang-gw/ }
+        env: { VITE_BASE_PATH: /gw/ }
       - if: steps.changes.outputs.changed == 'true'
         uses: actions/upload-pages-artifact@v3
         with: { path: apps/web/dist }

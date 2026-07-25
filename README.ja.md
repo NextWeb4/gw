@@ -12,7 +12,7 @@
 
 公文事務、タスクとファイルの追跡、文書作成、週報、文書出力、制御されたプライベート同期のためのローカルファーストシステムです。
 
-![バージョン](https://img.shields.io/badge/version-0.2.1-0969da?style=flat-square)
+![バージョン](https://img.shields.io/badge/version-0.3.0-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -20,20 +20,22 @@
 
 ## 概要
 
-HxHwang Gw は、公開 GitHub Pages デモ、イントラネット Web ビルド、Electron デスクトップクライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、公開機能とプライベートサービス機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
+HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラネット Web ビルド、インターネット/イントラネット Electron クライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、ネットワーク機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
 
-公開デモはプライベート操作を表示せず、実業務のスナップショットを取り込まず、プライベート API を呼び出さず、AI も有効にしません。組み込みサンプルで画面を確認できます：[GitHub Pages デモ](https://nextweb4.github.io/hxhwang-gw/)。
+v0.3.0 は Pages を `/gw/` へ移行し、4 桁の実在日付検証、担当者/組織の再利用、決定的な作業要約、DOCX/HTML/TXT 取込、ローカルカスタム書式、エディション別モデル取得を追加します。
+
+公開デモはプライベート操作を表示せず、実業務のスナップショットを取り込まず、プライベート API を呼び出さず、AI も有効にしません。組み込みサンプルで画面を確認できます：[GitHub Pages デモ](https://nextweb4.github.io/gw/)。
 
 ## 主な機能
 
 | 分野 | 実装内容 |
 | --- | --- |
-| 業務管理 | タスク、協力組織、段階/状態管理、ファイル索引、添付、検索可能なローカル記録 |
-| 文書作成 | リッチテキスト下書き、再利用可能なローカル知識、決定的な週報生成、編集可能な版、履歴アーカイブ |
+| 業務管理 | タスク、再利用可能な担当者/組織、中国語状態、段階管理、決定的な作業要約、添付、検索可能なローカル記録 |
+| 文書作成 | リッチテキスト下書き、サニタイズ済み DOCX/HTML/TXT 取込、ローカルカスタム書式、決定的な週報、編集可能な版 |
 | 文書 | DOCX/PDF 共通の A4 指向エンジン。Web はブラウザー印刷、デスクトップは Electron 印刷を使用 |
 | 移行 | 2 種類の旧プロトタイプ書き出し形式に対応し、共通バージョン識別子で出所を特定できない場合は警告 |
 | ローカルデータ | IndexedDB ベースのリポジトリ、スナップショット、添付参照、明示的な復元/書き出し |
-| プライベートサービス | デスクトップとイントラネットビルドに限り、任意同期、添付転送、確認済み匿名化 AI リクエストを提供 |
+| エディション別サービス | インターネット版はセッション内 API Key と OpenAI 互換 URL、イントラネット版は認証済み同期と内部 AI ゲートウェイのみを使用 |
 
 旧 Skill、設定、週報、未マッピングの元フィールドは読み取り専用のプレーンテキストで保持され、取り込んだ HTML やスクリプト文字列は実行されません。
 
@@ -42,8 +44,8 @@ HxHwang Gw は、公開 GitHub Pages デモ、イントラネット Web ビル�
 | 形態 | プライベート操作 | 用途 | 重要な境界 |
 | --- | --- | --- | --- |
 | 公開 Pages | 無効 | 組み込みサンプルによる製品デモ | 業務 JSON、実添付、スナップショット復元、プライベート API、AI は不可 |
-| イントラネット Web | 有効 | 管理された内部 Origin でのブラウザー利用 | 正確な HTTPS Origin をサーバーで許可する必要があり、CORS ワイルドカードは非対応 |
-| Electron デスクトップ | 有効 | ローカルデスクトップ作業と A4 PDF 出力 | アクセスコードはページメモリだけに保持し、IndexedDB には保存しない |
+| インターネット Web / デスクトップ | 直接 AI のみ | OpenAI 互換 HTTPS を使う非機密作業 | API Key はセッションメモリのみ。ブラウザーは provider CORS も必要 |
+| イントラネット Web / デスクトップ | 内部同期と AI | 管理された内部ネットワーク | provider key はサーバーだけに置き、イントラネット版は公開 AI 直結を拒否 |
 
 すべての形態がローカルファーストです。ユーザーがサーバーアドレスとアクセスコードを入力するまでプライベート同期は開始されません。
 
@@ -55,7 +57,7 @@ HxHwang Gw は、公開 GitHub Pages デモ、イントラネット Web ビル�
 - NSIS インストーラーには Windows、AppImage/DEB のパッケージ化と最終 Linux 互換性確認には Linux。
 - Web ビルドには Chromium 系ブラウザー。
 
-リポジトリのバージョンは `0.2.1` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
+リポジトリのバージョンは `0.3.0` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
 
 ## インストールと実行
 
@@ -69,6 +71,12 @@ pnpm dev:web
 
 ```bash
 pnpm dev:web:intranet
+```
+
+OpenAI 互換のインターネット版を確認する場合：
+
+```bash
+pnpm dev:web:internet
 ```
 
 公開 Pages ビルドをプライベート API に接続しないでください。設定、実添付、業務スナップショットはデスクトップまたは管理されたイントラネット環境だけで扱います。
@@ -111,6 +119,7 @@ pnpm content:verify
 pnpm assets:verify
 pnpm exec playwright install chromium
 pnpm test:e2e
+pnpm test:e2e:internet
 pnpm test:e2e:intranet
 ```
 
@@ -122,17 +131,18 @@ pnpm test:e2e:intranet
 
 ```bash
 pnpm build
+pnpm build:web:internet
 pnpm build:web:intranet
 pnpm build:desktop
-pnpm build:desktop:win:x64
-pnpm build:desktop:win:arm64
-pnpm build:desktop:linux:x64
-pnpm build:desktop:linux:arm64
+pnpm build:desktop:win:x64:internet
+pnpm build:desktop:win:x64:intranet
+pnpm build:desktop:linux:x64:internet
+pnpm build:desktop:linux:x64:intranet
 ```
 
-公開 Web は `apps/web/dist/`、イントラネットビルドは分離された `apps/web/dist-intranet/` に出力されます。デスクトップパッケージは最初に `file://` 対応 Web bundle を構築し、Electron が読めない絶対資産パスを拒否します。
+公開 Web は `apps/web/dist/`、インターネット/イントラネットビルドは `dist-internet/` と `dist-intranet/` に分離されます。`x64` を `arm64` に替えると ARM を構築できます。デスクトップパッケージは `file://` 対応 Web bundle を先に構築します。
 
-`v*` に一致するタグは Windows/Linux パッケージ化を開始します。Windows ビルド、Linux ビルド、Debian のインストール/起動ゲートがすべて成功した場合だけ Release を作成します。公開済み `v0.2.1` には各プラットフォームパッケージと `SHA256SUMS.txt` が含まれます：[Release v0.2.1](https://github.com/NextWeb4/hxhwang-gw/releases/tag/v0.2.1)。
+`v*` タグは Windows/Linux、x64/arm64、インターネット/イントラネットの行列を開始します。全パッケージと Debian 10/12 起動ゲート成功時だけ、12 個の分版パッケージと `SHA256SUMS.txt` を公開します。
 
 ## アーキテクチャとモジュール境界
 
@@ -146,14 +156,14 @@ packages/migration   旧形式の識別、マッピング、警告、アーカ�
 packages/sync-client 明示的なプライベート同期、添付、匿名化、AI クライアント
 content           許諾済み出典、許可リスト、生成知識パック、帰属情報
 scripts           コンテンツ方針、資産生成、ビルド/workflow contract 検証
-e2e               公開/イントラネット Playwright シナリオ
+e2e               公開/インターネット/イントラネット Playwright シナリオ
 ```
 
 UI は永続化内部へ直接アクセスせず package API を使用します。ネットワーク処理は `packages/sync-client` に限定し、ローカルストレージに暗黙通信を追加しません。Electron は context isolation と sandbox を維持し、狭い preload contract だけを公開します。
 
 ## 状態と既知の制約
 
-- 公開デモは配備済みで `v0.2.1` パッケージも取得できますが、プライベート API の共有コード認証が本番向けであることを意味しません。
+- 公開デモの対象 URL は `https://nextweb4.github.io/gw/` です。配備とパッケージ検証は、共有コード認証が本番向けであることを意味しません。
 - 本アプリは公開または内部の非機密業務向けで、秘密記録には適しません。
 - ブラウザーデータの耐久性はプロファイルとユーザーのスナップショット運用に依存します。
 - DOCX/PDF はフォントと最終エディター/ビューアーに依存し、正式文書には手動確認が必要です。

@@ -2,10 +2,13 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import packageMetadata from '../package.json' with { type: 'json' };
 import { resolveDevelopmentUrl } from './security.mjs';
+import { assertDirectAiAllowed, requestAiCompletion, requestAiModels } from './ai.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow;
+const desktopEdition = packageMetadata.hxhwangEdition === 'intranet' ? 'intranet' : 'internet';
 
 function localEntry() {
   if (app.isPackaged) return path.join(process.resourcesPath, 'web', 'index.html');
@@ -76,6 +79,15 @@ ipcMain.handle('hxhwang:print-pdf', async (_event, payload) => {
   } finally {
     if (!printWindow.isDestroyed()) printWindow.destroy();
   }
+});
+
+ipcMain.handle('hxhwang:ai-models', async (_event, payload) => {
+  assertDirectAiAllowed(desktopEdition);
+  return requestAiModels(payload);
+});
+ipcMain.handle('hxhwang:ai-generate', async (_event, payload) => {
+  assertDirectAiAllowed(desktopEdition);
+  return requestAiCompletion(payload);
 });
 
 app.whenReady().then(async () => {

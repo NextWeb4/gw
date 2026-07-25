@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-intranet/
+dist-internet/
 coverage/
 .vite/
 release/

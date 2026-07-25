@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildWeeklyReportSummary, createId, sampleDocuments, sampleTasks } from './index.js';
+import { buildWeeklyReportSummary, createId, generateTaskWorkSummary, isValidIsoDate, sampleDocuments, sampleTasks } from './index.js';
 
 describe('domain fixtures', () => {
   it('creates prefixed unique ids', () => {
@@ -25,5 +25,17 @@ describe('domain fixtures', () => {
 
   it('rejects an inverted weekly date range', () => {
     expect(() => buildWeeklyReportSummary([], [], '2026-07-27', '2026-07-20')).toThrow(/起止日期无效/);
+  });
+
+  it('accepts only real four-digit ISO dates', () => {
+    expect(isValidIsoDate('2026-07-28')).toBe(true);
+    expect(isValidIsoDate('200000-07-28')).toBe(false);
+    expect(isValidIsoDate('2026-02-30')).toBe(false);
+    expect(isValidIsoDate('')).toBe(true);
+  });
+
+  it('generates deterministic work summaries from task facts', () => {
+    expect(generateTaskWorkSummary({ ...sampleTasks[0], partnerStatus: [{ name: '综合科', status: 'progress' }] }, 'coordination')).toContain('已协调综合科');
+    expect(generateTaskWorkSummary(sampleTasks[1], 'progress')).toContain('当前状态为未启动');
   });
 });

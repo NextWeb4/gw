@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
+import { exportDraftDocx } from '../packages/documents/src/index';
 
 const fixture = (name: string) => path.resolve('packages', 'migration', 'test', 'fixtures', name);
 
@@ -55,6 +56,8 @@ test('creates, persists, edits and deletes an editable task', async ({ page }) =
   await page.getByRole('button', { name: '任务管理' }).click();
   await page.getByRole('button', { name: '新建任务' }).click();
   await page.getByLabel('任务名称').fill(originalName);
+  await expect(page.getByLabel('状态').locator('option')).toHaveText(['未启动', '进行中', '已完成', '已超期']);
+  await page.getByLabel('交办人').fill('测试交办人');
   await page.getByLabel('截止日期').fill('2026-07-31');
   await page.getByRole('button', { name: '添加配合单位' }).click();
   await page.getByLabel('配合单位名称 1').fill('综合协调单位');
@@ -63,11 +66,31 @@ test('creates, persists, edits and deletes an editable task', async ({ page }) =
   await page.getByLabel('阶段名称 1').fill('材料汇总');
   await page.getByRole('button', { name: '添加阶段 1 配合单位' }).click();
   await page.getByLabel('阶段 1 配合单位名称 1').fill('数据提供单位');
+  await page.getByRole('button', { name: '一键生成小结' }).click();
+  await expect(page.getByLabel('工作小结')).toHaveValue(/当前状态为未启动/);
+  await expect(page.getByLabel('工作小结')).toHaveValue(/综合协调单位/);
   await page.locator('.attachment-picker input[type="file"]').setInputFiles({ name: '测试佐证.txt', mimeType: 'text/plain', buffer: Buffer.from('local evidence') });
   await expect(page.getByText('测试佐证.txt')).toBeVisible();
   await page.getByRole('button', { name: '保存任务' }).click();
-  await expect(page.getByText(originalName)).toBeVisible();
+  await expect(page.getByText(originalName, { exact: true })).toBeVisible();
   await expect(page.locator('.table-row').filter({ hasText: originalName })).toContainText('附件 1');
+
+  await page.getByRole('button', { name: '新建任务' }).click();
+  const assignerList = await page.getByLabel('交办人').getAttribute('list');
+  expect(assignerList).toBeTruthy();
+  await expect(page.locator(`#${assignerList} option[value="测试交办人"]`)).toHaveCount(1);
+  await page.getByRole('button', { name: '添加配合单位' }).click();
+  const unitList = await page.getByLabel('配合单位名称 1').getAttribute('list');
+  expect(unitList).toBeTruthy();
+  await expect(page.locator(`#${unitList} option[value="综合协调单位"]`)).toHaveCount(1);
+  await page.getByTitle('关闭').click();
+
+  await page.getByRole('button', { name: '文件收发' }).click();
+  await page.getByRole('button', { name: '登记文件' }).click();
+  const handlerList = await page.getByLabel('承办人').getAttribute('list');
+  expect(handlerList).toBeTruthy();
+  await expect(page.locator(`#${handlerList} option[value="测试交办人"]`)).toHaveCount(1);
+  await page.getByTitle('关闭').click();
 
   await page.reload();
   await page.getByRole('button', { name: '任务管理' }).click();
@@ -84,12 +107,12 @@ test('creates, persists, edits and deletes an editable task', async ({ page }) =
   await page.getByTitle('解除关联 测试佐证.txt').click();
   await page.getByLabel('任务名称').fill(updatedName);
   await page.getByRole('button', { name: '保存任务' }).click();
-  await expect(page.getByText(updatedName)).toBeVisible();
+  await expect(page.getByText(updatedName, { exact: true })).toBeVisible();
   await expect(page.locator('.table-row').filter({ hasText: updatedName })).toContainText('附件 0');
 
   const updatedTaskRow = page.locator('.table-row').filter({ hasText: updatedName });
   await updatedTaskRow.getByTitle('删除任务').click();
-  await expect(page.getByText(updatedName)).toHaveCount(0);
+  await expect(page.getByText(updatedName, { exact: true })).toHaveCount(0);
 });
 
 test('keeps real attachment selection disabled on the public Pages build', async ({ page }) => {
@@ -107,47 +130,28 @@ test('keeps private sync and AI controls absent from the public Pages view', asy
   await page.getByRole('button', { name: '关于与设置' }).click();
   await expect(page.getByRole('heading', { name: '同步连接' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: '脱敏 AI 网关' })).toHaveCount(0);
+  await expect(page.getByText('公开演示版未连接 AI 网关')).toHaveCount(0);
 });
 
-test('requires a desktop bridge, local redaction preview and explicit AI confirmation', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'chromium', 'Desktop service contract is verified once.');
-  const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
-  await page.addInitScript(() => {
-    Object.defineProperty(window, 'hxhwang', { configurable: true, value: { printPdf: async () => true } });
-  });
-  await page.route('**/v1/**', async (route) => {
-    const body = (route.request().postDataJSON() || {}) as Record<string, unknown>;
-    requests.push({ url: route.request().url(), body });
-    const path = new URL(route.request().url()).pathname;
-    if (path === '/v1/demo/session') return route.fulfill({ json: { token: 'session-token', expiresIn: 3600 } });
-    if (path.endsWith('/push')) return route.fulfill({ json: { conflicts: [] } });
-    if (path.endsWith('/pull')) return route.fulfill({ json: { documents: [], checkpoint: null } });
-    if (path === '/v1/ai/generate') return route.fulfill({ json: { result: { text: '已生成提纲' }, audit: { purpose: '起草提纲', provider: 'localhost', model: 'qwen', contentHash: 'hash', createdAt: 'now' } } });
-    return route.abort();
-  });
-  await page.reload();
-  await expect(page.getByText('本机存储 · 同步需手动触发')).toBeVisible();
-  await page.getByRole('button', { name: '关于与设置' }).click();
-  await page.getByLabel('私有 API 地址').fill(new URL(page.url()).origin);
-  await page.getByLabel('一次性访问码').fill('long-access-code');
-  await page.getByRole('button', { name: '建立会话' }).click();
-  await expect(page.getByRole('status')).toHaveText(/内网会话已建立/);
-  await expect.poll(() => requests.map((request) => `${request.url}:${JSON.stringify(request.body)}`)).toContainEqual(expect.stringContaining('/v1/demo/session'));
-  await expect(page.getByRole('button', { name: '同步业务数据' })).toBeEnabled();
-  await expect(page.getByLabel('一次性访问码')).toHaveValue('');
-  await page.getByRole('button', { name: '同步业务数据' }).click();
-  await expect(page.getByRole('status')).toHaveText(/同步完成：/);
-  expect(requests.some((request) => request.url.includes('/v1/sync/tasks/pull'))).toBe(true);
-  expect(requests.some((request) => request.url.includes('/v1/sync/tasks/push'))).toBe(true);
-  expect(requests.some((request) => request.url.includes('/v1/sync/weekly-reports/pull'))).toBe(true);
-  await page.getByLabel('待处理材料').fill('联系人：张三，手机13812345678，邮箱a.b@example.com');
-  await page.getByRole('button', { name: '生成脱敏预览' }).click();
-  await expect(page.getByLabel('脱敏预览（可继续修改）')).toHaveValue('联系人：[姓名]，手机[手机号]，邮箱[邮箱]');
-  expect(requests.some((request) => request.url.endsWith('/v1/ai/generate'))).toBe(false);
-  await page.getByRole('button', { name: '确认本次发送' }).click();
-  await expect(page.getByText(/已生成提纲/)).toBeVisible();
-  const aiRequest = requests.find((request) => request.url.endsWith('/v1/ai/generate'));
-  expect(aiRequest?.body).toEqual({ redactedContent: '联系人：[姓名]，手机[手机号]，邮箱[邮箱]', redacted: true, confirmed: true, purpose: '起草提纲' });
+test('rejects years longer than four digits in every editable date field', async ({ page }) => {
+  await page.getByRole('button', { name: '任务管理' }).click();
+  await page.getByRole('button', { name: '新建任务' }).click();
+  await rejectLongYear(page.getByLabel('截止日期'), '');
+  const assignDate = await page.getByLabel('交办日期').inputValue();
+  await rejectLongYear(page.getByLabel('交办日期'), assignDate);
+  await page.getByTitle('关闭').click();
+
+  await page.getByRole('button', { name: '文件收发' }).click();
+  await page.getByRole('button', { name: '登记文件' }).click();
+  const documentDate = await page.getByLabel('成文日期').inputValue();
+  await rejectLongYear(page.getByLabel('成文日期'), documentDate);
+  await page.getByTitle('关闭').click();
+
+  await page.getByRole('button', { name: '周报生成' }).click();
+  const startDate = await page.getByLabel('开始日期').inputValue();
+  const endDate = await page.getByLabel('结束日期').inputValue();
+  await rejectLongYear(page.getByLabel('开始日期'), startDate);
+  await rejectLongYear(page.getByLabel('结束日期'), endDate);
 });
 
 test('imports both legacy fixture formats and keeps archive records read-only', async ({ page }) => {
@@ -208,14 +212,14 @@ test('exports and restores a local snapshot', async ({ page }) => {
   await page.getByRole('button', { name: '任务管理' }).click();
   const taskRow = page.locator('.table-row').filter({ hasText: restoredTask });
   await taskRow.getByTitle('删除任务').click();
-  await expect(page.getByText(restoredTask)).toHaveCount(0);
+  await expect(page.getByText(restoredTask, { exact: true })).toHaveCount(0);
 
   await page.getByRole('button', { name: '数据迁移' }).click();
   await page.locator('input[type="file"]').setInputFiles(snapshotPath);
   await expect(page.getByText('本地快照恢复完成')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'HxHwang Gw 本地快照' })).toBeVisible();
   await page.getByRole('button', { name: '任务管理' }).click();
-  await expect(page.getByText(restoredTask)).toBeVisible();
+  await expect(page.getByText(restoredTask, { exact: true })).toBeVisible();
 });
 
 test('saves a draft, exports DOCX and delegates PDF export to the desktop bridge', async ({ page }) => {
@@ -248,6 +252,37 @@ test('saves a draft, exports DOCX and delegates PDF export to the desktop bridge
   expect((await download).suggestedFilename()).toMatch(/\.docx$/);
   await page.getByRole('button', { name: '导出 PDF' }).click();
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem('e2e-pdf'))).toBe('测试会议纪要:true');
+});
+
+test('imports TXT, sanitized HTML and DOCX, then reuses a saved custom format', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Document conversion and custom-template persistence are verified once.');
+  await page.getByRole('button', { name: '公文写作' }).click();
+  const importer = page.locator('.document-import-button input[type="file"]');
+
+  await importer.setInputFiles({ name: '导入文本.txt', mimeType: 'text/plain', buffer: Buffer.from('导入文本标题\n文本正文') });
+  await expect(page.getByLabel('文稿标题')).toHaveValue('导入文本标题');
+  await expect(page.locator('.ProseMirror')).toContainText('文本正文');
+
+  await importer.setInputFiles({ name: '导入页面.html', mimeType: 'text/html', buffer: Buffer.from('<h1>导入页面标题</h1><script>window.evil=true</script><p onclick="evil()">安全正文</p>') });
+  await expect(page.getByLabel('文稿标题')).toHaveValue('导入页面标题');
+  await expect(page.locator('.ProseMirror')).toContainText('安全正文');
+  await expect(page.locator('.ProseMirror')).not.toContainText('window.evil');
+  await expect(page.locator('.ProseMirror [onclick], .ProseMirror script')).toHaveCount(0);
+
+  const docx = await exportDraftDocx({ id: 'e2e-import', title: '导入 DOCX 标题', documentType: '测试文稿', contentHtml: '', contentText: '导入 DOCX 标题\n一、主要内容\nDOCX 正文', templateId: 'test', version: 1, updatedAt: new Date().toISOString() });
+  await importer.setInputFiles({ name: '导入文档.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from(await docx.arrayBuffer()) });
+  await expect(page.getByLabel('文稿标题')).toHaveValue('导入 DOCX 标题');
+  await expect(page.locator('.ProseMirror')).toContainText('DOCX 正文');
+
+  await page.getByLabel('文稿标题').fill('端到端自定义格式');
+  await page.getByRole('button', { name: '保存自定义格式' }).click();
+  await expect(page.getByRole('status')).toHaveText(/已保存为自定义格式/);
+  await page.reload();
+  await page.getByRole('button', { name: '公文写作' }).click();
+  await page.getByLabel('搜索写作模板').fill('端到端自定义格式');
+  await page.getByRole('button', { name: /端到端自定义格式/ }).click();
+  await expect(page.locator('.ProseMirror')).toContainText('DOCX 正文');
+  await expect(page.getByText(/本机自定义/).first()).toBeVisible();
 });
 
 test('generates, edits, persists and exports a weekly report', async ({ page }, testInfo) => {
@@ -294,3 +329,8 @@ test('keeps the application shell within the narrow viewport', async ({ page }, 
   await page.getByRole('button', { name: '文件收发' }).click();
   expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+async function rejectLongYear(field: Locator, original: string) {
+  await field.fill('123456-07-31');
+  await expect(field).toHaveValue(original);
+}

@@ -1,5 +1,9 @@
 export type Status = 'pending' | 'progress' | 'done' | 'overdue';
+export type WorkSummaryTemplateId = 'progress' | 'coordination' | 'completion';
 export type ArchiveType = 'meeting' | 'research' | 'seal' | 'material' | 'weekly' | 'unknown';
+
+export const statusLabels: Record<Status, string> = { pending: '未启动', progress: '进行中', done: '已完成', overdue: '已超期' };
+export const workSummaryTemplateLabels: Record<WorkSummaryTemplateId, string> = { progress: '进展摘要', coordination: '协同推进', completion: '办结总结' };
 
 export interface Attachment {
   id: string;
@@ -83,6 +87,20 @@ export interface WritingTemplate {
   sourceVersion?: string;
 }
 
+export interface CustomWritingTemplate extends WritingTemplate {
+  custom: true;
+  contentHtml: string;
+  contentText: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContactDirectory {
+  people: string[];
+  units: string[];
+  updatedAt: string;
+}
+
 export interface Draft {
   id: string;
   title: string;
@@ -146,6 +164,31 @@ export interface KnowledgePack {
 export const nowIso = () => new Date().toISOString();
 
 export const createId = (prefix: string) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+export function isValidIsoDate(value: string, allowEmpty = true) {
+  if (!value) return allowEmpty;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1900 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+export function generateTaskWorkSummary(task: Task, template: WorkSummaryTemplateId) {
+  const status = statusLabels[task.status];
+  const partners = task.partnerStatus.map((partner) => partner.name.trim()).filter(Boolean);
+  const partnerText = partners.join('、');
+  if (template === 'coordination') {
+    return `${task.name}由${task.assigner.trim() || '相关负责人'}交办，当前处于${status}阶段。${partnerText ? `已协调${partnerText}等单位按任务分工协同推进。` : '已按任务分工推进相关工作。'}${task.deadline ? `计划于${task.deadline}前完成阶段目标。` : '后续将持续跟踪办理进度。'}`;
+  }
+  if (template === 'completion') {
+    return `${task.name}已完成${task.status === 'done' ? '既定任务' : '阶段性工作'}。${partnerText ? `${partnerText}等单位已完成协同事项。` : ''}${task.remark.trim() ? `有关情况：${task.remark.trim()}。` : '相关资料已整理，后续按要求归档。'}`;
+  }
+  return `${task.name}当前状态为${status}。${task.assigner.trim() ? `交办人为${task.assigner.trim()}。` : ''}${partnerText ? `已与${partnerText}沟通衔接。` : ''}${task.deadline ? `下一步将在${task.deadline}前继续推进并补充佐证材料。` : '下一步将继续推进并及时补充佐证材料。'}`;
+}
 
 const isoDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : value.slice(0, 10);
 const inRange = (value: string, startDate: string, endDate: string) => {

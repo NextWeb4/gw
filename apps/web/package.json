@@ -1,16 +1,24 @@
 {
   "name": "@hxhwang/web",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "author": { "name": "HaoXiangHwang", "email": "Rays688888@Gmail.com", "url": "https://nextweb4.github.io/" },
+  "author": {
+    "name": "HaoXiangHwang",
+    "email": "Rays688888@Gmail.com",
+    "url": "https://nextweb4.github.io/"
+  },
   "license": "UNLICENSED",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "dev:intranet": "vite --mode intranet --host 127.0.0.1",
+    "dev:internet": "vite --mode internet --host 127.0.0.1",
     "build": "node ../../scripts/verify-brand-assets.mjs && tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build",
-    "build:desktop": "node ../../scripts/verify-brand-assets.mjs && tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && node scripts/build-desktop.mjs",
+    "build:desktop": "node ../../scripts/verify-brand-assets.mjs && tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && node scripts/build-desktop.mjs internet",
+    "build:desktop:internet": "node ../../scripts/verify-brand-assets.mjs && tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && node scripts/build-desktop.mjs internet",
+    "build:desktop:intranet": "node ../../scripts/verify-brand-assets.mjs && tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && node scripts/build-desktop.mjs intranet",
     "build:intranet": "node ../../scripts/verify-brand-assets.mjs && tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build --mode intranet",
+    "build:internet": "node ../../scripts/verify-brand-assets.mjs && tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build --mode internet",
     "test": "vitest run --passWithNoTests --exclude dist/**",
     "lint": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "format:check": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json"
@@ -25,14 +33,15 @@
     "@tiptap/react": "^2.11.7",
     "@tiptap/starter-kit": "^2.11.7",
     "lucide-react": "^0.468.0",
+    "mammoth": "1.12.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "workbox-window": "^7.4.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.4.1",
     "@types/react": "^19.1.9",
     "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^4.4.1",
     "typescript": "^5.8.3",
     "vite": "^7.0.6",
     "vite-plugin-pwa": "^1.1.0",

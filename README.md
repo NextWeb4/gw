@@ -12,7 +12,7 @@
 
 A local-first system for official-document work, task and file tracking, drafting, weekly reports, document export, and controlled private synchronization.
 
-![Version](https://img.shields.io/badge/version-0.2.1-0969da?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.3.0-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -20,20 +20,22 @@ A local-first system for official-document work, task and file tracking, draftin
 
 ## Overview
 
-HxHwang Gw is a pnpm monorepo that shares one domain model across a public GitHub Pages demonstration, an intranet Web build, and an Electron desktop client. It stores operational data locally first, separates public and private-service capabilities at build time, and provides explicit adapters for synchronization and AI requests.
+HxHwang Gw is a pnpm monorepo that shares one domain model across a public GitHub Pages demonstration, separate Internet and intranet Web builds, and separate Internet and intranet Electron clients. It stores operational data locally first, separates network capabilities at build time, and provides explicit adapters for synchronization and AI requests.
 
-The public demonstration does not display private controls, import real business snapshots, call the private API, or enable AI. Use it to inspect the interface with sample data: [GitHub Pages demonstration](https://nextweb4.github.io/hxhwang-gw/).
+Version 0.3.0 moves Pages to [https://nextweb4.github.io/gw/](https://nextweb4.github.io/gw/), enforces four-digit real dates, reuses people and organization entries, generates deterministic task summaries, imports DOCX/HTML/TXT, saves local custom writing formats, and discovers models through edition-specific AI paths.
+
+The public demonstration does not display private controls, import real business snapshots, call the private API, or enable AI. Use it to inspect the interface with sample data: [GitHub Pages demonstration](https://nextweb4.github.io/gw/).
 
 ## Core Capabilities
 
 | Area | What is implemented |
 | --- | --- |
-| Work management | Tasks, participating organizations, stage/status tracking, file indexes, attachments, and searchable local records |
-| Writing | Rich-text drafting, reusable local knowledge, deterministic weekly-report generation, editable report versions, and historical archives |
+| Work management | Tasks, reusable assigners/handlers/organizations, Chinese statuses, stage tracking, deterministic work summaries, attachments, and searchable local records |
+| Writing | Rich-text drafting, DOCX/HTML/TXT import with sanitization, reusable custom formats, deterministic weekly reports, editable versions, and historical archives |
 | Documents | A shared A4-oriented engine for DOCX and PDF export; browser print is used on the Web and Electron printing on desktop |
 | Migration | Importers for two legacy prototype export shapes, with warnings when their shared version marker cannot identify the source reliably |
 | Local data | IndexedDB-backed repositories, snapshots, attachment references, and explicit recovery/export operations |
-| Private services | Opt-in synchronization, attachment transfer, and confirmed redacted AI requests in desktop and intranet builds only |
+| Edition services | Internet builds use a session-only API key with an OpenAI-compatible endpoint; intranet builds use authenticated private sync and the internal AI gateway only |
 
 Historical Skills, configuration, weekly reports, and unmapped source fields remain visible as read-only plain text. Imported HTML or script text is not executed.
 
@@ -42,8 +44,8 @@ Historical Skills, configuration, weekly reports, and unmapped source fields rem
 | Variant | Private controls | Intended use | Important boundary |
 | --- | --- | --- | --- |
 | Public Pages | Disabled | Product demonstration with built-in sample data | No business JSON, real attachments, snapshot restore, private API, or AI |
-| Intranet Web | Enabled | Browser use on a controlled internal origin | The exact HTTPS origin must be allowed by the private server; wildcard CORS is not supported |
-| Electron desktop | Enabled | Local desktop operation and A4 PDF export | The access code stays in page memory and is not written to IndexedDB |
+| Internet Web / desktop | Direct AI only | Non-classified use with an OpenAI-compatible HTTPS endpoint | The API key stays in session memory; browser use also requires provider CORS |
+| Intranet Web / desktop | Internal sync and AI gateway | Use on a controlled internal origin | Provider keys stay on the server; the intranet desktop main process blocks direct public-AI IPC |
 
 All variants remain local-first. Private synchronization begins only after a user supplies a server address and access code.
 
@@ -55,7 +57,7 @@ All variants remain local-first. Private synchronization begins only after a use
 - Windows for NSIS installers; Linux for AppImage/DEB packaging and final Linux compatibility checks.
 - A Chromium-class browser for the Web builds.
 
-The repository version is `0.2.1`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
+The repository version is `0.3.0`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
 
 ## Install and Run
 
@@ -69,6 +71,12 @@ The default development server listens on the local interface. To exercise priva
 
 ```bash
 pnpm dev:web:intranet
+```
+
+To exercise the Internet edition with an OpenAI-compatible endpoint:
+
+```bash
+pnpm dev:web:internet
 ```
 
 Do not point the public Pages build at a private API. Configuration, real attachments, and business snapshots belong only in a desktop or controlled intranet environment.
@@ -111,6 +119,7 @@ pnpm content:verify
 pnpm assets:verify
 pnpm exec playwright install chromium
 pnpm test:e2e
+pnpm test:e2e:internet
 pnpm test:e2e:intranet
 ```
 
@@ -122,17 +131,18 @@ pnpm test:e2e:intranet
 
 ```bash
 pnpm build
+pnpm build:web:internet
 pnpm build:web:intranet
 pnpm build:desktop
-pnpm build:desktop:win:x64
-pnpm build:desktop:win:arm64
-pnpm build:desktop:linux:x64
-pnpm build:desktop:linux:arm64
+pnpm build:desktop:win:x64:internet
+pnpm build:desktop:win:x64:intranet
+pnpm build:desktop:linux:x64:internet
+pnpm build:desktop:linux:x64:intranet
 ```
 
-The public Web build is written to `apps/web/dist/`; the intranet build is isolated in `apps/web/dist-intranet/`. Desktop packaging first builds a `file://`-compatible Web bundle and rejects absolute asset paths that Electron could not load.
+The public Web build is written to `apps/web/dist/`; Internet and intranet Web builds are isolated in `dist-internet/` and `dist-intranet/`. Replace `x64` with `arm64` for ARM builds. Desktop packaging first builds a `file://`-compatible Web bundle and rejects absolute asset paths that Electron could not load.
 
-Tags matching `v*` trigger Windows and Linux packaging. A release is created only after Windows builds, Linux builds, and Debian installation/startup gates succeed. The published `v0.2.1` release contains the platform packages and `SHA256SUMS.txt`: [Release v0.2.1](https://github.com/NextWeb4/hxhwang-gw/releases/tag/v0.2.1).
+Tags matching `v*` trigger Windows/Linux, x64/arm64, Internet/intranet packaging. A release is created only after all packages and Debian 10/12 startup gates succeed; the matrix produces 12 edition-specific installers plus `SHA256SUMS.txt`.
 
 ## Architecture and Module Boundaries
 
@@ -146,14 +156,14 @@ packages/migration   Legacy export recognition, mapping, warnings, archive prese
 packages/sync-client Explicit private sync, attachment, redaction, and AI client
 content           Licensed sources, allowlist, generated knowledge pack, attribution
 scripts           Content policy, asset generation, build and workflow contract checks
-e2e               Public and intranet Playwright scenarios
+e2e               Public, Internet, and intranet Playwright scenarios
 ```
 
 UI components must use package APIs rather than reaching into persistence internals. Network behavior belongs in `packages/sync-client`; local storage must not acquire implicit network access. Electron keeps context isolation and sandboxing enabled and exposes only the narrow preload contract.
 
 ## Status and Known Limitations
 
-- The public demonstration is deployed and `v0.2.1` packages are available, but this does not make the private API's shared-code authentication production-ready.
+- The public demonstration targets `https://nextweb4.github.io/gw/`; deployment and package checks do not make the private API's shared-code authentication production-ready.
 - The application is designed for public or internal non-classified work, not classified records.
 - Browser storage durability depends on the browser profile and the user's snapshot practice.
 - DOCX/PDF output depends on fonts and the final editor/viewer; formal documents still require manual review.

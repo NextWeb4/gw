@@ -1,6 +1,6 @@
 # 开源方案审计
 
-审计日期：2026-07-24。公开客户端为离线演示模式；服务端仅私有部署。
+审计日期：2026-07-25。公开客户端为离线演示模式；服务端仅私有部署。
 
 | 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与项目契合度 / 可能冲突 | 是否采用 / 采用方式 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -13,7 +13,9 @@
 | Tauri 2 | [官方](https://v2.tauri.app/) / Apache-2.0 OR MIT | 轻量桌面壳 | 权限模型清晰 | WebKitGTK 4.1 不满足 Debian 10 | 活跃 | 与 Debian 10 目标冲突 | 不采用 |
 | RxDB + Dexie | [RxDB](https://rxdb.info/) / Apache-2.0 | 本地优先数据层 | Web/Electron 共用 IndexedDB 模型 | 私有同步端点需额外实现 | 活跃 | 不得让 React 直接访问 IndexedDB | 采用，封装于 `packages/local-data` |
 | PouchDB + CouchDB | [PouchDB](https://pouchdb.com/) / Apache-2.0 | 文档复制 | 复制成熟 | 增加 CouchDB 运维，生态更新较慢 | 维护中 | 与现有 Fastify/PostgreSQL 私服设计冲突 | 不采用 |
-| Tiptap、docx、Mammoth、PDF.js | MIT、MIT、BSD-2-Clause、Apache-2.0 | 编辑、Word、预览 | 覆盖主要文档流程 | 中文字体和 Word 版式需实机验证 | 活跃 | 不能捆绑未授权字体 | 采用 Tiptap、docx；其余按需引入 |
+| Tiptap 2.11.7、docx 9.7.1 | [Tiptap](https://github.com/ueberdosis/tiptap)、[docx](https://github.com/dolanmiu/docx) / MIT | 结构化编辑、DOCX 生成 | 已与 React 19 和当前领域模型集成 | 中文字体和 Word 版式需实机验证 | 活跃 | 不能捆绑未授权字体 | 继续采用；保留现有编辑与导出职责 |
+| Mammoth 1.12.0 | [官方仓库](https://github.com/mwilliamson/mammoth.js) / BSD-2-Clause | DOCX 转换为语义 HTML | 成熟、无服务端依赖，适合本机导入；不追求复制 Word 样式 | 不保留复杂分页、页眉页脚、文本框和精确版式；转换结果仍需清洗 | 活跃；仓库未归档，npm 1.12.0 | 与 Vite/浏览器兼容；只负责 DOCX 解析，不能替代 HTML 注入防护 | 采用；按需动态导入，随后使用项目标签/属性允许清单清洗，回滚可移除 DOCX 入口而不影响 TXT/HTML 导入 |
+| PDF.js | [官方仓库](https://github.com/mozilla/pdf.js) / Apache-2.0 | PDF 渲染与文本提取 | PDF 生态成熟 | 当前需求只要求 DOCX/HTML/TXT 导入；增加体积但不能可靠恢复公文结构 | 活跃 | 超出本次真实需求，且会扩大浏览器包 | 不采用 |
 | Playwright | [官方](https://playwright.dev/) / Apache-2.0 | 浏览器端到端测试 | 覆盖离线、迁移、导出和窄屏流程 | CI 需下载 Chromium | 活跃 | 仅开发依赖，不进入运行包 | 采用为 `test:e2e`，CI 安装 Chromium |
 | Vite PWA Plugin + Workbox | [官方](https://vite-pwa-org.netlify.app/) / MIT | 静态资源预缓存 | Pages 首次访问后可离线重开 | 增加 Service Worker 更新边界 | 活跃 | 仅缓存同源构建产物，不增加业务网络请求 | 采用，自动更新并清理旧缓存 |
 | Lucide React 0.468.0 | [官方](https://lucide.dev/) / ISC | 统一的 React 线性图标组件 | 图形语言一致、按组件打包、无需图标字体或远程请求 | 大量同时渲染时仍需控制数量 | 活跃；版本已锁定在现有依赖中 | 与离线、CSP 和无公共 CDN 要求相容；不得与表情符号或自绘功能 SVG 混用 | 采用为全部界面功能图标，本次视觉重构未新增依赖 |
@@ -25,7 +27,8 @@
 
 ## 采用边界
 
-- 直接复用：Electron 打印能力、RxDB/Dexie 本地存储、Tiptap 编辑、docx 导出、Playwright 验证。
+- 直接复用：Electron 打印能力、RxDB/Dexie 本地存储、Tiptap 编辑、docx 导出、Mammoth DOCX 转换、Playwright 验证。
+- Mammoth 只替代 DOCX 压缩包和 WordprocessingML 的自研解析；TXT 转段落、HTML 标签/属性清洗、10 MB 体积边界和导入后的人工复核提示仍由项目负责。该依赖只在用户选择 DOCX 后动态加载，不引入自动网络请求。
 - 周报闭环直接复用现有 RxDB 类型记录、schema migration 插件、确定性领域汇总、`docx` 与 Electron/浏览器打印能力；任务协同字段和附件操作复用现有领域模型及本地附件库，本次未新增 npm 依赖或联网行为。新增 `weekly` 类型时将 schema 升至 v1 并执行恒等迁移，保留 v0 全部记录；migration 插件使本地存储 chunk 约增加 40.6 kB（gzip 约 11.8 kB），相对避免现有用户数据库无法打开的风险可接受。
 - v0.2.0 视觉系统直接复用现有 React、Lucide 与 CSS 动画能力；指针响应通过本地 CSS 自定义属性驱动，未引入 Motion、WebGL、远程字体、图片 CDN或运行时脚本。`prefers-reduced-motion` 会关闭持续动画，回滚时仅需恢复 `App.tsx` 的展示结构与 `styles.css`，领域数据和 API 不受影响。
 - 仅借鉴：PouchDB/CouchDB 的复制冲突思路；实际同步保留在私有 Fastify API。

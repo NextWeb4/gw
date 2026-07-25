@@ -1,10 +1,10 @@
 {
   "name": "@hxhwang/desktop",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "HxHwang Gw 公文事务与写作管理系统桌面客户端",
-  "homepage": "https://nextweb4.github.io/",
+  "homepage": "https://nextweb4.github.io/gw/",
   "desktopName": "hxhwang-gw.desktop",
   "main": "electron/main.mjs",
   "author": {
@@ -14,11 +14,19 @@
   },
   "license": "UNLICENSED",
   "scripts": {
-    "build": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs",
-    "test": "node --test test/security.test.mjs",
-    "lint": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs && node --check test/security.test.mjs",
-    "format:check": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs && node --check test/security.test.mjs",
-    "package": "electron-builder"
+    "build": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs && node --check electron/ai.mjs",
+    "test": "node --test test/security.test.mjs test/ai.test.mjs",
+    "lint": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs && node --check electron/ai.mjs && node --check test/security.test.mjs && node --check test/ai.test.mjs",
+    "format:check": "node --check electron/main.mjs && node --check electron/preload.mjs && node --check electron/security.mjs && node --check electron/ai.mjs && node --check test/security.test.mjs && node --check test/ai.test.mjs",
+    "package": "electron-builder",
+    "package:internet:win:x64": "node scripts/package-edition.mjs internet win x64",
+    "package:internet:win:arm64": "node scripts/package-edition.mjs internet win arm64",
+    "package:internet:linux:x64": "node scripts/package-edition.mjs internet linux x64",
+    "package:internet:linux:arm64": "node scripts/package-edition.mjs internet linux arm64",
+    "package:intranet:win:x64": "node scripts/package-edition.mjs intranet win x64",
+    "package:intranet:win:arm64": "node scripts/package-edition.mjs intranet win arm64",
+    "package:intranet:linux:x64": "node scripts/package-edition.mjs intranet linux x64",
+    "package:intranet:linux:arm64": "node scripts/package-edition.mjs intranet linux arm64"
   },
   "devDependencies": {
     "electron": "^43.2.0",

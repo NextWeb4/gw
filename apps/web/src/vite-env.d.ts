@@ -4,3 +4,4 @@
 declare const __APP_VERSION__: string;
 declare const __BUILD_TIME__: string;
 declare const __PRIVATE_SERVICES__: boolean;
+declare const __DISTRIBUTION_MODE__: 'public' | 'intranet' | 'internet';

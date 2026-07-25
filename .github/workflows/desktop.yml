@@ -22,6 +22,9 @@ jobs:
       - run: pnpm test
       - run: pnpm content:verify
       - run: pnpm assets:verify
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e:internet
+      - run: pnpm test:e2e:intranet
 
   windows:
     needs: verify
@@ -30,6 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         arch: [x64, arm64]
+        edition: [internet, intranet]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -37,10 +41,10 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build:desktop:win:${{ matrix.arch }}
+      - run: pnpm build:desktop:win:${{ matrix.arch }}:${{ matrix.edition }}
       - uses: actions/upload-artifact@v4
         with:
-          name: HxHwang-Gw-windows-${{ matrix.arch }}
+          name: HxHwang-Gw-windows-${{ matrix.edition }}-${{ matrix.arch }}
           path: apps/desktop/release/*-setup.exe
 
   linux:
@@ -50,6 +54,7 @@ jobs:
       fail-fast: false
       matrix:
         arch: [x64, arm64]
+        edition: [internet, intranet]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -57,10 +62,10 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build:desktop:linux:${{ matrix.arch }}
+      - run: pnpm build:desktop:linux:${{ matrix.arch }}:${{ matrix.edition }}
       - uses: actions/upload-artifact@v4
         with:
-          name: HxHwang-Gw-linux-${{ matrix.arch }}
+          name: HxHwang-Gw-linux-${{ matrix.edition }}-${{ matrix.arch }}
           path: |
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.deb
@@ -72,16 +77,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { arch: x64, platform: linux/amd64, image: 'debian:10-slim' }
-          - { arch: arm64, platform: linux/arm64, image: 'debian:10-slim' }
-          - { arch: x64, platform: linux/amd64, image: 'debian:12-slim' }
-          - { arch: arm64, platform: linux/arm64, image: 'debian:12-slim' }
+          - { edition: internet, arch: x64, platform: linux/amd64, image: 'debian:10-slim' }
+          - { edition: internet, arch: arm64, platform: linux/arm64, image: 'debian:10-slim' }
+          - { edition: internet, arch: x64, platform: linux/amd64, image: 'debian:12-slim' }
+          - { edition: internet, arch: arm64, platform: linux/arm64, image: 'debian:12-slim' }
+          - { edition: intranet, arch: x64, platform: linux/amd64, image: 'debian:10-slim' }
+          - { edition: intranet, arch: arm64, platform: linux/arm64, image: 'debian:10-slim' }
+          - { edition: intranet, arch: x64, platform: linux/amd64, image: 'debian:12-slim' }
+          - { edition: intranet, arch: arm64, platform: linux/arm64, image: 'debian:12-slim' }
     steps:
       - name: Enable arm64 emulation
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
       - uses: actions/download-artifact@v4
         with:
-          name: HxHwang-Gw-linux-${{ matrix.arch }}
+          name: HxHwang-Gw-linux-${{ matrix.edition }}-${{ matrix.arch }}
           path: packages
       - name: Install and launch on Debian
         shell: bash
@@ -122,12 +131,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          compgen -G 'release/*-x64-setup.exe' >/dev/null
-          compgen -G 'release/*-arm64-setup.exe' >/dev/null
-          compgen -G 'release/*-x86_64.AppImage' >/dev/null
-          compgen -G 'release/*-arm64.AppImage' >/dev/null
-          compgen -G 'release/*-amd64.deb' >/dev/null
-          compgen -G 'release/*-arm64.deb' >/dev/null
+          for edition in internet intranet; do
+            compgen -G "release/*-${edition}-x64-setup.exe" >/dev/null
+            compgen -G "release/*-${edition}-arm64-setup.exe" >/dev/null
+            compgen -G "release/*-${edition}-x86_64.AppImage" >/dev/null
+            compgen -G "release/*-${edition}-arm64.AppImage" >/dev/null
+            compgen -G "release/*-${edition}-amd64.deb" >/dev/null
+            compgen -G "release/*-${edition}-arm64.deb" >/dev/null
+          done
           cd release
           sha256sum * > SHA256SUMS.txt
       - name: Publish GitHub Release

@@ -36,6 +36,25 @@ test('public Pages workflows upload only the public build output', async () => {
 
   assert.equal(uploadPath(pages, 'build', 'actions/upload-pages-artifact@v3'), 'apps/web/dist');
   assert.equal(uploadPath(contentSync, 'sync', 'actions/upload-pages-artifact@v3'), 'apps/web/dist');
+  const pagesBuild = pages.jobs.build.steps.find((step) => step.run === 'pnpm --filter @hxhwang/web build');
+  const syncBuild = contentSync.jobs.sync.steps.find((step) => step.run === 'pnpm --filter @hxhwang/web build');
+  assert.equal(pagesBuild?.env?.VITE_BASE_PATH, '/gw/');
+  assert.equal(syncBuild?.env?.VITE_BASE_PATH, '/gw/');
+});
+
+test('desktop release workflow builds both editions and verifies twelve edition-specific packages', async () => {
+  const workflow = await readWorkflow('desktop.yml');
+  assert.deepEqual(workflow.jobs.windows.strategy.matrix.edition, ['internet', 'intranet']);
+  assert.deepEqual(workflow.jobs.linux.strategy.matrix.edition, ['internet', 'intranet']);
+  const releaseStep = workflow.jobs.release.steps.find((step) => step.name === 'Verify release matrix and create checksums');
+  assert.ok(releaseStep);
+  for (const pattern of ['-${edition}-x64-setup.exe', '-${edition}-arm64-setup.exe', '-${edition}-x86_64.AppImage', '-${edition}-arm64.AppImage', '-${edition}-amd64.deb', '-${edition}-arm64.deb']) {
+    assert.ok(releaseStep.run.includes(pattern), `release verification must include ${pattern}`);
+  }
+  const packager = await readFile(path.join(root, 'apps', 'desktop', 'scripts', 'package-edition.mjs'), 'utf8');
+  assert.match(packager, /extraMetadata:\s*\{ hxhwangEdition: edition \}/);
+  assert.ok(packager.includes('artifactName: `HxHwang-Gw-\\${version}-${edition}-\\${arch}'), 'edition-specific artifact name must retain electron-builder version/arch placeholders');
+  assert.match(packager, /rm\(path\.join\(projectDir, 'release', unpackedDirectory\)/, 'sequential edition builds must clean only their generated unpacked staging directory');
 });
 
 test('Debian smoke disables Chromium sandbox only inside the CI container', async () => {

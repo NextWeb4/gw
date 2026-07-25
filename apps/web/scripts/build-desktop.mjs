@@ -1,2 +1,3 @@
 const { build } = await import('vite');
-await build({ base: './', mode: 'desktop' });
+const edition = process.argv[2] === 'internet' ? 'internet' : 'intranet';
+await build({ base: './', mode: `desktop-${edition}` });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PrivateSyncClient, redactSensitiveContent } from './index.js';
+import { DirectAiClient, PrivateSyncClient, redactSensitiveContent, resolveOpenAiEndpoint } from './index.js';
 
 describe('private sync client', () => {
   it('redacts common identifiers locally before any AI request is created', () => {
@@ -65,5 +65,33 @@ describe('private sync client', () => {
     await expect(client.putAttachment(attachment)).resolves.toEqual(attachment);
     await expect(client.getAttachment(attachment.id)).resolves.toEqual(attachment);
     expect(fetcher.mock.calls[2]?.[1]).toMatchObject({ redirect: 'error', headers: { 'x-demo-session': 'session-token' } });
+  });
+
+  it('lists intranet AI models through the authenticated gateway', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ token: 'session-token' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: ['qwen3:4b'], defaultModel: 'qwen3:4b' }), { status: 200 }));
+    const client = new PrivateSyncClient({ baseUrl: 'http://127.0.0.1:8787', fetcher });
+    await client.createSession('long-access-code');
+    await expect(client.listModels()).resolves.toEqual({ models: ['qwen3:4b'], defaultModel: 'qwen3:4b' });
+    expect(fetcher.mock.calls[1]?.[0].toString()).toContain('/v1/ai/models');
+  });
+
+  it('supports OpenAI-compatible internet endpoints without following redirects', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: 'model-b' }, { id: 'model-a' }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: '结果' } }] }), { status: 200 }));
+    const client = new DirectAiClient({ baseUrl: 'https://provider.example/api', apiKey: 'memory-only', fetcher });
+    await expect(client.listModels()).resolves.toEqual(['model-a', 'model-b']);
+    await expect(client.generate({ model: 'model-a', redactedContent: '已脱敏内容', redacted: true, confirmed: true, purpose: '润色' })).resolves.toMatchObject({ choices: expect.any(Array) });
+    expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ method: 'GET', redirect: 'error' });
+    expect(fetcher.mock.calls[1]?.[1]).toMatchObject({ method: 'POST', redirect: 'error' });
+    expect(fetcher.mock.calls[1]?.[1]?.headers).toMatchObject({ authorization: 'Bearer memory-only' });
+  });
+
+  it('accepts provider base URLs with or without a trailing v1 segment', () => {
+    expect(resolveOpenAiEndpoint(new URL('https://provider.example/'), 'models').href).toBe('https://provider.example/v1/models');
+    expect(resolveOpenAiEndpoint(new URL('https://provider.example/api/'), 'chat/completions').href).toBe('https://provider.example/api/v1/chat/completions');
+    expect(resolveOpenAiEndpoint(new URL('https://provider.example/api/v1'), 'models').href).toBe('https://provider.example/api/v1/models');
   });
 });
