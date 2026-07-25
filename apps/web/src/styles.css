@@ -243,7 +243,7 @@ h1, h2, p { margin-top: 0; }
 }
 
 @media (max-width: 800px) {
-  .shell { display: block; }
+  .shell { height: 100svh; min-height: 100svh; display: block; overflow: hidden; }
   .sidebar { position: fixed; z-index: 80; top: auto; left: 10px; right: 10px; bottom: 10px; width: auto; height: 64px; min-height: 0; padding: 6px; flex-direction: row; align-items: center; color: var(--paper); border: 1px solid var(--line-strong); border-radius: 18px; box-shadow: 0 18px 55px rgba(0,0,0,.55); }
   .sidebar::after, .brand-lockup, .mode-label, .sidebar-credit { display: none; }
   .nav-list { min-width: 0; flex: 1; display: flex; gap: 3px; overflow-x: auto; scrollbar-width: none; }
@@ -255,7 +255,7 @@ h1, h2, p { margin-top: 0; }
   .nav-button.active svg { color: #0c0d0a; }
   .sidebar-bottom { margin: 0; display: flex; }
   .sidebar-bottom .nav-button { width: 54px; }
-  .main-area { padding-bottom: 82px; }
+  .main-area { height: calc(100svh - 84px); min-height: 0; padding-bottom: 0; overflow-y: auto; overscroll-behavior-y: contain; }
   .topbar { height: 58px; padding: 0 16px; }
   .mobile-brand { display: flex; align-items: center; gap: 8px; color: var(--paper); font: 500 13px/1 var(--display); }
   .topbar-context, .breadcrumbs, .connection { display: none; }

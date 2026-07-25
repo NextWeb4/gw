@@ -286,6 +286,11 @@ test('generates, edits, persists and exports a weekly report', async ({ page }, 
 test('keeps the application shell within the narrow viewport', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile', 'Narrow viewport assertion runs only in the mobile project.');
   expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  const mainArea = await page.locator('.main-area').boundingBox();
+  const navigation = await page.locator('.sidebar').boundingBox();
+  expect(mainArea).not.toBeNull();
+  expect(navigation).not.toBeNull();
+  expect(mainArea!.y + mainArea!.height).toBeLessThanOrEqual(navigation!.y);
   await page.getByRole('button', { name: '文件收发' }).click();
   expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
