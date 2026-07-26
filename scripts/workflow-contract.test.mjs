@@ -110,16 +110,99 @@ test('release-facing workspace manifests share one version', async () => {
   for (const [file, version] of versions) assert.equal(version, expected, `${file} version must match the root manifest`);
 });
 
-test('Chinese user manual matches the current release and every navigation module', async () => {
+test('Chinese user manual matches the current workspace and every navigation module', async () => {
   const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
   const help = await readFile(path.join(root, 'docs', 'HELP.md'), 'utf8');
+  const numberedSections = [...help.matchAll(/^## (\d+)\. /gm)].map((match) => Number(match[1]));
+  assert.deepEqual(numberedSections, Array.from({ length: 24 }, (_, index) => index + 1), 'manual must keep 24 ordered top-level sections');
   assert.match(help, new RegExp(`版本：v${manifest.version.replaceAll('.', '\\.')}(?:\\s|$)`));
   assert.match(help, /https:\/\/nextweb4\.github\.io\/gw\//);
   assert.match(help, /https:\/\/github\.com\/NextWeb4\/gw\/releases\/latest/);
-  for (const moduleName of ['工作台', '任务管理', '文件收发', '公文写作', '周报生成', '历史档案', '数据迁移', '关于与设置']) {
+  for (const moduleName of [
+    '工作台',
+    '任务管理',
+    '会议管理',
+    '文件收发',
+    '外出活动',
+    '用章管理',
+    '物资收发',
+    '公文写作',
+    '周报生成',
+    '统计分析',
+    'AI 助手',
+    '历史档案',
+    '数据迁移',
+    '关于与设置',
+  ]) {
     assert.match(help, new RegExp(moduleName), `manual must explain ${moduleName}`);
   }
-  for (const operation of ['新建任务', '保存任务', '保存文件', '导入文档', '保存自定义格式', '重新汇总', '导出快照', '同步业务数据', '获取 AI 模型']) {
+  for (const operation of [
+    '新建任务',
+    '保存任务',
+    '新建会议',
+    '保存会议',
+    '保存文件',
+    '新建外出活动',
+    '保存活动',
+    '新建用章记录',
+    '保存用章',
+    '新建物资记录',
+    '保存物资',
+    '导入文档',
+    '保存自定义格式',
+    '重新汇总',
+    '复制为新记录',
+    '导出快照',
+    '同步业务数据',
+    '获取 AI 模型',
+  ]) {
     assert.match(help, new RegExp(operation), `manual must explain ${operation}`);
+  }
+  for (const topic of [
+    '字段说明',
+    '显式保存',
+    '日期规则',
+    '常用人员和单位',
+    '任务附件',
+    '恢复是合并/更新操作',
+    '典型业务流程',
+    '常见问题与排查',
+    '日常操作检查清单',
+    '当前版本未提供的功能',
+  ]) {
+    assert.match(help, new RegExp(topic), `detailed manual must explain ${topic}`);
+  }
+  assert.match(help, /当前十四个导航模块/);
+  assert.match(help, /润色指引/);
+  assert.match(help, /20,000 字符/);
+  assert.match(help, /周报模板/);
+  assert.match(help, /从范文提取结构/);
+  assert.match(help, /按分组添加/);
+  assert.match(help, /类目配色/);
+  assert.match(help, /任务、会议、文件、外出活动、用章和物资是六个独立可编辑业务模块/);
+  assert.match(help, /公开 Pages.*允许导入历史业务 JSON 和恢复快照/s);
+  assert.match(help, /公开 Pages.*用户自备 Key/s);
+  assert.match(help, /当前同步范围：[\s\S]*会议；[\s\S]*外出活动；[\s\S]*用章；[\s\S]*物资；/);
+  assert.match(help, /API Key 不写入 IndexedDB、快照、URL、配置文件或应用日志/);
+  assert.match(help, /新选择的附件在保存前只暂存于编辑会话/);
+  assert.match(help, /删除任务、会议、文件、外出、用章、物资和周报前会显示确认框/);
+  assert.match(help, /同步只上传六类同步业务记录实际引用的附件/);
+  assert.doesNotMatch(help, /删除立即执行/);
+  assert.doesNotMatch(help, /删除确认和逐条撤销/);
+
+  for (const [sectionNumber, moduleName, saveAction] of [
+    [7, '任务管理', '保存任务'],
+    [8, '会议管理', '保存会议'],
+    [9, '文件收发', '保存文件'],
+    [10, '外出活动', '保存活动'],
+    [11, '用章管理', '保存用章'],
+    [12, '物资收发', '保存物资'],
+  ]) {
+    const section = help.match(new RegExp(`## ${sectionNumber}\\. ${moduleName}([\\s\\S]*?)(?=\\n## ${sectionNumber + 1}\\.)`))?.[1] || '';
+    assert.match(section, /字段说明/, `${moduleName} section must explain its fields`);
+    assert.match(section, new RegExp(saveAction), `${moduleName} section must explain ${saveAction}`);
+    assert.match(section, /搜索/, `${moduleName} section must explain search behavior`);
+    assert.match(section, /删除/, `${moduleName} section must explain deletion behavior`);
+    assert.match(section, /附件/, `${moduleName} section must explain attachment behavior`);
   }
 });

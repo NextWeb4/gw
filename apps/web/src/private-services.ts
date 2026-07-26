@@ -1,10 +1,14 @@
-import type { Attachment, Draft, OfficialDocument, Task, WeeklyReport } from '@hxhwang/domain';
-import { putRecord } from '@hxhwang/local-data';
+import type { Attachment, Draft, MaterialRecord, MeetingRecord, OfficialDocument, ResearchRecord, SealRecord, Task, WeeklyReport } from '@hxhwang/domain';
+import { attachmentIdsFromPayload, putRecord } from '@hxhwang/local-data';
 import type { AttachmentTransfer, PrivateSyncClient, PullResponse, SyncRecord } from '@hxhwang/sync-client';
 
 interface WorkspaceData {
   tasks: Task[];
+  meetings: MeetingRecord[];
   documents: OfficialDocument[];
+  researches: ResearchRecord[];
+  seals: SealRecord[];
+  materials: MaterialRecord[];
   drafts: Draft[];
   weeklyReports: WeeklyReport[];
   attachments: Attachment[];
@@ -19,7 +23,7 @@ export interface WorkspaceSyncResult {
   warnings: string[];
 }
 
-type SyncedKind = 'task' | 'document' | 'draft' | 'weekly' | 'attachment';
+type SyncedKind = 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material' | 'draft' | 'weekly' | 'attachment';
 type RecordWriter = (kind: SyncedKind, id: string, payload: object) => Promise<void>;
 const persistRecord: RecordWriter = (kind, id, payload) => putRecord(kind, id, payload as Record<string, unknown>);
 
@@ -38,7 +42,7 @@ async function pullAll<T extends SyncRecord>(client: PrivateSyncClient, collecti
 async function syncCollection<T extends { id: string; updatedAt: string }>(
   client: PrivateSyncClient,
   collection: string,
-  kind: 'task' | 'document' | 'draft' | 'weekly',
+  kind: 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material' | 'draft' | 'weekly',
   localDocuments: T[],
   writeRecord: RecordWriter
 ) {
@@ -76,12 +80,17 @@ const toTransfer = (attachment: Attachment): AttachmentTransfer | undefined => a
 } : undefined;
 
 export async function syncPrivateWorkspace(client: PrivateSyncClient, data: WorkspaceData, writeRecord: RecordWriter = persistRecord): Promise<WorkspaceSyncResult> {
-  const collections = await Promise.all([
+  const [taskSync, meetingSync, documentSync, researchSync, sealSync, materialSync, draftSync, weeklySync] = await Promise.all([
     syncCollection(client, 'tasks', 'task', data.tasks, writeRecord),
+    syncCollection(client, 'meetings', 'meeting', data.meetings, writeRecord),
     syncCollection(client, 'documents', 'document', data.documents, writeRecord),
+    syncCollection(client, 'researches', 'research', data.researches, writeRecord),
+    syncCollection(client, 'seals', 'seal', data.seals, writeRecord),
+    syncCollection(client, 'materials', 'material', data.materials, writeRecord),
     syncCollection(client, 'drafts', 'draft', data.drafts, writeRecord),
     syncCollection(client, 'weekly-reports', 'weekly', data.weeklyReports, writeRecord)
   ]);
+  const collections = [taskSync, meetingSync, documentSync, researchSync, sealSync, materialSync, draftSync, weeklySync];
   const result: WorkspaceSyncResult = {
     pulled: collections.reduce((total, item) => total + item.pulled, 0),
     pushed: collections.reduce((total, item) => total + item.pushed, 0),
@@ -91,7 +100,21 @@ export async function syncPrivateWorkspace(client: PrivateSyncClient, data: Work
     warnings: []
   };
 
+  const referencedIds = new Set<string>();
+  const synchronizedRecords = [
+    ...data.tasks, ...taskSync.remoteDocuments,
+    ...data.meetings, ...meetingSync.remoteDocuments,
+    ...data.documents, ...documentSync.remoteDocuments,
+    ...data.researches, ...researchSync.remoteDocuments,
+    ...data.seals, ...sealSync.remoteDocuments,
+    ...data.materials, ...materialSync.remoteDocuments
+  ];
+  for (const record of synchronizedRecords) {
+    for (const id of attachmentIdsFromPayload(record)) referencedIds.add(id);
+  }
+
   for (const attachment of data.attachments) {
+    if (!referencedIds.has(attachment.id)) continue;
     const transfer = toTransfer(attachment);
     if (!transfer) { result.warnings.push(`附件缺少正文或哈希，未上传：${attachment.name}`); continue; }
     await client.putAttachment(transfer);
@@ -99,9 +122,6 @@ export async function syncPrivateWorkspace(client: PrivateSyncClient, data: Work
   }
 
   const knownAttachmentIds = new Set(data.attachments.map((attachment) => attachment.id));
-  const referencedIds = new Set<string>();
-  for (const task of [...data.tasks, ...collections[0].remoteDocuments]) task.files.forEach((id) => referencedIds.add(id));
-  for (const document of [...data.documents, ...collections[1].remoteDocuments]) document.files.forEach((id) => referencedIds.add(id));
   for (const id of referencedIds) {
     if (knownAttachmentIds.has(id)) continue;
     try {

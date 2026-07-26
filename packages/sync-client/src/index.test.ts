@@ -1,10 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DirectAiClient, PrivateSyncClient, redactSensitiveContent, resolveOpenAiEndpoint } from './index.js';
+import { AI_MAX_CONTENT_LENGTH, AI_MAX_GUIDANCE_LENGTH, AI_PROVIDER_PRESETS, composeAiSystemPrompt, DirectAiClient, extractOpenAiText, PrivateSyncClient, redactSensitiveContent, resolveOpenAiEndpoint } from './index.js';
 
 describe('private sync client', () => {
   it('redacts common identifiers locally before any AI request is created', () => {
     expect(redactSensitiveContent('联系人：张三，手机13812345678，邮箱a.b@example.com，身份证11010119900101123X'))
       .toBe('联系人：[姓名]，手机[手机号]，邮箱[邮箱]，身份证[身份证号]');
+  });
+
+  it('redacts a phone-number email address as a whole instead of leaking the domain', () => {
+    expect(redactSensitiveContent('备用邮箱13812345678@example.com')).toBe('备用邮箱[邮箱]');
+  });
+
+  it('does not treat an 11-digit slice inside a longer number as a phone number', () => {
+    expect(redactSensitiveContent('订单号2138123456789')).toBe('订单号2138123456789');
+    expect(redactSensitiveContent('电话13812345678。')).toBe('电话[手机号]。');
   });
 
   it('requires safe base URLs and an explicit session', async () => {
@@ -78,6 +87,7 @@ describe('private sync client', () => {
   });
 
   it('supports OpenAI-compatible internet endpoints without following redirects', async () => {
+    expect(() => new DirectAiClient({ baseUrl: 'https://provider.example/api', apiKey: 'k'.repeat(1001) })).toThrow(/长度超限/);
     const fetcher = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: 'model-b' }, { id: 'model-a' }] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: '结果' } }] }), { status: 200 }));
@@ -87,11 +97,69 @@ describe('private sync client', () => {
     expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ method: 'GET', redirect: 'error' });
     expect(fetcher.mock.calls[1]?.[1]).toMatchObject({ method: 'POST', redirect: 'error' });
     expect(fetcher.mock.calls[1]?.[1]?.headers).toMatchObject({ authorization: 'Bearer memory-only' });
+    const request = JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body));
+    expect(request.messages[0].content).toContain('当前任务用途：润色');
+    await expect(client.generate({ model: 'model-a', redactedContent: 'x'.repeat(AI_MAX_CONTENT_LENGTH + 1), redacted: true, confirmed: true, purpose: '润色' })).rejects.toThrow(/120000/);
+    await expect(client.generate({ model: 'model-a', redactedContent: '已脱敏内容', redacted: true, confirmed: true, purpose: '' })).rejects.toThrow(/用途/);
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
-  it('accepts provider base URLs with or without a trailing v1 segment', () => {
+  it('appends bounded user guidance to the system prompt without touching the material', async () => {
+    expect(composeAiSystemPrompt('公文润色')).toBe('当前任务用途：公文润色。只处理用户确认的脱敏材料，不得编造事实；无法确认的信息必须明确标注。');
+    expect(composeAiSystemPrompt('公文润色', '  多用动宾结构。  ')).toContain('写作指引（用户提供，须遵循且不得虚构事实）：\n多用动宾结构。');
+    expect(composeAiSystemPrompt('公文润色', '   ')).not.toContain('写作指引');
+
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ choices: [{ message: { content: '结果' } }] }), { status: 200 }));
+    const client = new DirectAiClient({ baseUrl: 'https://provider.example/v1', apiKey: 'memory-only', fetcher });
+    await client.generate({ model: 'model-a', redactedContent: '已脱敏内容', redacted: true, confirmed: true, purpose: '公文润色', guidance: '标题使用四号黑体。' });
+    const request = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body));
+    expect(request.messages[0].content).toContain('当前任务用途：公文润色');
+    expect(request.messages[0].content).toContain('标题使用四号黑体。');
+    expect(request.messages[1].content).toBe('已脱敏内容');
+    await expect(client.generate({ model: 'model-a', redactedContent: '已脱敏内容', redacted: true, confirmed: true, purpose: '公文润色', guidance: 'x'.repeat(AI_MAX_GUIDANCE_LENGTH + 1) })).rejects.toThrow(/润色指引不能超过/);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('bounds and validates OpenAI-compatible provider responses before parsing', async () => {
+    const oversizedBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(1_100_000).fill(120));
+        controller.enqueue(new Uint8Array(1_100_000).fill(120));
+        controller.close();
+      }
+    });
+    const oversizedClient = new DirectAiClient({ baseUrl: 'https://provider.example/v1', fetcher: vi.fn<typeof fetch>(async () => new Response(oversizedBody, { status: 200 })) });
+    await expect(oversizedClient.listModels()).rejects.toThrow(/2 MB/);
+
+    const invalidClient = new DirectAiClient({ baseUrl: 'https://provider.example/v1', fetcher: vi.fn<typeof fetch>(async () => new Response('{not-json', { status: 200 })) });
+    await expect(invalidClient.listModels()).rejects.toThrow(/无效 JSON/);
+  });
+
+  it('trims, filters and de-duplicates model identifiers', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ data: [{ id: ' model-b ' }, { id: 'model-a' }, { id: 'model-a' }, { id: '' }, { id: 'x'.repeat(201) }, { id: 42 }] }), { status: 200 }));
+    const client = new DirectAiClient({ baseUrl: 'https://provider.example/v1', fetcher });
+    await expect(client.listModels()).resolves.toEqual(['model-a', 'model-b']);
+  });
+
+  it('accepts provider base URLs with or without a trailing version segment', () => {
     expect(resolveOpenAiEndpoint(new URL('https://provider.example/'), 'models').href).toBe('https://provider.example/v1/models');
     expect(resolveOpenAiEndpoint(new URL('https://provider.example/api/'), 'chat/completions').href).toBe('https://provider.example/api/v1/chat/completions');
     expect(resolveOpenAiEndpoint(new URL('https://provider.example/api/v1'), 'models').href).toBe('https://provider.example/api/v1/models');
+    expect(resolveOpenAiEndpoint(new URL('https://open.bigmodel.cn/api/paas/v4'), 'chat/completions').href).toBe('https://open.bigmodel.cn/api/paas/v4/chat/completions');
+    expect(resolveOpenAiEndpoint(new URL('https://open.bigmodel.cn/api/paas/v4/'), 'models').href).toBe('https://open.bigmodel.cn/api/paas/v4/models');
+    expect(resolveOpenAiEndpoint(new URL('https://provider.example/v2035'), 'models').href).toBe('https://provider.example/v2035/models');
+  });
+
+  it('ships editable official provider presets without credentials', () => {
+    expect(AI_PROVIDER_PRESETS.map((preset) => preset.id)).toEqual(['openai', 'deepseek', 'moonshot', 'zhipu', 'dashscope', 'siliconflow', 'ollama', 'custom']);
+    expect(AI_PROVIDER_PRESETS.every((preset) => !('apiKey' in preset))).toBe(true);
+    expect(AI_PROVIDER_PRESETS.find((preset) => preset.id === 'deepseek')?.baseUrl).toBe('https://api.deepseek.com');
+    expect(AI_PROVIDER_PRESETS.find((preset) => preset.id === 'zhipu')?.baseUrl).toBe('https://open.bigmodel.cn/api/paas/v4');
+  });
+
+  it('extracts readable text from direct and gateway OpenAI responses', () => {
+    expect(extractOpenAiText({ choices: [{ message: { content: '直接结果' } }] })).toBe('直接结果');
+    expect(extractOpenAiText({ result: { choices: [{ message: { content: '网关结果' } }] } })).toBe('网关结果');
+    expect(extractOpenAiText({ data: [] })).toBe('');
   });
 });

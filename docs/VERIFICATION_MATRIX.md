@@ -1,19 +1,20 @@
 # 交付验证矩阵
 
-验证日期：2026-07-25。状态只代表当前工作区和本机环境，不代表已完成生产合规或目标系统兼容认证。
+验证日期：2026-07-26。状态只代表当前工作区和本机环境，不代表已完成生产合规或目标系统兼容认证；标明 Release 的行仍只描述对应已发布版本。
 
 | 交付项 | 验证方式 | 当前状态 | 证据 / 限制 |
 | --- | --- | --- | --- |
+| v0.4.0 AI 助手模块与审计修复 | `pnpm lint`、`pnpm test`、`pnpm test:e2e`（三套）、`pnpm build` | 已通过本机回归 | 2026-07-26 本机回归全部通过：`pnpm lint`、`pnpm test`（全部包单测 + content/workflow/ui 契约）、`pnpm build`（三分发版 Web 产物均重建）、主套件 E2E 51 通过 5 条件跳过、内网 E2E 2 通过、互联网 E2E 2 通过。回归中修复：提示条同文案连续弹出被 React 相同 state 合并吞掉（改为带自增 key 的状态）、脱敏顺序缺陷（邮箱先于手机号 + 数字边界，防止 `手机号@域名` 泄露域名）、三处 E2E 定位器歧义（迁移页新增 .md/.txt 导入器与关于页“打开 AI 助手”引入）、主套件超时上调至 60 秒；并清理恒真 `enhancedLocalMode` 死分支与未引用的 `__PRIVATE_SERVICES__` 常量。原云端会话记录：新增“AI 助手”导航模块（预设含智谱 GLM）、“统计分析”确定性统计模块（domain 纯函数+CSS 图形）、任务“智能识别填单”本机文字识别、“公文写作指引库（Skill）”三边界 guidance（20,000 字符上限）、“周报模板”章节结构管理（默认输出经基线对比逐字节一致）、“配合单位分组”追加合并、“类目配色”确定性色板、`/v1`/`/v4` 版本号端点解析（Web/桌面 IPC/私有网关三处一致）、写作与周报“AI 润色”预填、本机时区默认日期、数量输入缓冲、新回归 E2E。domain 新函数已在云端以严格模式编译并通过功能断言。桌面 `node --test`（7 项）、`pnpm test:ui` 契约（2 项）与 HELP 文档契约断言已在云端通过；受网络限制，vitest/Playwright/构建需在本机重跑后方可标记通过 |
 | 根目录、公开客户端、私有服务端 `AGENTS.md` | 检查目录结构、脚本、边界和风险规则 | 已完成 | [根工作区](../../AGENTS.md)、[客户端](../AGENTS.md) 和 [服务端](../../hxhwang-gw-server/AGENTS.md) |
-| 客户端 lint / 单元测试 / format | `pnpm lint`、`pnpm test`、`pnpm format:check` | 已通过 | 2026-07-25 最终回归通过；覆盖四位年份与真实日期、确定性工作小结、OpenAI 兼容路径、内网直连阻断、模型发现、迁移、文档、快照、Electron、来源策略、双版本发布矩阵和 UI 契约 |
+| 客户端 lint / 单元测试 / format | `pnpm lint`、`pnpm test`、`pnpm format:check` | 已通过 | 2026-07-26 回归通过；覆盖四位年份与真实日期、常用项集合合并、六类台账、库存汇总、六类周报、公开/互联网/内网 AI、同步允许清单、迁移、文档、快照、Electron、来源策略、发布矩阵、详细说明书和 UI 契约 |
 | 客户端构建 | `pnpm build`、`pnpm content:verify`、`pnpm assets:verify` | 已通过 | Web、领域包、迁移、文档、桌面壳构建通过；3 条规则、11 个模板、1 条授权记录及 Web/Electron 品牌资产校验通过 |
 | 历史 HTML 原件 | 对根目录与 `legacy/` 执行 SHA-256 对比并核对真实存储键 | 已通过 | `升级版04.html` 与 `wenxibuddy0722.html` 均逐字节一致；0722 仍是需求基线，0723 与 UI glossary 只作补充参考；正式功能未写回历史原型。审计确认两版导出器都写入相同 `sourceApp/version` 且默认只收集 `work_/attach_`，因此迁移报告会披露来源歧义和缺失 Skill；物资 `attachments` 为记录内 Data URL，迁移器会另行生成稳定 ID、哈希和只读档案下载引用 |
 | 历史 Skill / 配置 / 未映射字段 | 两版夹具、补充 Skill 输入、只读详情 E2E | 已通过 | 任务、文件和档案保留的 `legacyPayload` 可展开查看；普通配置与补充 Skill 进入独立只读列表，Skill 正文和额外原始字段均可见。所有内容经 React 文本节点/JSON 序列化显示，不使用 `dangerouslySetInnerHTML` |
-| Pages 端到端与离线演示 | `pnpm test:e2e` | 已通过 | 2026-07-25 最终回归为 20 passed、4 条件跳过；覆盖零外联、离线重开、Pages 私有控制及真实附件/业务导入隐藏、五个日期字段六位年份拒绝、中文状态、人员/单位复用、工作小结、双版本迁移、快照、DOCX/HTML/TXT 导入与清洗、自定义格式、写作/周报导出和移动布局 |
+| Pages 端到端与离线演示 | `pnpm test:e2e` | 已通过 | 2026-07-26 回归为 28 passed、4 条件跳过；覆盖显式操作前零外联、离线重开、Pages 私有同步隐藏、本机附件/业务导入、用户自备 Key AI、六类业务 CRUD、日期中间编辑状态、常用项保留、双版本迁移与复制边界、快照、DOCX/HTML/TXT、自定义格式、六类周报和移动布局 |
 | v0.3.0 视觉系统 | `xbrowser` 真实浏览器、源码规则扫描、1440×900 与 390×844 截图 | 已通过本机验收 | 工作台、任务列表和写作中心采用原创“动态档案 / 墨迹信号”界面；功能图标全部来自 Lucide。390×844 实测正文区域为 `0..760`、底栏为 `770..834`、页面宽度为 390，页面级无横向溢出；1440×900 主区和侧栏完整分栏。控制台零错误，网络只包含同源 `/gw/` 资源和 `data:` 图像 |
-| 首版周报闭环 | 领域测试、RxDB schema v1 迁移/快照、私有同步测试、Playwright 保存/重载/导出 | 已通过 | 新周报按日期范围从已有任务、工作小结和文件字段确定性汇总，可人工编辑、保存版本、恢复快照、显式同步并导出 A4 DOCX/PDF；使用 `v0.1.0` 标签构建并在持久浏览器 profile 写入任务后，v0.1.1 成功建立 v1 数据库、保留旧任务并写入新周报，控制台无错误；旧版周报继续作为 `archive` 只读保留 |
-| 内网 Web | `pnpm test:e2e:intranet`、`pnpm build:web:intranet`、`pnpm test:workflows` | 已通过本机构建与 E2E | 2 项 E2E 通过；验证真实附件/迁移、私有 CSP、连接前零外联、认证会话、内部模型发现、模型选择、脱敏预览和确认发送；产物固定到 `dist-intranet/`，尚未部署到实际内网服务器 |
-| 互联网 Web | `pnpm test:e2e:internet`、`pnpm build:web:internet` | 已通过本机构建与 E2E | 1 项 E2E 通过；验证连接前零外联、会话级 API Key、以 `/v1` 结尾的地址、模型发现、脱敏预览和显式确认；产物固定到 `dist-internet/`，浏览器实际接入仍取决于提供方 CORS |
+| 周报闭环 | 领域测试、RxDB schema v2/快照、私有同步测试、Playwright 保存/重载/导出 | 已通过 | 新周报按日期范围从任务、会议、文件、外出、用章和物资已录入字段确定性汇总，可人工编辑、保存版本、恢复快照、显式同步并导出 A4 DOCX/PDF；旧版周报继续作为 `archive` 只读保留，版本号仍是覆盖保存计数而非可回退历史 |
+| 内网 Web | `pnpm test:e2e:intranet`、`pnpm build:web:intranet`、`pnpm test:workflows` | 已通过本机构建与 E2E | 2026-07-26 的 2 项 E2E 通过；验证本机附件/迁移、私有 CSP、连接前零外联、认证会话、内部模型发现、可读结果、脱敏预览和确认发送；产物固定到 `dist-intranet/`，尚未部署到实际内网服务器 |
+| 互联网 Web | `pnpm test:e2e:internet`、`pnpm build:web:internet` | 已通过本机构建与 E2E | 2026-07-26 的 1 项 E2E 通过；验证连接前零外联、会话级 API Key、以 `/v1` 结尾的地址、模型发现、可读结果、脱敏预览和显式确认；产物固定到 `dist-internet/`，浏览器实际接入仍取决于提供方 CORS |
 | GitHub Pages 子路径 | `VITE_BASE_PATH=/gw/ pnpm --filter @hxhwang/web build` + 本地预览访问 `/gw/` | 已通过 | `http://127.0.0.1:4176/gw/` 返回 HTTP 200；入口 JS、PWA manifest 与品牌图标均使用 `/gw/` 前缀，真实浏览器未请求私有 API、模型服务或公共 CDN |
 | 发布前仓库敏感信息扫描 | 对两个当前工作区执行 PAT、模型密钥、API key 和私钥模式扫描 | 已通过当前源码扫描 | 客户端与私有服务端当前源码均无对话中暴露的 PAT/模型令牌、硬编码 API key 或私钥；生成安装包和构建产物不纳入 Git 提交。历史扫描结论仍以既有发布记录为准 |
 | Electron `file://` 资源 | `pnpm build:desktop:win:x64`、`pnpm build:desktop:win:arm64`；`pnpm verify:desktop-web` | 已通过 | 打包前校验 9 个资源均为相对路径，并验证桌面 CSP 仅允许 HTTPS、本机 API且禁止表单提交；ASAR 包含开发地址策略模块且不包含对应测试文件 |
@@ -25,8 +26,8 @@
 | Windows v0.3.1 双版本本机构建 | 两条 x64 分版构建命令、解包程序 8 秒启动门、SHA-256 与 Authenticode 检查 | x64 已通过 | 互联网版安装包 101,310,186 字节，SHA-256 `77D9C0203B94E3A6FEB093FE4200B42B7CAB101A2F098CC2BA972B5DAF2D55DE`；内网版 101,310,243 字节，SHA-256 `28DB6AA0C422DD81454BB77B1112DD24A46132A8FA2F5BB79ECCEFBDCA08ABF3`。两版解包程序各保持 4 个进程运行 8 秒后由测试结束；互联网 ASAR 复核为 `hxhwangEdition=internet`，两版安装包均未签名。首次连续重打包复现临时 `EBUSY` 文件锁，现已用仅限 Windows/EBUSY/最多三次的有界 staging 重试修复并再次构建通过 |
 | Windows 签名与品牌图标 | 资产结构校验、可执行文件图标提取、`Get-AuthenticodeSignature` | 图标已完成，签名未完成 | 原创 SVG 已生成 192/512 PNG 与 256 PNG-ICO，x64 可执行文件成功提取品牌图标；x64/arm64 安装包仍为 `NotSigned`，正式分发前需要代码签名证书 |
 | 本机 Web 预览 | `/gw/` Web build、Playwright 与 `xbrowser` 可视化检查 | 已通过 | v0.3.0 带哈希的 JS/CSS、manifest 和品牌图标均可加载；1440×900 工作台/任务/写作中心和 390×844 写作中心无页面级横向溢出或面板重叠；验证服务器仅绑定 `127.0.0.1:4176` |
-| 浏览器安全策略 | 检查 Pages/内网/桌面 CSP、Electron 开发地址策略并监听浏览器控制台 | 已通过并记录托管限制 | Pages 仅允许同源连接；内网/桌面允许用户显式 HTTPS 或本机 API；Electron 阻止任意新窗口、导航、webview 和非剪贴板权限，打包后忽略开发地址覆盖，未打包时只允许本机 HTTP；正式防嵌入仍须由 Web 响应头提供 |
-| 私有同步与 AI | 单元测试、互联网/内网 E2E、服务端集成测试 | 已通过演示契约 | 内网版只经认证私有网关获取模型和生成结果，主进程拒绝内网包直连公网 AI；互联网版支持 OpenAI 兼容地址和模型发现，API Key 只在会话内存；两版都必须先本地脱敏预览并逐次确认，结果不覆盖原稿或确定性规则 |
+| 浏览器安全策略 | 检查 Pages/内网/桌面 CSP、Electron 开发地址策略并监听浏览器控制台 | 已通过并记录托管限制 | Pages/互联网版允许用户显式 HTTPS 或回环 AI 地址，但加载页面、选择预设和填写 Key 均零外联；Pages 不包含私有 API 目标。Electron 阻止任意新窗口、导航、webview 和非剪贴板权限，内网桌面主进程拒绝直连公网 AI；正式防嵌入仍须由 Web 响应头提供 |
+| 私有同步与 AI | 单元测试、公开/互联网/内网 E2E、服务端集成测试 | 已通过演示契约 | 内网同步显式覆盖任务、会议、文件、外出、用章、物资、主草稿、周报和附件；内网 AI 只经认证网关。公开 Pages/互联网版支持服务商预设、会话级 Key、模型发现、五类本机素材与自定义材料；各模式都要求本地脱敏和逐次确认，结果只读且不覆盖原稿或确定性规则 |
 | 授权资料元数据 | `pnpm content:verify` | 结构已完成，凭证编号待补 | 已记录来源文件、版本、授权范围、版权归属状态与限制；当前依据用户确认，正式公开前仍应补入授权书归档位置或凭证编号 |
 | 公共权威与授权来源同步 | `pnpm test:content`、`pnpm content:sync`、`pnpm content:verify`；`.github/workflows/content-sync.yml` | 本地已通过，远端待运行 | 政府来源必须使用明确列出的 HTTPS 主机，其他来源必须精确匹配显式允许自动抓取的授权 URL；逐跳校验重定向并限制为 HTML、2 MB 和必含结构。2026-07-24 实际检查 1 个国家标准来源且哈希未变化；每周工作流仅在变化时提交生成元数据并在同一工作流部署 Pages，不改人工模板 |
 | 服务端静态检查、集成测试、构建 | `pnpm lint`、`pnpm test:integration`、`pnpm build`、`pnpm format:check` | 已通过 | 2026-07-25 回归为 9 项通过、2 项 PostgreSQL 环境测试跳过；新增认证模型列表、默认模型、provider key 不外泄和 `/v1` 路径去重测试，并继续覆盖会话、同步冲突、附件哈希、未确认 AI、重定向阻断与 CORS；构建验证 `pnpm start` 入口 |

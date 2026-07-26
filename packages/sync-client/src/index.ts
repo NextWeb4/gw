@@ -3,16 +3,77 @@ export interface SyncCheckpoint { updatedAt: string; id: string; }
 export interface PullResponse<T extends SyncRecord> { documents: T[]; checkpoint: SyncCheckpoint | null; }
 export interface PushRow<T extends SyncRecord> { newDocumentState: T; assumedMasterState?: T | null; }
 export interface SyncClientOptions { baseUrl: string; sessionToken?: string; fetcher?: typeof fetch; }
-export interface AiGenerateRequest { redactedContent: string; confirmed: true; redacted: true; purpose: string; model?: string; }
+export interface AiGenerateRequest { redactedContent: string; confirmed: true; redacted: true; purpose: string; model?: string; guidance?: string; }
 export interface AiGenerateResponse { result: unknown; audit: { purpose: string; provider: string; model: string; contentHash: string; createdAt: string } }
 export interface AttachmentTransfer { id: string; name: string; mimeType: string; size: number; dataBase64: string; sha256: string; createdAt?: string; }
 export interface DirectAiClientOptions { baseUrl: string; apiKey?: string; fetcher?: typeof fetch; }
+export interface AiProviderPreset { id: string; label: string; baseUrl: string; officialDocs: string; note: string; }
+export const AI_MAX_CONTENT_LENGTH = 120_000;
+export const AI_MAX_GUIDANCE_LENGTH = 20_000;
+const AI_MAX_RESPONSE_BYTES = 2_000_000;
+
+export function composeAiSystemPrompt(purpose: string, guidance?: string) {
+  const base = `当前任务用途：${purpose.trim()}。只处理用户确认的脱敏材料，不得编造事实；无法确认的信息必须明确标注。`;
+  const trimmedGuidance = guidance?.trim();
+  return trimmedGuidance ? `${base}\n\n写作指引（用户提供，须遵循且不得虚构事实）：\n${trimmedGuidance}` : base;
+}
+
+export const AI_PROVIDER_PRESETS: AiProviderPreset[] = [
+  { id: 'openai', label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', officialDocs: 'https://platform.openai.com/docs/api-reference', note: '国际服务；浏览器使用取决于账户与 CORS。' },
+  { id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com', officialDocs: 'https://api-docs.deepseek.com/', note: '中国大陆常用 OpenAI 兼容接口。' },
+  { id: 'moonshot', label: 'Moonshot / Kimi', baseUrl: 'https://api.moonshot.cn/v1', officialDocs: 'https://platform.moonshot.cn/docs/guide/start-using-kimi-api', note: 'Moonshot 开放平台兼容接口。' },
+  { id: 'zhipu', label: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', officialDocs: 'https://docs.bigmodel.cn/', note: '智谱开放平台 OpenAI 兼容接口。' },
+  { id: 'dashscope', label: '阿里云百炼 / DashScope', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', officialDocs: 'https://help.aliyun.com/zh/model-studio/compatibility-of-openai-with-dashscope', note: '如控制台提供工作空间专属地址，应以控制台地址覆盖此值。' },
+  { id: 'siliconflow', label: 'SiliconFlow', baseUrl: 'https://api.siliconflow.cn/v1', officialDocs: 'https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions', note: '中国大陆模型聚合服务。' },
+  { id: 'ollama', label: '本机 Ollama', baseUrl: 'http://127.0.0.1:11434/v1', officialDocs: 'https://docs.ollama.com/api/openai-compatibility', note: '仅连接当前设备回环地址，不使用云端 API Key。' },
+  { id: 'custom', label: '自定义兼容接口', baseUrl: '', officialDocs: '', note: '填写单位代理或其他 OpenAI 兼容基址。' }
+];
 
 export function resolveOpenAiEndpoint(baseUrl: URL, resource: 'models' | 'chat/completions') {
   const normalizedBase = new URL(baseUrl.href.endsWith('/') ? baseUrl.href : `${baseUrl.href}/`);
   const normalizedPath = normalizedBase.pathname.replace(/\/+$/, '');
-  const endpoint = normalizedPath.endsWith('/v1') ? resource : `v1/${resource}`;
+  const endpoint = /\/v\d+$/.test(normalizedPath) ? resource : `v1/${resource}`;
   return new URL(endpoint, normalizedBase);
+}
+
+export function extractOpenAiText(payload: unknown): string {
+  const value = payload && typeof payload === 'object' && 'result' in payload ? (payload as { result?: unknown }).result : payload;
+  if (!value || typeof value !== 'object') return typeof value === 'string' ? value : '';
+  const choices = (value as { choices?: unknown }).choices;
+  if (!Array.isArray(choices)) return '';
+  const content = (choices[0] as { message?: { content?: unknown } } | undefined)?.message?.content;
+  if (typeof content === 'string') return content.trim();
+  if (Array.isArray(content)) return content.map((part) => part && typeof part === 'object' && 'text' in part ? String((part as { text?: unknown }).text || '') : '').join('').trim();
+  return '';
+}
+
+async function readLimitedResponseText(response: Response) {
+  const declaredLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > AI_MAX_RESPONSE_BYTES) throw new Error('AI 服务响应超过 2 MB 限制');
+  if (!response.body) {
+    const text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > AI_MAX_RESPONSE_BYTES) throw new Error('AI 服务响应超过 2 MB 限制');
+    return text;
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let bytesRead = 0;
+  let text = '';
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      bytesRead += chunk.value.byteLength;
+      if (bytesRead > AI_MAX_RESPONSE_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error('AI 服务响应超过 2 MB 限制');
+      }
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    return text + decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 export { redactSensitiveContent } from './redaction.js';
@@ -91,19 +152,25 @@ export class DirectAiClient {
     this.baseUrl = new URL(baseUrl.href.endsWith('/') ? baseUrl.href : `${baseUrl.href}/`);
     this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
     this.apiKey = options.apiKey?.trim() || '';
+    if (this.apiKey.length > 1000) throw new Error('AI API Key 长度超限');
   }
 
   async listModels() {
     const payload = await this.request<{ data?: Array<{ id?: unknown }> }>('models', { method: 'GET' });
-    return (payload.data || []).map((item) => typeof item.id === 'string' ? item.id : '').filter(Boolean).sort();
+    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    return [...new Set(rows.map((item) => typeof item.id === 'string' ? item.id.trim() : '').filter((id) => id.length > 0 && id.length <= 200))].sort();
   }
 
   async generate(request: AiGenerateRequest & { model: string }) {
     if (!request.confirmed || !request.redacted || !request.redactedContent.trim()) throw new Error('必须先确认脱敏内容');
+    if (request.redactedContent.length > AI_MAX_CONTENT_LENGTH) throw new Error(`已脱敏内容不能超过 ${AI_MAX_CONTENT_LENGTH} 个字符`);
     if (!request.model.trim()) throw new Error('请选择 AI 模型');
+    if (request.model.trim().length > 200) throw new Error('AI 模型标识长度超限');
+    if (!request.purpose.trim() || request.purpose.length > 200) throw new Error('AI 处理用途无效');
+    if (request.guidance && request.guidance.length > AI_MAX_GUIDANCE_LENGTH) throw new Error(`润色指引不能超过 ${AI_MAX_GUIDANCE_LENGTH} 个字符`);
     return this.request<unknown>('chat/completions', {
       method: 'POST',
-      body: JSON.stringify({ model: request.model, messages: [{ role: 'system', content: '只处理用户确认的脱敏材料，不得编造事实。' }, { role: 'user', content: request.redactedContent }], temperature: 0.3 })
+      body: JSON.stringify({ model: request.model.trim(), messages: [{ role: 'system', content: composeAiSystemPrompt(request.purpose, request.guidance) }, { role: 'user', content: request.redactedContent }], temperature: 0.3 })
     });
   }
 
@@ -116,8 +183,8 @@ export class DirectAiClient {
       headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}) }
     });
     if (!response.ok) throw new Error(`AI 服务请求失败：${response.status}`);
-    const text = await response.text();
-    if (text.length > 2_000_000) throw new Error('AI 服务响应超过 2 MB 限制');
-    return JSON.parse(text) as T;
+    const text = await readLimitedResponseText(response);
+    try { return JSON.parse(text) as T; }
+    catch { throw new Error('AI 服务返回了无效 JSON'); }
   }
 }

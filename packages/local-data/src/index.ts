@@ -1,22 +1,25 @@
 import { addRxPlugin, createRxDatabase, type RxCollection, type RxDatabase } from 'rxdb';
 import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
-import type { ArchiveRecord, Attachment, Draft, OfficialDocument, Task, WeeklyReport } from '@hxhwang/domain';
-import { sampleDocuments, sampleTasks } from '@hxhwang/domain';
+import type {
+  ArchiveRecord, Attachment, Draft, MaterialRecord, MeetingRecord, OfficialDocument, ResearchRecord, SealRecord, Task, WeeklyReport
+} from '@hxhwang/domain';
+import { sampleDocuments, sampleMaterials, sampleMeetings, sampleResearches, sampleSeals, sampleTasks } from '@hxhwang/domain';
 
-type Kind = 'task' | 'document' | 'attachment' | 'draft' | 'weekly' | 'archive' | 'setting';
-type RecordPayload = Task | OfficialDocument | Attachment | Draft | WeeklyReport | ArchiveRecord | Record<string, unknown>;
+export type Kind = 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material' | 'attachment' | 'draft' | 'weekly' | 'archive' | 'setting';
+type RecordPayload = Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord | Attachment | Draft | WeeklyReport | ArchiveRecord | Record<string, unknown>;
 interface StoredRecord { id: string; kind: Kind; payload: RecordPayload; updatedAt: string; }
 interface SnapshotRecord { id: string; kind: Kind; payload: RecordPayload; updatedAt?: string; }
-const allowedKinds = new Set<Kind>(['task', 'document', 'attachment', 'draft', 'weekly', 'archive', 'setting']);
-export const LOCAL_SCHEMA_VERSION = 1;
+const allowedKinds = new Set<Kind>(['task', 'meeting', 'document', 'research', 'seal', 'material', 'attachment', 'draft', 'weekly', 'archive', 'setting']);
+const attachmentReferencingKinds = new Set<Kind>(['task', 'meeting', 'document', 'research', 'seal', 'material', 'archive']);
+export const LOCAL_SCHEMA_VERSION = 2;
 addRxPlugin(RxDBMigrationSchemaPlugin);
 
 const schema = {
   title: 'hxhwang record schema', version: LOCAL_SCHEMA_VERSION, primaryKey: 'id', type: 'object', additionalProperties: false,
   properties: {
     id: { type: 'string', maxLength: 180 },
-    kind: { type: 'string', enum: ['task', 'document', 'attachment', 'draft', 'weekly', 'archive', 'setting'] },
+    kind: { type: 'string', enum: ['task', 'meeting', 'document', 'research', 'seal', 'material', 'attachment', 'draft', 'weekly', 'archive', 'setting'] },
     payload: { type: 'object', additionalProperties: true },
     updatedAt: { type: 'string', maxLength: 50 }
   }, required: ['id', 'kind', 'payload', 'updatedAt']
@@ -30,7 +33,7 @@ const databaseGlobal = globalThis as DatabaseGlobal;
 async function getDb() {
   const database = databaseGlobal.__hxhwangLocalDatabase ??= createRxDatabase<LocalCollections>({ name: 'hxhwang_gw_local', storage: getRxStorageDexie(), multiInstance: false })
       .then(async (database) => {
-        await database.addCollections({ records: { schema, migrationStrategies: { 1: (document: StoredRecord) => document } } });
+        await database.addCollections({ records: { schema, migrationStrategies: { 1: (document: StoredRecord) => document, 2: (document: StoredRecord) => document } } });
         await database.records.migratePromise();
         return database;
       });
@@ -63,11 +66,66 @@ export async function removeRecord(id: string): Promise<void> {
   if (doc) await doc.remove();
 }
 
+export function attachmentIdsFromPayload(payload: unknown) {
+  const ids = new Set<string>();
+  const visit = (value: unknown) => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (key === 'legacyPayload') continue;
+      if (key === 'files' && Array.isArray(child)) {
+        for (const id of child) if (typeof id === 'string' && id) ids.add(id);
+        continue;
+      }
+      visit(child);
+    }
+  };
+  visit(payload);
+  return [...ids];
+}
+
+export async function removeAttachmentsIfUnreferenced(candidateIds: string[]) {
+  const candidates = new Set(candidateIds.filter(Boolean));
+  if (!candidates.size) return [];
+  const collection = await getDb();
+  const docs = await collection.find().exec();
+  const referenced = new Set<string>();
+  for (const doc of docs) {
+    const record = doc.toJSON() as StoredRecord;
+    if (!attachmentReferencingKinds.has(record.kind)) continue;
+    for (const id of attachmentIdsFromPayload(record.payload)) referenced.add(id);
+  }
+  const removed: string[] = [];
+  for (const id of candidates) {
+    if (referenced.has(id)) continue;
+    const attachment = await collection.findOne(id).exec();
+    if (attachment?.toJSON().kind !== 'attachment') continue;
+    await attachment.remove();
+    removed.push(id);
+  }
+  return removed;
+}
+
 export async function seedDemoData(): Promise<void> {
-  const tasks = await listRecords<Task>('task');
-  if (tasks.length) return;
-  for (const task of sampleTasks) await putRecord('task', task.id, task);
-  for (const document of sampleDocuments) await putRecord('document', document.id, document);
+  const seedMarker = await getRecord<Record<string, unknown>>('demo-seed-v2');
+  if (seedMarker) return;
+  const groups: Array<[Kind, Array<{ id: string }>]> = [
+    ['task', sampleTasks],
+    ['meeting', sampleMeetings],
+    ['document', sampleDocuments],
+    ['research', sampleResearches],
+    ['seal', sampleSeals],
+    ['material', sampleMaterials]
+  ];
+  for (const [kind, samples] of groups) {
+    const existing = await listRecords(kind);
+    if (existing.length) continue;
+    for (const sample of samples) await putRecord(kind, sample.id, sample as RecordPayload);
+  }
+  await putRecord('setting', 'demo-seed-v2', { type: 'demo-seed', version: 2, seededAt: new Date().toISOString() });
 }
 
 export async function clearAllData(): Promise<void> {
@@ -119,7 +177,7 @@ export function parseLocalSnapshot(snapshot: unknown): { records: SnapshotRecord
 export async function importLocalSnapshot(snapshot: unknown): Promise<{ imported: number; byKind: Record<Kind, number>; warnings: string[] }> {
   const { records, warnings } = parseLocalSnapshot(snapshot);
   let imported = 0;
-  const byKind: Record<Kind, number> = { task: 0, document: 0, attachment: 0, draft: 0, weekly: 0, archive: 0, setting: 0 };
+  const byKind: Record<Kind, number> = { task: 0, meeting: 0, document: 0, research: 0, seal: 0, material: 0, attachment: 0, draft: 0, weekly: 0, archive: 0, setting: 0 };
   for (const record of records) {
     await putRecord(record.kind, record.id, record.payload);
     imported++;

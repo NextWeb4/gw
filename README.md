@@ -12,7 +12,7 @@
 
 A local-first system for official-document work, task and file tracking, drafting, weekly reports, document export, and controlled private synchronization.
 
-![Version](https://img.shields.io/badge/version-0.3.1-0969da?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.4.0-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,20 +22,20 @@ A local-first system for official-document work, task and file tracking, draftin
 
 HxHwang Gw is a pnpm monorepo that shares one domain model across a public GitHub Pages demonstration, separate Internet and intranet Web builds, and separate Internet and intranet Electron clients. It stores operational data locally first, separates network capabilities at build time, and provides explicit adapters for synchronization and AI requests.
 
-Version 0.3.1 builds on the `/gw/` deployment, real four-digit date validation, reusable people and organizations, deterministic task summaries, DOCX/HTML/TXT import, local custom formats, and edition-specific AI paths. It also fixes edition-specific Debian package names and expands the module-by-module user manual.
+The current release is `0.4.0`. It extends v0.3.1 with six editable business ledgers, full browser-local Public Pages capabilities, a dedicated “AI 助手” (AI Assistant) navigation module with built-in OpenAI-compatible provider presets (DeepSeek, Kimi, Zhipu GLM, DashScope, SiliconFlow, Ollama and more) using bring-your-own session keys, a deterministic “统计分析” (Statistics) module, local-rule task text extraction (“智能识别填单”), a saveable writing-guidance skill library (“公文写作指引库”), customizable weekly-report templates with deterministic sample-structure extraction (“周报模板”), partner-unit groups with append-only merge (“配合单位分组”), deterministic category tinting (“类目配色”), and the date/common-contact editing fixes reported against v0.3.1. See the v0.4.0 section in [`RELEASE_NOTES.md`](RELEASE_NOTES.md) for details.
 
-The public demonstration does not display private controls, import real business snapshots, call the private API, or enable AI. Use it to inspect the interface with sample data: [GitHub Pages demonstration](https://nextweb4.github.io/gw/).
+Public Pages does not expose private synchronization, but it supports the full local ledgers, attachments, legacy JSON/snapshots, and bring-your-own-key compatible AI. Business data stays in the current browser's IndexedDB and is not uploaded to Pages or the private API. Use [GitHub Pages](https://nextweb4.github.io/gw/) only with public, fictional, or approved non-sensitive material.
 
 ## Core Capabilities
 
 | Area | What is implemented |
 | --- | --- |
-| Work management | Tasks, reusable assigners/handlers/organizations, Chinese statuses, stage tracking, deterministic work summaries, attachments, and searchable local records |
+| Work management | Editable task, meeting, document, field-activity, seal, and material ledgers with reusable people/organizations, stages, summaries, attachments, and search |
 | Writing | Rich-text drafting, DOCX/HTML/TXT import with sanitization, reusable custom formats, deterministic weekly reports, editable versions, and historical archives |
 | Documents | A shared A4-oriented engine for DOCX and PDF export; browser print is used on the Web and Electron printing on desktop |
 | Migration | Importers for two legacy prototype export shapes, with warnings when their shared version marker cannot identify the source reliably |
 | Local data | IndexedDB-backed repositories, snapshots, attachment references, and explicit recovery/export operations |
-| Edition services | Internet builds use a session-only API key with an OpenAI-compatible endpoint; intranet builds use authenticated private sync and the internal AI gateway only |
+| Edition services | Public Pages and Internet builds use a session-only API key with an OpenAI-compatible endpoint; intranet builds use authenticated private sync and the internal AI gateway only |
 
 Historical Skills, configuration, weekly reports, and unmapped source fields remain visible as read-only plain text. Imported HTML or script text is not executed.
 
@@ -43,7 +43,7 @@ Historical Skills, configuration, weekly reports, and unmapped source fields rem
 
 | Variant | Private controls | Intended use | Important boundary |
 | --- | --- | --- | --- |
-| Public Pages | Disabled | Product demonstration with built-in sample data | No business JSON, real attachments, snapshot restore, private API, or AI |
+| Public Pages | Bring-your-own-key direct AI | Local ledgers with public/non-sensitive material | No private sync; browser-local data; AI also requires provider CORS |
 | Internet Web / desktop | Direct AI only | Non-classified use with an OpenAI-compatible HTTPS endpoint | The API key stays in session memory; browser use also requires provider CORS |
 | Intranet Web / desktop | Internal sync and AI gateway | Use on a controlled internal origin | Provider keys stay on the server; the intranet desktop main process blocks direct public-AI IPC |
 
@@ -57,7 +57,7 @@ All variants remain local-first. Private synchronization begins only after a use
 - Windows for NSIS installers; Linux for AppImage/DEB packaging and final Linux compatibility checks.
 - A Chromium-class browser for the Web builds.
 
-The repository version is `0.3.1`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
+The repository version is `0.4.0`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
 
 ## Install and Run
 
@@ -79,11 +79,11 @@ To exercise the Internet edition with an OpenAI-compatible endpoint:
 pnpm dev:web:internet
 ```
 
-Do not point the public Pages build at a private API. Configuration, real attachments, and business snapshots belong only in a desktop or controlled intranet environment.
+Do not point the public Pages build at a private API. Its attachments and snapshots remain in the current browser and are not controlled intranet storage; internal or sensitive material belongs only in an approved controlled environment.
 
 ## Typical Workflow
 
-1. Create or import tasks and file records, then review the migration report and read-only historical archive.
+1. Create or import task, meeting, document, field-activity, seal, and material records, then review the migration report and read-only historical archive.
 2. Draft official-document content and maintain the relevant local knowledge entries.
 3. Generate a weekly report from the selected date range, edit it, save a version, and export it for review.
 4. Export a local snapshot before clearing browser data, changing devices, or uninstalling the desktop client.
@@ -99,7 +99,7 @@ Generated documents are working outputs, not a substitute for editorial, policy,
 - Clearing site data, removing a browser profile, or uninstalling without a snapshot can make local records unavailable.
 - Local redaction recognizes common phone numbers, email addresses, identity numbers, and labeled names, but cannot prove that a document is anonymous.
 - Sensitive, classified, or otherwise prohibited material must not enter this application or a public model.
-- Model keys, database credentials, and provider configuration stay on the private server, never in client storage.
+- User API keys on Public Pages/Internet builds stay in session memory; intranet model keys, database credentials, and provider configuration stay on the private server.
 
 Read [`docs/HELP.md`](docs/HELP.md) before using migration, synchronization, attachments, or AI with real internal material.
 
@@ -107,7 +107,7 @@ Read [`docs/HELP.md`](docs/HELP.md) before using migration, synchronization, att
 
 The checked-in knowledge pack is generated only from the repository's licensed material and an explicit HTTPS source allowlist. `pnpm content:sync` is an intentional network operation: it follows the repository's redirect and response-size policy, records source metadata, and does not scrape commercial reference products or overwrite manually maintained templates.
 
-Public Pages uses a restrictive CSP and no private connection targets. The intranet/desktop CSP allows HTTPS and local API endpoints needed for explicit private operation. Because an HTML CSP meta element cannot enforce `frame-ancestors`, production hosting must set `Content-Security-Policy: frame-ancestors 'none'` as an HTTP response header when framing protection is required.
+Public Pages uses a restrictive CSP with no private API target; it reaches an explicit HTTPS/loopback AI endpoint only after model discovery or per-request confirmation. Intranet/desktop CSPs allow only the explicit endpoints required by their editions. Because an HTML CSP meta element cannot enforce `frame-ancestors`, production hosting must set `Content-Security-Policy: frame-ancestors 'none'` as an HTTP response header when framing protection is required.
 
 ## Test and Validate
 

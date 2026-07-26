@@ -12,7 +12,7 @@
 
 一个本地优先的公文事务、任务与文件跟踪、文稿写作、周报、文档导出和受控私有同步系统。
 
-![版本](https://img.shields.io/badge/version-0.3.1-0969da?style=flat-square)
+![版本](https://img.shields.io/badge/version-0.4.0-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,20 +22,20 @@
 
 HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联网/内网 Web 构建和互联网/内网 Electron 客户端之间共享同一套领域模型。系统首先把业务数据保存在本地，在构建时隔离不同联网能力，并通过显式适配器提供同步和 AI 请求。
 
-v0.3.1 在 `/gw/` 部署、四位真实日期校验、人员/单位复用、确定性工作小结、DOCX/HTML/TXT 导入、本机自定义格式和分版 AI 能力基础上，修复了 Debian 分版包名，并补齐逐模块使用说明。
+当前发布版本为 `0.4.0`，在 v0.3.1 基础上整合六类业务台账、公开 Pages 本机能力、独立“AI 助手”导航模块（内置 DeepSeek、Kimi、智谱 GLM、通义百炼、SiliconFlow 等预设，自备会话级 Key）、确定性“统计分析”模块、任务“智能识别填单”、可保存的“公文写作指引库（Skill）”、可自定义章节的“周报模板”（含从范文提取结构）、“配合单位分组”与“类目配色”以及日期/常用项修复；详情以 [`RELEASE_NOTES.md`](RELEASE_NOTES.md) 的 v0.4.0 章节为准。
 
-公开演示版不显示私有控制，不导入真实业务快照，不调用私有 API，也不启用 AI。可使用内置样例查看界面：[GitHub Pages 演示版](https://nextweb4.github.io/gw/)。
+公开 Pages 不显示私有同步，但支持完整本机台账、附件、历史 JSON/快照和用户自备 Key 的兼容 AI；所有业务数据只进入当前浏览器 IndexedDB，不会上传到 Pages 或私有 API。[GitHub Pages](https://nextweb4.github.io/gw/) 仅适合公开、虚构或获准的非敏感材料。
 
 ## 核心能力
 
 | 领域 | 已实现内容 |
 | --- | --- |
-| 事务管理 | 任务、可复用交办人/承办人/单位、中文状态、阶段跟踪、确定性工作小结、附件和可搜索本地记录 |
+| 事务管理 | 任务、会议、文件、外出、用章、物资六类可编辑台账，可复用人员/单位、阶段、小结、附件和搜索 |
 | 写作 | 富文本起草、经清洗的 DOCX/HTML/TXT 导入、本机自定义格式、确定性周报、可编辑版本和历史档案 |
 | 文档 | DOCX 与 PDF 共用的 A4 导出引擎；Web 使用浏览器打印，桌面端使用 Electron 打印 |
 | 迁移 | 兼容两份历史原型导出结构；当共同版本标识无法可靠辨别来源时给出警告 |
 | 本地数据 | 基于 IndexedDB 的仓储、快照、附件引用以及显式恢复/导出操作 |
-| 分版服务 | 互联网版使用会话级 API Key 和 OpenAI 兼容地址；内网版只使用已认证私有同步与内部 AI 网关 |
+| 分版服务 | 公开 Pages/互联网版使用会话级 API Key 和 OpenAI 兼容地址；内网版只使用已认证私有同步与内部 AI 网关 |
 
 历史 Skill、配置、周报和未映射源字段会以只读纯文本保留，导入的 HTML 或脚本文本不会执行。
 
@@ -43,7 +43,7 @@ v0.3.1 在 `/gw/` 部署、四位真实日期校验、人员/单位复用、确�
 
 | 形态 | 私有控制 | 适用场景 | 重要边界 |
 | --- | --- | --- | --- |
-| 公开 Pages | 关闭 | 使用内置样例的产品演示 | 禁止业务 JSON、真实附件、快照恢复、私有 API 和 AI |
+| 公开 Pages | 用户自备 Key 的直连 AI | 本机台账与公开/非敏感材料 | 无私有同步；数据只在当前浏览器；AI 受 provider CORS 限制 |
 | 互联网 Web / 桌面端 | 仅直连 AI | 使用 OpenAI 兼容 HTTPS 接口的非涉密工作 | API Key 只保留在会话内存；浏览器还要求 provider CORS |
 | 内网 Web / 桌面端 | 内部同步和 AI 网关 | 受控内网工作 | provider key 只在服务端；内网桌面主进程阻断直连公网 AI |
 
@@ -57,7 +57,7 @@ v0.3.1 在 `/gw/` 部署、四位真实日期校验、人员/单位复用、确�
 - NSIS 安装包需要 Windows；AppImage/DEB 打包和最终 Linux 兼容性检查需要 Linux。
 - Web 构建需要 Chromium 类浏览器。
 
-仓库版本为 `0.3.1`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
+仓库版本为 `0.4.0`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
 
 ## 安装与运行
 
@@ -79,11 +79,11 @@ pnpm dev:web:intranet
 pnpm dev:web:internet
 ```
 
-不要让公开 Pages 构建连接私有 API。配置、真实附件和业务快照只能进入桌面端或受控内网环境。
+不要让公开 Pages 构建连接私有 API。公开 Pages 的附件和业务快照只保存在当前浏览器，不能视为受控内网存储；内部或敏感材料应使用经过单位批准的受控环境。
 
 ## 典型流程
 
-1. 创建或导入任务和文件记录，然后检查迁移报告和只读历史档案。
+1. 创建或导入任务、会议、文件、外出、用章和物资记录，然后检查迁移报告和只读历史档案。
 2. 起草公文内容并维护相关本地知识条目。
 3. 按选择的日期范围生成周报，人工编辑、保存版本并导出复核。
 4. 清理浏览器数据、更换设备或卸载桌面客户端前，先导出本地快照。
@@ -99,7 +99,7 @@ pnpm dev:web:internet
 - 清除站点数据、删除浏览器配置或未备份即卸载，可能导致本地记录不可用。
 - 本地脱敏会识别常见手机号、邮箱、身份证号和带标签姓名，但不能证明文档已经匿名。
 - 敏感、涉密或其他禁止处理的材料不得进入本应用或公网模型。
-- 模型密钥、数据库凭据和 provider 配置只留在私有服务端，不写入客户端存储。
+- 公开 Pages/互联网版的用户 API Key 只留在当前会话内存；内网模型密钥、数据库凭据和 provider 配置只留在私有服务端。
 
 在真实内部材料上使用迁移、同步、附件或 AI 前，请阅读 [`docs/HELP.md`](docs/HELP.md)。
 
@@ -107,7 +107,7 @@ pnpm dev:web:internet
 
 仓库中的知识包只由已授权材料和显式 HTTPS 来源白名单生成。`pnpm content:sync` 是明确的联网操作：它遵循仓库的重定向和响应体积策略，记录来源元数据，不抓取商业参考产品，也不覆盖人工维护模板。
 
-公开 Pages 使用严格 CSP，且没有私有连接目标。内网/桌面 CSP 允许显式私有操作所需的 HTTPS 和本机 API 端点。由于 HTML CSP meta 元素不能执行 `frame-ancestors`，正式托管需要防嵌入时，必须通过 HTTP 响应头设置 `Content-Security-Policy: frame-ancestors 'none'`。
+公开 Pages 使用严格 CSP，不包含私有 API 目标；只有用户获取模型或逐次确认后才连接显式 HTTPS/回环 AI 地址。内网/桌面 CSP 允许其分版所需的显式端点。由于 HTML CSP meta 元素不能执行 `frame-ancestors`，正式托管需要防嵌入时，必须通过 HTTP 响应头设置 `Content-Security-Policy: frame-ancestors 'none'`。
 
 ## 测试与校验
 
