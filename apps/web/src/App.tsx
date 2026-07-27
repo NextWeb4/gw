@@ -5,7 +5,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import {
   Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowUpRight, BarChart3, BookOpen, CalendarDays, Check, ChevronRight, ClipboardList,
   Bot, Building2, FileArchive, FileOutput, FileText, FileUp, FolderOpen, Globe2, Info, KeyRound, LayoutDashboard, Library, MapPin,
-  Menu, Orbit, Package, Pencil, Plus, RefreshCw, Save, Search, Server, ShieldCheck, Sparkles, Stamp, Upload, UsersRound, WandSparkles, X
+  Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RefreshCw, Save, Search, Server, ShieldCheck, Sparkles, Stamp, Upload, UsersRound, WandSparkles, X
 } from 'lucide-react';
 import {
   buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, DEFAULT_WEEKLY_TEMPLATE, extractTaskFromText,
@@ -31,6 +31,14 @@ import { importWritingDocument } from './document-import';
 import { syncPrivateWorkspace } from './private-services';
 
 type Tab = 'dashboard' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'archive' | 'migration' | 'about';
+type BusinessTab = Extract<Tab, 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials'>;
+type BusinessDetail =
+  | { kind: 'task'; record: Task }
+  | { kind: 'meeting'; record: MeetingRecord }
+  | { kind: 'document'; record: OfficialDocument }
+  | { kind: 'research'; record: ResearchRecord }
+  | { kind: 'seal'; record: SealRecord }
+  | { kind: 'material'; record: MaterialRecord };
 interface AiPrefill { source: string; purpose: string; custom?: string; nonce: number; }
 type AiAssistRequest = { source?: string; purpose?: string; custom?: string };
 type HxWindow = Window & { hxhwang?: {
@@ -101,6 +109,8 @@ const normalizedLegacyDateTime = (value: string) => {
 
 function App() {
   const [tab, setTab] = useState<Tab>('dashboard');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [selectedBusinessRecord, setSelectedBusinessRecord] = useState<{ tab: BusinessTab; id: string } | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [meetings, setMeetings] = useState<MeetingRecord[]>([]);
   const [documents, setDocuments] = useState<OfficialDocument[]>([]);
@@ -556,15 +566,61 @@ function App() {
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [aiOverlayOpen]);
   const aiWorkspace: AiWorkspaceData = { tasks, meetings, documents, researches, seals, materials, weeklyReports, draft };
+  const selectedIdFor = <T extends { id: string },>(businessTab: BusinessTab, records: T[]) => {
+    const selectedId = selectedBusinessRecord?.tab === businessTab ? selectedBusinessRecord.id : '';
+    return records.some((record) => record.id === selectedId) ? selectedId : records[0]?.id;
+  };
+  const selectedTaskId = selectedIdFor('tasks', filteredTasks);
+  const selectedMeetingId = selectedIdFor('meetings', filteredMeetings);
+  const selectedDocumentId = selectedIdFor('documents', filteredDocuments);
+  const selectedResearchId = selectedIdFor('researches', filteredResearches);
+  const selectedSealId = selectedIdFor('seals', filteredSeals);
+  const selectedMaterialId = selectedIdFor('materials', filteredMaterials);
+  const businessDetail: BusinessDetail | null = (() => {
+    if (tab === 'tasks') {
+      const record = filteredTasks.find((task) => task.id === selectedTaskId);
+      return record ? { kind: 'task', record } : null;
+    }
+    if (tab === 'meetings') {
+      const record = filteredMeetings.find((meeting) => meeting.id === selectedMeetingId);
+      return record ? { kind: 'meeting', record } : null;
+    }
+    if (tab === 'documents') {
+      const record = filteredDocuments.find((document) => document.id === selectedDocumentId);
+      return record ? { kind: 'document', record } : null;
+    }
+    if (tab === 'researches') {
+      const record = filteredResearches.find((research) => research.id === selectedResearchId);
+      return record ? { kind: 'research', record } : null;
+    }
+    if (tab === 'seals') {
+      const record = filteredSeals.find((seal) => seal.id === selectedSealId);
+      return record ? { kind: 'seal', record } : null;
+    }
+    if (tab === 'materials') {
+      const record = filteredMaterials.find((material) => material.id === selectedMaterialId);
+      return record ? { kind: 'material', record } : null;
+    }
+    return null;
+  })();
+  const editBusinessDetail = (detail: BusinessDetail) => {
+    clearPendingAttachments();
+    if (detail.kind === 'task') setTaskEditor(detail.record);
+    if (detail.kind === 'meeting') setMeetingEditor(detail.record);
+    if (detail.kind === 'document') setDocumentEditor(detail.record);
+    if (detail.kind === 'research') setResearchEditor(detail.record);
+    if (detail.kind === 'seal') setSealEditor(detail.record);
+    if (detail.kind === 'material') setMaterialEditor(detail.record);
+  };
 
   const renderContent = () => {
     if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} onNavigate={navigate} />;
-    if (tab === 'tasks') return <TaskView tasks={filteredTasks} search={search} setSearch={setSearch} attachments={attachments} categoryTints={categoryTints} onNew={() => { clearPendingAttachments(); setTaskEditor(emptyTask()); }} onEdit={(task) => { clearPendingAttachments(); setTaskEditor(task); }} onDelete={deleteTask} />;
-    if (tab === 'meetings') return <MeetingView meetings={filteredMeetings} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setMeetingEditor(emptyMeeting()); }} onEdit={(meeting) => { clearPendingAttachments(); setMeetingEditor(meeting); }} onDelete={deleteMeeting} />;
-    if (tab === 'documents') return <DocumentView documents={filteredDocuments} search={search} setSearch={setSearch} attachments={attachments} onNew={() => { clearPendingAttachments(); setDocumentEditor(emptyDocument()); }} onEdit={(document) => { clearPendingAttachments(); setDocumentEditor(document); }} onDelete={deleteDocument} />;
-    if (tab === 'researches') return <ResearchView researches={filteredResearches} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setResearchEditor(emptyResearch()); }} onEdit={(research) => { clearPendingAttachments(); setResearchEditor(research); }} onDelete={deleteResearch} />;
-    if (tab === 'seals') return <SealView seals={filteredSeals} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setSealEditor(emptySeal()); }} onEdit={(seal) => { clearPendingAttachments(); setSealEditor(seal); }} onDelete={deleteSeal} />;
-    if (tab === 'materials') return <MaterialView materials={filteredMaterials} allMaterials={materials} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setMaterialEditor(emptyMaterial()); }} onEdit={(material) => { clearPendingAttachments(); setMaterialEditor(material); }} onDelete={deleteMaterial} />;
+    if (tab === 'tasks') return <TaskView tasks={filteredTasks} selectedId={selectedTaskId} onSelect={(id) => setSelectedBusinessRecord({ tab: 'tasks', id })} search={search} setSearch={setSearch} attachments={attachments} categoryTints={categoryTints} onNew={() => { clearPendingAttachments(); setTaskEditor(emptyTask()); }} onEdit={(task) => { clearPendingAttachments(); setTaskEditor(task); }} onDelete={deleteTask} />;
+    if (tab === 'meetings') return <MeetingView meetings={filteredMeetings} selectedId={selectedMeetingId} onSelect={(id) => setSelectedBusinessRecord({ tab: 'meetings', id })} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setMeetingEditor(emptyMeeting()); }} onEdit={(meeting) => { clearPendingAttachments(); setMeetingEditor(meeting); }} onDelete={deleteMeeting} />;
+    if (tab === 'documents') return <DocumentView documents={filteredDocuments} selectedId={selectedDocumentId} onSelect={(id) => setSelectedBusinessRecord({ tab: 'documents', id })} search={search} setSearch={setSearch} attachments={attachments} onNew={() => { clearPendingAttachments(); setDocumentEditor(emptyDocument()); }} onEdit={(document) => { clearPendingAttachments(); setDocumentEditor(document); }} onDelete={deleteDocument} />;
+    if (tab === 'researches') return <ResearchView researches={filteredResearches} selectedId={selectedResearchId} onSelect={(id) => setSelectedBusinessRecord({ tab: 'researches', id })} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setResearchEditor(emptyResearch()); }} onEdit={(research) => { clearPendingAttachments(); setResearchEditor(research); }} onDelete={deleteResearch} />;
+    if (tab === 'seals') return <SealView seals={filteredSeals} selectedId={selectedSealId} onSelect={(id) => setSelectedBusinessRecord({ tab: 'seals', id })} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setSealEditor(emptySeal()); }} onEdit={(seal) => { clearPendingAttachments(); setSealEditor(seal); }} onDelete={deleteSeal} />;
+    if (tab === 'materials') return <MaterialView materials={filteredMaterials} allMaterials={materials} selectedId={selectedMaterialId} onSelect={(id) => setSelectedBusinessRecord({ tab: 'materials', id })} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setMaterialEditor(emptyMaterial()); }} onEdit={(material) => { clearPendingAttachments(); setMaterialEditor(material); }} onDelete={deleteMaterial} />;
     if (tab === 'directory') return <DirectoryManager directory={directory} onSave={replaceDirectory} setToast={setToast} />;
     if (tab === 'writing') return <WritingStudio draft={draft} setDraft={setDraft} customTemplates={customTemplates} onSaveCustomTemplate={saveCustomTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
     if (tab === 'weekly') return <WeeklyView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} reports={weeklyReports} templates={weeklyTemplates} onSave={saveWeeklyReport} onDelete={deleteWeeklyReport} onSaveTemplate={saveWeeklyTemplate} onDeleteTemplate={deleteWeeklyTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
@@ -579,19 +635,22 @@ function App() {
   const modeLabel = distributionMode === 'internet' ? '互联网版' : distributionMode === 'intranet' ? '内网版' : '公开演示版';
   const connectionLabel = distributionMode === 'internet' ? 'INTERNET AI ON DEMAND' : distributionMode === 'intranet' ? 'INTRANET + MANUAL SYNC' : 'PAGES LOCAL + AI ON DEMAND';
   const connectionDetail = distributionMode === 'intranet' ? '本机存储 · 同步需手动触发' : '用户 Key 仅保留在当前会话';
-  return <div className="shell" data-tab={tab}>
+  return <div className={`shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`} data-tab={tab}>
     <KineticBackdrop />
-    <aside className="sidebar">
-      <div className="brand-lockup"><span className="brand-mark" aria-hidden="true"><Orbit size={21} strokeWidth={1.5} /></span><div><strong>HxHwang Gw</strong><span>GOVERNANCE WORKSPACE</span></div></div>
-      <div className="mode-label"><span className="status-dot" /><span>{isDesktop ? `桌面${modeLabel}` : modeLabel}</span></div>
+    <aside className="sidebar" aria-label="应用导航">
+      <div className="sidebar-header">
+        <div className="brand-lockup"><span className="brand-mark" aria-hidden="true"><Orbit size={21} strokeWidth={1.5} /></span><div><strong>HxHwang Gw</strong><span>GOVERNANCE WORKSPACE</span></div></div>
+        <button type="button" className="sidebar-toggle" aria-label={sidebarCollapsed ? '展开左侧导航' : '收起左侧导航，仅显示图标'} aria-expanded={!sidebarCollapsed} title={sidebarCollapsed ? '展开左侧导航' : '收起左侧导航'} onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}>{sidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}</button>
+      </div>
+      <div className="mode-label" title={isDesktop ? `桌面${modeLabel}` : modeLabel}><span className="status-dot" /><span>{isDesktop ? `桌面${modeLabel}` : modeLabel}</span></div>
       <nav className="nav-list" aria-label="主导航">
-        {navItems.map(({ id, label, icon: Icon }, index) => <button aria-label={label} className={`nav-button ${tab === id ? 'active' : ''}`} key={id} onClick={() => navigate(id)}><span className="nav-index">{String(index + 1).padStart(2, '0')}</span><Icon size={17} strokeWidth={1.6} /><span>{label}</span>{tab === id && <ArrowUpRight size={14} />}</button>)}
+        {navItems.map(({ id, label, icon: Icon }, index) => <button aria-label={label} title={sidebarCollapsed ? label : undefined} className={`nav-button ${tab === id ? 'active' : ''}`} key={id} onClick={() => navigate(id)}><span className="nav-index">{String(index + 1).padStart(2, '0')}</span><Icon size={17} strokeWidth={1.6} /><span>{label}</span>{tab === id && <ArrowUpRight size={14} />}</button>)}
       </nav>
-      <div className="sidebar-bottom"><button aria-label="关于与设置" className={`nav-button ${tab === 'about' ? 'active' : ''}`} onClick={() => navigate('about')}><span className="nav-index">{String(navItems.length + 1).padStart(2, '0')}</span><Info size={17} /><span>关于与设置</span>{tab === 'about' && <ArrowUpRight size={14} />}</button><div className="sidebar-credit"><span>ORIGIN / LOCAL</span><strong>© HaoXiangHwang</strong><a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a></div></div>
+      <div className="sidebar-bottom"><button aria-label="关于与设置" title={sidebarCollapsed ? '关于与设置' : undefined} className={`nav-button ${tab === 'about' ? 'active' : ''}`} onClick={() => navigate('about')}><span className="nav-index">{String(navItems.length + 1).padStart(2, '0')}</span><Info size={17} /><span>关于与设置</span>{tab === 'about' && <ArrowUpRight size={14} />}</button><div className="sidebar-credit"><span>ORIGIN / LOCAL</span><strong>© HaoXiangHwang</strong><a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a></div></div>
     </aside>
     <main className="main-area" ref={mainAreaRef}>
       <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="topbar-context"><span>HX / {String(activeNavIndex >= 0 ? activeNavIndex + 1 : navItems.length + 1).padStart(2, '0')}</span><strong>{navItems.find((item) => item.id === tab)?.label ?? '关于与设置'}</strong></div><div className="breadcrumbs">本地优先 <span>/</span> 外发必须逐次确认</div><div className="topbar-actions"><span className="connection"><Activity size={15} /><span>{connectionLabel}</span><strong>{connectionDetail}</strong></span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
-      <div className="content-wrap">{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>
+      <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''}`}><div className="primary-content">{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && <BusinessDetailPanel detail={businessDetail} attachments={attachments} onEdit={() => editBusinessDetail(businessDetail)} />}</div>
       <footer className="page-footer"><span>HXHWANG GW / {__APP_VERSION__}</span><span>© HaoXiangHwang · <a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a> · <a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer">nextweb4.github.io</a></span></footer>
     </main>
     {taskEditor && <TaskEditor task={taskEditor} isNew={!tasks.some((task) => task.id === taskEditor.id)} directory={directory} attachments={editorAttachments} partnerGroups={partnerGroups} onSaveGroup={savePartnerGroup} onDeleteGroup={deletePartnerGroup} onRemember={rememberDirectoryValue} onChange={setTaskEditor} onAttach={(files) => void addAttachments(files, taskEditor.files, (ids) => setTaskEditor({ ...taskEditor, files: ids }))} onSave={() => void saveTask(taskEditor)} onClose={() => { clearPendingAttachments(); setTaskEditor(null); }} setToast={setToast} />}
@@ -640,30 +699,143 @@ function Dashboard({ tasks, meetings, documents, researches, seals, materials, a
 function Metric({ label, value, note, accent }: { label: string; value: number; note: string; accent: string }) { return <div className={`metric metric-${accent}`}><span>{label}</span><strong>{value}</strong><small>{note}</small></div>; }
 function StatusPill({ status }: { status: Status }) { return <span className={`status-pill ${status}`}>{statusLabels[status]}</span>; }
 function EmptyState({ text }: { text: string }) { return <div className="empty-state"><FolderOpen size={22} /><span>{text}</span></div>; }
-
-function TaskView({ tasks, search, setSearch, attachments, categoryTints, onNew, onEdit, onDelete }: { tasks: Task[]; search: string; setSearch: (value: string) => void; attachments: Attachment[]; categoryTints: ReadonlyMap<string, CategoryTint>; onNew: () => void; onEdit: (task: Task) => void; onDelete: (id: string) => void }) {
-  return <><PageHeading eyebrow="事务管理" title="任务管理" detail="把交办、进度、配合单位和工作小结放在同一条记录里。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />新建任务</button>} /><div className="toolbar"><div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索任务、类目或交办人" /></div><span className="toolbar-count">{tasks.length} 条任务</span></div><section className="panel table-panel"><div className="table-head task-columns"><span>任务</span><span>来源 / 类目</span><span>截止日期</span><span>状态</span><span /></div>{tasks.map((task) => <div className="table-row task-columns" key={task.id}><div className="row-title"><strong>{task.name}</strong><small>{task.assigner || '未指定交办人'} · {task.workSummary || '尚无工作小结'} · 附件 {task.files.length}</small></div><span className="muted-cell">{task.source || '其他'}<br /><span className="category-chip"><span className={`category-dot tint-${resolveCategoryTint(task.category, categoryTints)}`} aria-hidden="true" />{task.category || '未分类'}</span></span><span className="date-cell">{task.deadline || '—'}</span><StatusPill status={task.status} /><div className="row-actions"><button className="icon-button" title="编辑任务" onClick={() => onEdit(task)}><Pencil size={15} /></button><button className="icon-button danger-icon" title="删除任务" onClick={() => onDelete(task.id)}><X size={15} /></button></div></div>)}{!tasks.length && <EmptyState text="没有匹配的任务" />}</section><AttachmentHint count={attachments.length} /></>;
+function selectRecordOnKeyboard(event: React.KeyboardEvent<HTMLDivElement>, onSelect: () => void) {
+  if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
+  event.preventDefault();
+  onSelect();
 }
 
-function MeetingView({ meetings, search, setSearch, onNew, onEdit, onDelete }: { meetings: MeetingRecord[]; search: string; setSearch: (value: string) => void; onNew: () => void; onEdit: (meeting: MeetingRecord) => void; onDelete: (id: string) => void }) {
-  return <><PageHeading eyebrow="会议台账" title="会议管理" detail="记录通知对象、会议时间、地点和本机附件。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />新建会议</button>} /><div className="toolbar"><div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索主题、对象、人员或地点" /></div><span className="toolbar-count">{meetings.length} 场会议</span></div><section className="panel table-panel"><div className="table-head business-columns"><span>会议主题</span><span>会议 / 通知时间</span><span>对象与接收方</span><span>地点</span><span /></div>{meetings.map((meeting) => <div className="table-row business-columns" key={meeting.id}><div className="row-title"><strong>{meeting.subject}</strong><small>{meeting.remark || '无备注'} · 附件 {meeting.files.length}</small></div><span className="muted-cell">{meeting.meetingTime ? meeting.meetingTime.replace('T', ' ') : '未设会议时间'}<br />通知 {meeting.notifyTime || '—'}</span><span className="muted-cell">{meeting.sendTo || '未填写发送对象'}<br />{meeting.receiver || '未填写接收方'}</span><span className="muted-cell">{meeting.location || '未填写'}</span><RowActions editTitle="编辑会议" deleteTitle="删除会议" onEdit={() => onEdit(meeting)} onDelete={() => onDelete(meeting.id)} /></div>)}{!meetings.length && <EmptyState text="没有匹配的会议记录" />}</section></>;
+interface SelectableViewProps { selectedId?: string; onSelect: (id: string) => void; }
+
+function TaskView({ tasks, selectedId, onSelect, search, setSearch, attachments, categoryTints, onNew, onEdit, onDelete }: { tasks: Task[]; search: string; setSearch: (value: string) => void; attachments: Attachment[]; categoryTints: ReadonlyMap<string, CategoryTint>; onNew: () => void; onEdit: (task: Task) => void; onDelete: (id: string) => void } & SelectableViewProps) {
+  return <><PageHeading eyebrow="事务管理" title="任务管理" detail="把交办、进度、配合单位和工作小结放在同一条记录里。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />新建任务</button>} /><div className="toolbar"><div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索任务、类目或交办人" /></div><span className="toolbar-count">{tasks.length} 条任务</span></div><section className="panel table-panel"><div className="table-head task-columns"><span>任务</span><span>来源 / 类目</span><span>截止日期</span><span>状态</span><span /></div>{tasks.map((task) => <div className={`table-row task-columns selectable-row ${selectedId === task.id ? 'selected' : ''}`} key={task.id} tabIndex={0} title={`查看任务详情：${task.name}`} onClick={() => onSelect(task.id)} onKeyDown={(event) => selectRecordOnKeyboard(event, () => onSelect(task.id))}><div className="row-title"><strong>{task.name}</strong><small>{task.assigner || '未指定交办人'} · {task.workSummary || '尚无工作小结'} · 附件 {task.files.length}</small></div><span className="muted-cell">{task.source || '其他'}<br /><span className="category-chip"><span className={`category-dot tint-${resolveCategoryTint(task.category, categoryTints)}`} aria-hidden="true" />{task.category || '未分类'}</span></span><span className="date-cell">{task.deadline || '—'}</span><StatusPill status={task.status} /><RowActions editTitle="编辑任务" deleteTitle="删除任务" onEdit={() => onEdit(task)} onDelete={() => onDelete(task.id)} /></div>)}{!tasks.length && <EmptyState text="没有匹配的任务" />}</section><AttachmentHint count={attachments.length} /></>;
 }
 
-function DocumentView({ documents, search, setSearch, attachments, onNew, onEdit, onDelete }: { documents: OfficialDocument[]; search: string; setSearch: (value: string) => void; attachments: Attachment[]; onNew: () => void; onEdit: (doc: OfficialDocument) => void; onDelete: (id: string) => void }) {
-  return <><PageHeading eyebrow="文件台账" title="文件收发" detail="登记文件来源、文号、承办人和关联工作，附件留在本地。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />登记文件</button>} /><div className="toolbar"><div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索标题、文号或来源单位" /></div><span className="toolbar-count">{documents.length} 份文件</span></div><section className="panel table-panel"><div className="table-head doc-columns"><span>文件标题</span><span>文号 / 类型</span><span>来源单位</span><span>登记状态</span><span /></div>{documents.map((doc) => <div className="table-row doc-columns" key={doc.id}><div className="row-title"><strong>{doc.title}</strong><small>{doc.docDate || '未设日期'} · {doc.securityLevel || '未分级'} · 附件 {doc.files.length}</small></div><span className="muted-cell">{doc.code || '无文号'}<br />{doc.docType}</span><span className="muted-cell">{doc.fromUnit || '未填写'}</span><span className="status-pill neutral">{doc.receiptStatus || '待登记'}</span><div className="row-actions"><button className="icon-button" title="编辑文件" onClick={() => onEdit(doc)}><Pencil size={15} /></button><button className="icon-button danger-icon" title="删除文件" onClick={() => onDelete(doc.id)}><X size={15} /></button></div></div>)}{!documents.length && <EmptyState text="还没有登记文件" />}</section><AttachmentHint count={attachments.length} /></>;
+function MeetingView({ meetings, selectedId, onSelect, search, setSearch, onNew, onEdit, onDelete }: { meetings: MeetingRecord[]; search: string; setSearch: (value: string) => void; onNew: () => void; onEdit: (meeting: MeetingRecord) => void; onDelete: (id: string) => void } & SelectableViewProps) {
+  return <><PageHeading eyebrow="会议台账" title="会议管理" detail="记录通知对象、会议时间、地点和本机附件。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />新建会议</button>} /><div className="toolbar"><div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索主题、对象、人员或地点" /></div><span className="toolbar-count">{meetings.length} 场会议</span></div><section className="panel table-panel"><div className="table-head business-columns"><span>会议主题</span><span>会议 / 通知时间</span><span>对象与接收方</span><span>地点</span><span /></div>{meetings.map((meeting) => <div className={`table-row business-columns selectable-row ${selectedId === meeting.id ? 'selected' : ''}`} key={meeting.id} tabIndex={0} title={`查看会议详情：${meeting.subject}`} onClick={() => onSelect(meeting.id)} onKeyDown={(event) => selectRecordOnKeyboard(event, () => onSelect(meeting.id))}><div className="row-title"><strong>{meeting.subject}</strong><small>{meeting.remark || '无备注'} · 附件 {meeting.files.length}</small></div><span className="muted-cell">{meeting.meetingTime ? meeting.meetingTime.replace('T', ' ') : '未设会议时间'}<br />通知 {meeting.notifyTime || '—'}</span><span className="muted-cell">{meeting.sendTo || '未填写发送对象'}<br />{meeting.receiver || '未填写接收方'}</span><span className="muted-cell">{meeting.location || '未填写'}</span><RowActions editTitle="编辑会议" deleteTitle="删除会议" onEdit={() => onEdit(meeting)} onDelete={() => onDelete(meeting.id)} /></div>)}{!meetings.length && <EmptyState text="没有匹配的会议记录" />}</section></>;
 }
 
-function ResearchView({ researches, search, setSearch, onNew, onEdit, onDelete }: { researches: ResearchRecord[]; search: string; setSearch: (value: string) => void; onNew: () => void; onEdit: (research: ResearchRecord) => void; onDelete: (id: string) => void }) {
-  return <><PageHeading eyebrow="外勤台账" title="外出活动" detail="记录调研、会议、慰问、来访和活动成果。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />新建外出活动</button>} /><div className="toolbar"><div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索主题、类型、人员、地点或摘要" /></div><span className="toolbar-count">{researches.length} 项活动</span></div><section className="panel table-panel"><div className="table-head business-columns"><span>活动主题</span><span>日期 / 类型</span><span>参与人员</span><span>地点 / 用车</span><span /></div>{researches.map((research) => <div className="table-row business-columns" key={research.id}><div className="row-title"><strong>{research.subject}</strong><small>{research.achievements || research.summary || '尚无成果记录'} · 附件 {research.files.length}</small></div><span className="muted-cell">{research.researchTime || '未设日期'}<br />{research.direction}</span><span className="muted-cell">{research.participants || '未填写'}</span><span className="muted-cell">{research.location || '未填写'}<br />用车：{research.useCar || '未选择'}</span><RowActions editTitle="编辑外出活动" deleteTitle="删除外出活动" onEdit={() => onEdit(research)} onDelete={() => onDelete(research.id)} /></div>)}{!researches.length && <EmptyState text="没有匹配的外出活动" />}</section></>;
+function DocumentView({ documents, selectedId, onSelect, search, setSearch, attachments, onNew, onEdit, onDelete }: { documents: OfficialDocument[]; search: string; setSearch: (value: string) => void; attachments: Attachment[]; onNew: () => void; onEdit: (doc: OfficialDocument) => void; onDelete: (id: string) => void } & SelectableViewProps) {
+  return <><PageHeading eyebrow="文件台账" title="文件收发" detail="登记文件来源、文号、承办人和关联工作，附件留在本地。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />登记文件</button>} /><div className="toolbar"><div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索标题、文号或来源单位" /></div><span className="toolbar-count">{documents.length} 份文件</span></div><section className="panel table-panel"><div className="table-head doc-columns"><span>文件标题</span><span>文号 / 类型</span><span>来源单位</span><span>登记状态</span><span /></div>{documents.map((doc) => <div className={`table-row doc-columns selectable-row ${selectedId === doc.id ? 'selected' : ''}`} key={doc.id} tabIndex={0} title={`查看文件详情：${doc.title}`} onClick={() => onSelect(doc.id)} onKeyDown={(event) => selectRecordOnKeyboard(event, () => onSelect(doc.id))}><div className="row-title"><strong>{doc.title}</strong><small>{doc.docDate || '未设日期'} · {doc.securityLevel || '未分级'} · 附件 {doc.files.length}</small></div><span className="muted-cell">{doc.code || '无文号'}<br />{doc.docType}</span><span className="muted-cell">{doc.fromUnit || '未填写'}</span><span className="status-pill neutral">{doc.receiptStatus || '待登记'}</span><RowActions editTitle="编辑文件" deleteTitle="删除文件" onEdit={() => onEdit(doc)} onDelete={() => onDelete(doc.id)} /></div>)}{!documents.length && <EmptyState text="还没有登记文件" />}</section><AttachmentHint count={attachments.length} /></>;
 }
 
-function SealView({ seals, search, setSearch, onNew, onEdit, onDelete }: { seals: SealRecord[]; search: string; setSearch: (value: string) => void; onNew: () => void; onEdit: (seal: SealRecord) => void; onDelete: (id: string) => void }) {
-  return <><PageHeading eyebrow="审批台账" title="用章管理" detail="登记用章文件、经办人、审批人和佐证附件。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />新建用章记录</button>} /><div className="toolbar"><div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索文件、用章人、审批人或类型" /></div><span className="toolbar-count">{seals.length} 次用章</span></div><section className="panel table-panel"><div className="table-head business-columns"><span>所盖文件</span><span>日期 / 类型</span><span>用章人</span><span>审批人</span><span /></div>{seals.map((seal) => <div className="table-row business-columns" key={seal.id}><div className="row-title"><strong>{seal.docName}</strong><small>{seal.remark || '无备注'} · 附件 {seal.files.length}</small></div><span className="muted-cell">{seal.sealTime || '未设日期'}<br />{seal.docType || '未分类'}</span><span className="muted-cell">{seal.userName}</span><span className="muted-cell">{seal.approver}</span><RowActions editTitle="编辑用章记录" deleteTitle="删除用章记录" onEdit={() => onEdit(seal)} onDelete={() => onDelete(seal.id)} /></div>)}{!seals.length && <EmptyState text="没有匹配的用章记录" />}</section></>;
+function ResearchView({ researches, selectedId, onSelect, search, setSearch, onNew, onEdit, onDelete }: { researches: ResearchRecord[]; search: string; setSearch: (value: string) => void; onNew: () => void; onEdit: (research: ResearchRecord) => void; onDelete: (id: string) => void } & SelectableViewProps) {
+  return <><PageHeading eyebrow="外勤台账" title="外出活动" detail="记录调研、会议、慰问、来访和活动成果。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />新建外出活动</button>} /><div className="toolbar"><div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索主题、类型、人员、地点或摘要" /></div><span className="toolbar-count">{researches.length} 项活动</span></div><section className="panel table-panel"><div className="table-head business-columns"><span>活动主题</span><span>日期 / 类型</span><span>参与人员</span><span>地点 / 用车</span><span /></div>{researches.map((research) => <div className={`table-row business-columns selectable-row ${selectedId === research.id ? 'selected' : ''}`} key={research.id} tabIndex={0} title={`查看外出活动详情：${research.subject}`} onClick={() => onSelect(research.id)} onKeyDown={(event) => selectRecordOnKeyboard(event, () => onSelect(research.id))}><div className="row-title"><strong>{research.subject}</strong><small>{research.achievements || research.summary || '尚无成果记录'} · 附件 {research.files.length}</small></div><span className="muted-cell">{research.researchTime || '未设日期'}<br />{research.direction}</span><span className="muted-cell">{research.participants || '未填写'}</span><span className="muted-cell">{research.location || '未填写'}<br />用车：{research.useCar || '未选择'}</span><RowActions editTitle="编辑外出活动" deleteTitle="删除外出活动" onEdit={() => onEdit(research)} onDelete={() => onDelete(research.id)} /></div>)}{!researches.length && <EmptyState text="没有匹配的外出活动" />}</section></>;
 }
 
-function MaterialView({ materials, allMaterials, search, setSearch, onNew, onEdit, onDelete }: { materials: MaterialRecord[]; allMaterials: MaterialRecord[]; search: string; setSearch: (value: string) => void; onNew: () => void; onEdit: (material: MaterialRecord) => void; onDelete: (id: string) => void }) {
+function SealView({ seals, selectedId, onSelect, search, setSearch, onNew, onEdit, onDelete }: { seals: SealRecord[]; search: string; setSearch: (value: string) => void; onNew: () => void; onEdit: (seal: SealRecord) => void; onDelete: (id: string) => void } & SelectableViewProps) {
+  return <><PageHeading eyebrow="审批台账" title="用章管理" detail="登记用章文件、经办人、审批人和佐证附件。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />新建用章记录</button>} /><div className="toolbar"><div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索文件、用章人、审批人或类型" /></div><span className="toolbar-count">{seals.length} 次用章</span></div><section className="panel table-panel"><div className="table-head business-columns"><span>所盖文件</span><span>日期 / 类型</span><span>用章人</span><span>审批人</span><span /></div>{seals.map((seal) => <div className={`table-row business-columns selectable-row ${selectedId === seal.id ? 'selected' : ''}`} key={seal.id} tabIndex={0} title={`查看用章详情：${seal.docName}`} onClick={() => onSelect(seal.id)} onKeyDown={(event) => selectRecordOnKeyboard(event, () => onSelect(seal.id))}><div className="row-title"><strong>{seal.docName}</strong><small>{seal.remark || '无备注'} · 附件 {seal.files.length}</small></div><span className="muted-cell">{seal.sealTime || '未设日期'}<br />{seal.docType || '未分类'}</span><span className="muted-cell">{seal.userName}</span><span className="muted-cell">{seal.approver}</span><RowActions editTitle="编辑用章记录" deleteTitle="删除用章记录" onEdit={() => onEdit(seal)} onDelete={() => onDelete(seal.id)} /></div>)}{!seals.length && <EmptyState text="没有匹配的用章记录" />}</section></>;
+}
+
+function MaterialView({ materials, allMaterials, selectedId, onSelect, search, setSearch, onNew, onEdit, onDelete }: { materials: MaterialRecord[]; allMaterials: MaterialRecord[]; search: string; setSearch: (value: string) => void; onNew: () => void; onEdit: (material: MaterialRecord) => void; onDelete: (id: string) => void } & SelectableViewProps) {
   const balances = calculateMaterialStock(allMaterials);
-  return <><PageHeading eyebrow="保障台账" title="物资收发" detail="按物资名称和规格汇总入库、领用与当前账面库存。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />新建物资记录</button>} /><div className="toolbar"><div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索物资、规格、经手人或单位" /></div><span className="toolbar-count">{materials.length} 笔收发</span></div><section className="panel table-panel"><div className="table-head business-columns"><span>物资名称</span><span>收发 / 数量</span><span>经手信息</span><span>账面库存</span><span /></div>{materials.map((material) => <div className="table-row business-columns" key={material.id}><div className="row-title"><strong>{material.materialName}</strong><small>{material.spec || '无规格'} · {material.fromUnit || '未填写来源/领用单位'} · 附件 {material.files.length}</small></div><span className={`status-pill ${material.type === 'in' ? 'done' : 'pending'}`}>{material.type === 'in' ? '入库' : '领用'} {material.quantity}</span><span className="muted-cell">{material.handlerTime || '未设日期'}<br />{material.handler || '未填写经手人'}</span><span className="stock-balance">{balances.get(`${material.materialName.trim()}|${material.spec.trim()}`) || 0}</span><RowActions editTitle="编辑物资记录" deleteTitle="删除物资记录" onEdit={() => onEdit(material)} onDelete={() => onDelete(material.id)} /></div>)}{!materials.length && <EmptyState text="没有匹配的物资记录" />}</section></>;
+  return <><PageHeading eyebrow="保障台账" title="物资收发" detail="按物资名称和规格汇总入库、领用与当前账面库存。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />新建物资记录</button>} /><div className="toolbar"><div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索物资、规格、经手人或单位" /></div><span className="toolbar-count">{materials.length} 笔收发</span></div><section className="panel table-panel"><div className="table-head business-columns"><span>物资名称</span><span>收发 / 数量</span><span>经手信息</span><span>账面库存</span><span /></div>{materials.map((material) => <div className={`table-row business-columns selectable-row ${selectedId === material.id ? 'selected' : ''}`} key={material.id} tabIndex={0} title={`查看物资详情：${material.materialName}`} onClick={() => onSelect(material.id)} onKeyDown={(event) => selectRecordOnKeyboard(event, () => onSelect(material.id))}><div className="row-title"><strong>{material.materialName}</strong><small>{material.spec || '无规格'} · {material.fromUnit || '未填写来源/领用单位'} · 附件 {material.files.length}</small></div><span className={`status-pill ${material.type === 'in' ? 'done' : 'pending'}`}>{material.type === 'in' ? '入库' : '领用'} {material.quantity}</span><span className="muted-cell">{material.handlerTime || '未设日期'}<br />{material.handler || '未填写经手人'}</span><span className="stock-balance">{balances.get(`${material.materialName.trim()}|${material.spec.trim()}`) || 0}</span><RowActions editTitle="编辑物资记录" deleteTitle="删除物资记录" onEdit={() => onEdit(material)} onDelete={() => onDelete(material.id)} /></div>)}{!materials.length && <EmptyState text="没有匹配的物资记录" />}</section></>;
+}
+
+interface BusinessDetailModel {
+  eyebrow: string;
+  title: string;
+  badge: string;
+  badgeClass: string;
+  icon: typeof ClipboardList;
+  fields: Array<{ label: string; value: string }>;
+  sections: Array<{ title: string; content: React.ReactNode }>;
+}
+
+function BusinessDetailPanel({ detail, attachments, onEdit }: { detail: BusinessDetail; attachments: Attachment[]; onEdit: () => void }) {
+  const show = (value: string | number | undefined) => String(value ?? '').trim() || '未填写';
+  const model: BusinessDetailModel = (() => {
+    if (detail.kind === 'task') {
+      const task = detail.record;
+      return {
+        eyebrow: 'TASK DETAIL', title: task.name, badge: statusLabels[task.status], badgeClass: task.status, icon: ClipboardList,
+        fields: [
+          { label: '工作类目', value: show(task.category) }, { label: '任务来源', value: show(task.source) },
+          { label: '交办人', value: show(task.assigner) }, { label: '交办日期', value: show(task.assignDate) },
+          { label: '截止日期', value: show(task.deadline) }, { label: '最近更新', value: show(task.updatedAt.replace('T', ' ').slice(0, 16)) }
+        ],
+        sections: [
+          { title: '工作小结', content: show(task.workSummary) },
+          { title: '配合单位', content: task.partnerStatus.length ? <div className="detail-tag-list">{task.partnerStatus.map((partner, index) => <span key={`${partner.name}:${index}`}><strong>{partner.name}</strong>{partnerStatusLabels[partner.status]}</span>)}</div> : '未登记配合单位' },
+          { title: '任务阶段', content: task.stages.length ? <div className="detail-step-list">{task.stages.map((stage, index) => <div key={`${stage.name}:${index}`}><span>{String(index + 1).padStart(2, '0')}</span><div><strong>{stage.name}</strong><small>配合单位 {stage.partnerStatus.length}</small></div></div>)}</div> : '未登记任务阶段' },
+          { title: '备注', content: show(task.remark) }
+        ]
+      };
+    }
+    if (detail.kind === 'meeting') {
+      const meeting = detail.record;
+      return {
+        eyebrow: 'MEETING DETAIL', title: meeting.subject, badge: '会议', badgeClass: 'neutral', icon: CalendarDays,
+        fields: [
+          { label: '会议时间', value: show(meeting.meetingTime.replace('T', ' ')) }, { label: '通知日期', value: show(meeting.notifyTime) },
+          { label: '发送对象', value: show(meeting.sendTo) }, { label: '接收方', value: show(meeting.receiver) },
+          { label: '会议地点', value: show(meeting.location) }, { label: '最近更新', value: show(meeting.updatedAt.replace('T', ' ').slice(0, 16)) }
+        ],
+        sections: [{ title: '备注', content: show(meeting.remark) }]
+      };
+    }
+    if (detail.kind === 'document') {
+      const document = detail.record;
+      return {
+        eyebrow: 'DOCUMENT DETAIL', title: document.title, badge: show(document.receiptStatus), badgeClass: 'neutral', icon: FileText,
+        fields: [
+          { label: '发文字号', value: show(document.code) }, { label: '文件类型', value: show(document.docType) },
+          { label: '文件日期', value: show(document.docDate) }, { label: '密级', value: show(document.securityLevel) },
+          { label: '来源单位', value: show(document.fromUnit) }, { label: '承办人', value: show(document.handler) },
+          { label: '文件归类', value: show(document.fileCategory) }, { label: '工作归类', value: show(document.workCategory) },
+          { label: '发送范围', value: show(document.sendScope) }, { label: '最近更新', value: show(document.updatedAt.replace('T', ' ').slice(0, 16)) }
+        ],
+        sections: [{ title: '备注', content: show(document.remark) }]
+      };
+    }
+    if (detail.kind === 'research') {
+      const research = detail.record;
+      return {
+        eyebrow: 'FIELD DETAIL', title: research.subject, badge: research.direction, badgeClass: 'neutral', icon: MapPin,
+        fields: [
+          { label: '活动日期', value: show(research.researchTime) }, { label: '活动地点', value: show(research.location) },
+          { label: '参与人员', value: show(research.participants) }, { label: '是否用车', value: show(research.useCar) },
+          { label: '最近更新', value: show(research.updatedAt.replace('T', ' ').slice(0, 16)) }
+        ],
+        sections: [
+          { title: '活动摘要', content: show(research.summary) },
+          { title: '成果记录', content: show(research.achievements) },
+          { title: '备注', content: show(research.remark) }
+        ]
+      };
+    }
+    if (detail.kind === 'seal') {
+      const seal = detail.record;
+      return {
+        eyebrow: 'SEAL DETAIL', title: seal.docName, badge: show(seal.docType), badgeClass: 'neutral', icon: Stamp,
+        fields: [
+          { label: '用章日期', value: show(seal.sealTime) }, { label: '文件类型', value: show(seal.docType) },
+          { label: '用章人', value: show(seal.userName) }, { label: '审批人', value: show(seal.approver) },
+          { label: '最近更新', value: show(seal.updatedAt.replace('T', ' ').slice(0, 16)) }
+        ],
+        sections: [{ title: '备注', content: show(seal.remark) }]
+      };
+    }
+    const material = detail.record;
+    return {
+      eyebrow: 'MATERIAL DETAIL', title: material.materialName, badge: material.type === 'in' ? '入库' : '领用', badgeClass: material.type === 'in' ? 'done' : 'pending', icon: Package,
+      fields: [
+        { label: '规格', value: show(material.spec) }, { label: '数量', value: show(material.quantity) },
+        { label: '经手日期', value: show(material.handlerTime) }, { label: '经手人', value: show(material.handler) },
+        { label: '来源 / 领用单位', value: show(material.fromUnit) }, { label: '最近更新', value: show(material.updatedAt.replace('T', ' ').slice(0, 16)) }
+      ],
+      sections: [{ title: '备注', content: show(material.remark) }]
+    };
+  })();
+  const linkedAttachments = detail.record.files.map((id) => attachments.find((attachment) => attachment.id === id)).filter((attachment): attachment is Attachment => Boolean(attachment));
+  const Icon = model.icon;
+  return <aside className="panel business-detail-panel" aria-label="记录详情">
+    <div className="detail-panel-header"><span className="detail-icon"><Icon size={18} /></span><div><span className="eyebrow">{model.eyebrow}</span><h2><span className="sr-only">记录详情：</span>{model.title}</h2></div><span className={`status-pill ${model.badgeClass}`}>{model.badge}</span></div>
+    <div className="detail-panel-actions"><button type="button" className="secondary-button" onClick={onEdit}><Pencil size={15} />编辑此记录</button></div>
+    <dl className="detail-fields">{model.fields.map((field) => <div key={field.label}><dt>{field.label}</dt><dd>{field.value}</dd></div>)}</dl>
+    {model.sections.map((section) => <section className="detail-section" key={section.title}><h3>{section.title}</h3><div>{section.content}</div></section>)}
+    <section className="detail-section detail-attachments"><h3>本机附件 <span>{linkedAttachments.length}</span></h3>{linkedAttachments.length ? <div>{linkedAttachments.map((attachment) => <button type="button" key={attachment.id} disabled={attachment.data === undefined} title={attachment.data === undefined ? '附件内容不可用' : `下载附件 ${attachment.name}`} onClick={() => downloadStoredAttachment(attachment)}><FileText size={14} /><span>{attachment.name}</span><small>{formatBytes(attachment.size)}</small><ArrowDownToLine size={13} /></button>)}</div> : <p>当前记录没有附件</p>}</section>
+  </aside>;
 }
 
 function DirectoryManager({ directory, onSave, setToast }: { directory: ContactDirectory; onSave: (people: string[], units: string[]) => Promise<boolean>; setToast: (text: string) => void }) {
@@ -791,7 +963,7 @@ function StatsView({ tasks, meetings, documents, researches, seals, materials, c
 }
 
 function RowActions({ editTitle, deleteTitle, onEdit, onDelete }: { editTitle: string; deleteTitle: string; onEdit: () => void; onDelete: () => void }) {
-  return <div className="row-actions"><button className="icon-button" title={editTitle} onClick={onEdit}><Pencil size={15} /></button><button className="icon-button danger-icon" title={deleteTitle} onClick={onDelete}><X size={15} /></button></div>;
+  return <div className="row-actions" onClick={(event) => event.stopPropagation()}><button className="icon-button" title={editTitle} onClick={onEdit}><Pencil size={15} /></button><button className="icon-button danger-icon" title={deleteTitle} onClick={onDelete}><X size={15} /></button></div>;
 }
 
 const taskStatusOptions = (Object.entries(statusLabels) as Array<[Status, string]>).map(([value, label]) => ({ value, label }));

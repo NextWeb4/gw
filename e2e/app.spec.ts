@@ -33,6 +33,34 @@ test('loads the offline demo without third-party or private API traffic', async 
   expect(unexpectedRequests).toEqual([]);
 });
 
+test('collapses the desktop navigation and keeps record details linked to the existing editor', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Desktop three-column behavior is checked once.');
+  const sidebar = page.locator('.sidebar');
+  const expandedWidth = (await sidebar.boundingBox())?.width || 0;
+  expect(expandedWidth).toBeGreaterThan(200);
+
+  await page.getByRole('button', { name: '收起左侧导航，仅显示图标' }).click();
+  await expect(page.locator('.shell')).toHaveClass(/sidebar-collapsed/);
+  const collapsedWidth = (await sidebar.boundingBox())?.width || 0;
+  expect(collapsedWidth).toBeLessThan(100);
+  await expect(page.getByRole('button', { name: '任务管理' })).toBeVisible();
+
+  await page.getByRole('button', { name: '任务管理' }).click();
+  const detailPanel = page.locator('.business-detail-panel');
+  await expect(detailPanel).toBeVisible();
+  await expect(detailPanel.getByRole('heading', { level: 2 })).toContainText('推进全省基层治理年度工作总结');
+  const targetRow = page.locator('.selectable-row').filter({ hasText: '整理省政府办公厅来文并建立关联' });
+  await targetRow.click();
+  await expect(targetRow).toHaveClass(/selected/);
+  await expect(detailPanel.getByRole('heading', { level: 2 })).toContainText('整理省政府办公厅来文并建立关联');
+  await detailPanel.getByRole('button', { name: '编辑此记录' }).click();
+  await expect(page.getByRole('dialog', { name: '编辑任务' })).toBeVisible();
+  await page.getByTitle('关闭').click();
+
+  await page.getByRole('button', { name: '展开左侧导航' }).click();
+  await expect(page.locator('.shell')).not.toHaveClass(/sidebar-collapsed/);
+});
+
 test('reopens the cached demonstration while the browser is offline', async ({ page, context }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'One production service-worker check is sufficient.');
   await page.evaluate(async () => { if (navigator.serviceWorker) await navigator.serviceWorker.ready; });
@@ -921,6 +949,7 @@ test('keeps the application shell within the narrow viewport', async ({ page }, 
   expect(navigation).not.toBeNull();
   expect(mainArea!.y + mainArea!.height).toBeLessThanOrEqual(navigation!.y);
   await page.getByRole('button', { name: '文件收发' }).click();
+  await expect(page.locator('.business-detail-panel')).toBeVisible();
   expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole('button', { name: '公文写作' }).click();
   await page.locator('.main-area').evaluate((element) => { element.scrollTop = element.scrollHeight; });

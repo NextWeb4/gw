@@ -12,7 +12,7 @@
 
 一个本地优先的公文事务、任务与文件跟踪、文稿写作、周报、文档导出和受控私有同步系统。
 
-![版本](https://img.shields.io/badge/version-0.4.1-0969da?style=flat-square)
+![版本](https://img.shields.io/badge/version-0.4.2-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,7 +22,7 @@
 
 HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联网/内网 Web 构建和互联网/内网 Electron 客户端之间共享同一套领域模型。系统首先把业务数据保存在本地，在构建时隔离不同联网能力，并通过显式适配器提供同步和 AI 请求。
 
-当前发布版本为 `0.4.1`：新增“常用项管理”，将单位/机关处室与人员分开维护并支持新增、重命名和删除；公开 Web 样例统一换为虚构省直机关数据；公文写作和周报的 AI 流程与返回结果留在发起页面展示。版本同时包含 v0.4.0 的六类业务台账、公开 Pages 本机能力、统计分析、写作指引、周报模板和会话级自备 Key AI；详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
+当前发布版本为 `0.4.2`：六类业务台账在宽屏下采用收窄列表与右侧只读详情，左侧导航可折叠为保留无障碍名称的图标模式；编辑仍进入原有抽屉，窄屏继续使用固定底部导航。版本同时包含 v0.4.1 的常用项管理、虚构演示数据、当前页 AI，以及完整本机台账、统计、写作、周报和会话级自备 Key AI；详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
 
 公开 Pages 不显示私有同步，但支持完整本机台账、附件、历史 JSON/快照和用户自备 Key 的兼容 AI；所有业务数据只进入当前浏览器 IndexedDB，不会上传到 Pages 或私有 API。[GitHub Pages](https://nextweb4.github.io/gw/) 仅适合公开、虚构或获准的非敏感材料。
 
@@ -57,7 +57,7 @@ HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联�
 - NSIS 安装包需要 Windows；AppImage/DEB 打包和最终 Linux 兼容性检查需要 Linux。
 - Web 构建需要 Chromium 类浏览器。
 
-仓库版本为 `0.4.1`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
+仓库版本为 `0.4.2`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
 
 ## 安装与运行
 

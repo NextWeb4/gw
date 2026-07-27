@@ -12,7 +12,7 @@
 
 公文事務、タスクとファイルの追跡、文書作成、週報、文書出力、制御されたプライベート同期のためのローカルファーストシステムです。
 
-![バージョン](https://img.shields.io/badge/version-0.4.1-0969da?style=flat-square)
+![バージョン](https://img.shields.io/badge/version-0.4.2-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,7 +22,7 @@
 
 HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラネット Web ビルド、インターネット/イントラネット Electron クライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、ネットワーク機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
 
-現在のリリースは `0.4.1` です。組織・部門と担当者を分けて追加・名称変更・削除できる「常用項管理」、架空の省庁レベル Web デモデータ、作成画面を離れずに処理結果まで確認できる公文・週報 AI パネルを追加しました。v0.4.0 の6業務台帳、統計分析、執筆指針、週報テンプレート、セッション限定ユーザー Key 方式 AI も含まれます。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
+現在のリリースは `0.4.2` です。ワイド画面の6業務台帳は、幅を抑えた一覧と右側の読み取り専用詳細を使用し、左ナビゲーションはアクセシブルなアイコン表示に折りたためます。編集は既存ドロワーを使い、狭い画面では固定下部ナビゲーションを維持します。v0.4.1 の常用項管理、架空デモ、画面内 AI と既存機能も含まれます。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
 
 公開 Pages はプライベート同期を表示しませんが、ローカル台帳、添付、旧 JSON/スナップショット、ユーザー自身の Key を使う互換 AI を利用できます。業務データは現在のブラウザーの IndexedDB にだけ保存され、Pages やプライベート API へ自動送信されません。[GitHub Pages](https://nextweb4.github.io/gw/) では公開、架空、または許可済みの非機密資料だけを扱ってください。
 
@@ -57,7 +57,7 @@ HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラ
 - NSIS インストーラーには Windows、AppImage/DEB のパッケージ化と最終 Linux 互換性確認には Linux。
 - Web ビルドには Chromium 系ブラウザー。
 
-リポジトリのバージョンは `0.4.1` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
+リポジトリのバージョンは `0.4.2` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
 
 ## インストールと実行
 

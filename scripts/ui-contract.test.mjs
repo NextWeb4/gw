@@ -30,3 +30,16 @@ test('visual system stays local and honors reduced motion', async () => {
   assert.match(app, /className="kinetic-field" aria-hidden="true"/, 'kinetic background must stay out of the accessibility tree');
   assert.match(css, /\.kinetic-field[^}]*pointer-events:\s*none/s, 'kinetic background must not intercept input');
 });
+
+test('desktop ledger layout keeps accessible navigation collapse and a read-only detail lane', async () => {
+  const [app, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(app, /aria-label=\{sidebarCollapsed \? '展开左侧导航' : '收起左侧导航，仅显示图标'\}/, 'sidebar collapse must keep an accessible name');
+  assert.match(app, /<BusinessDetailPanel detail=\{businessDetail\}/, 'business records must share one detail component');
+  assert.match(app, /编辑此记录/, 'detail lane must route editing through the existing editor');
+  assert.match(css, /\.content-wrap\.has-detail-panel[^}]*grid-template-columns:[^;}]*minmax\(300px,360px\)/s, 'wide business pages must reserve a right detail column');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.content-wrap, \.content-wrap\.has-detail-panel[^}]*width:\s*calc\(100% - 24px\)/, 'narrow layout must return the detail lane to the mobile content width');
+});
