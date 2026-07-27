@@ -609,6 +609,7 @@ test.describe('segmented keyboard date editing', () => {
 
   test('rewrites the assign-date year digit by digit with real keystrokes', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'Physical-keyboard segment editing is verified once on the desktop project.');
+    test.skip(process.platform !== 'win32', 'Native date-input segment focus and keyboard order are platform-specific; this physical-keyboard regression targets Windows.');
     await page.goto('/');
     await page.getByRole('button', { name: '任务管理' }).click();
     await page.getByRole('button', { name: '新建任务' }).click();

@@ -17,6 +17,7 @@
 - `pnpm test:workflows` 校验 Pages 与内网工作流上传目录不会互换；`pnpm test` 已包含该命令。
 - `pnpm test:ui` 校验 Lucide 图标、无表情符号、无远程视觉资源和 reduced-motion 契约；`pnpm test` 已包含该命令。
 - `pnpm test:e2e` 使用 Playwright 验证离线页面、任务协同字段、附件暂存/保存/解除关联/引用清理、删除确认、历史导入、文稿导出和周报保存/导出。CI 必须先执行 `pnpm exec playwright install --with-deps chromium`。
+- 原生 `input[type=date]` 的分段焦点和物理按键顺序由操作系统决定；逐位改年份用例只在 Windows 执行，Linux CI 继续通过清空、重填、保存和恢复用例验证日期状态不变量，不得用坐标点击结果作为跨平台断言。
 - `pnpm test:e2e:intranet` 单独验证内网构建的私有控制、附件开关、CSP 和显式连接前零外联。
 - `pnpm test:e2e:internet` 单独验证互联网构建的请求地址、模型发现、API Key 会话边界、脱敏预览和显式发送前零外联。
 
