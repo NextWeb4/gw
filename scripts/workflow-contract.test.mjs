@@ -43,6 +43,19 @@ test('public Pages workflows upload only the public build output', async () => {
   assert.equal(syncBuild?.env?.VITE_BASE_PATH, '/gw/');
 });
 
+test('public PWA activates updates and reloads an already controlled page', async () => {
+  const viteConfig = await readFile(path.join(root, 'apps', 'web', 'vite.config.ts'), 'utf8');
+  const webEntry = await readFile(path.join(root, 'apps', 'web', 'src', 'main.tsx'), 'utf8');
+
+  assert.match(viteConfig, /skipWaiting:\s*true/, 'updated workers must not remain waiting behind the old application shell');
+  assert.match(viteConfig, /clientsClaim:\s*true/, 'an activated worker must claim existing Pages clients');
+  assert.match(webEntry, /navigator\.serviceWorker\.controller/, 'the client must distinguish an update from the first worker installation');
+  assert.match(webEntry, /controllerchange/, 'the client must observe a worker taking control');
+  assert.match(webEntry, /window\.location\.reload\(\)/, 'an already controlled page must reload once after an update takes control');
+  assert.match(webEntry, /registration\?\.waiting\?\.postMessage\(\{ type: 'SKIP_WAITING' \}\)/, 'a worker already waiting at startup must be activated');
+  assert.match(webEntry, /registration\.update\(\)\.catch/, 'online launches must explicitly check for a newer worker without breaking offline startup');
+});
+
 test('desktop release workflow builds both editions and verifies twelve edition-specific packages', async () => {
   const workflow = await readWorkflow('desktop.yml');
   assert.deepEqual(workflow.jobs.windows.strategy.matrix.edition, ['internet', 'intranet']);
