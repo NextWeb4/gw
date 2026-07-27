@@ -127,7 +127,7 @@ test('Chinese user manual matches the current workspace and every navigation mod
   const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
   const help = await readFile(path.join(root, 'docs', 'HELP.md'), 'utf8');
   const numberedSections = [...help.matchAll(/^## (\d+)\. /gm)].map((match) => Number(match[1]));
-  assert.deepEqual(numberedSections, Array.from({ length: 24 }, (_, index) => index + 1), 'manual must keep 24 ordered top-level sections');
+  assert.deepEqual(numberedSections, Array.from({ length: 25 }, (_, index) => index + 1), 'manual must keep 25 ordered top-level sections');
   assert.match(help, new RegExp(`版本：v${manifest.version.replaceAll('.', '\\.')}(?:\\s|$)`));
   assert.match(help, /https:\/\/nextweb4\.github\.io\/gw\//);
   assert.match(help, /https:\/\/github\.com\/NextWeb4\/gw\/releases\/latest/);
@@ -139,6 +139,7 @@ test('Chinese user manual matches the current workspace and every navigation mod
     '外出活动',
     '用章管理',
     '物资收发',
+    '常用项管理',
     '公文写作',
     '周报生成',
     '统计分析',
@@ -161,6 +162,7 @@ test('Chinese user manual matches the current workspace and every navigation mod
     '保存用章',
     '新建物资记录',
     '保存物资',
+    '保存全部修改',
     '导入文档',
     '保存自定义格式',
     '重新汇总',
@@ -185,7 +187,7 @@ test('Chinese user manual matches the current workspace and every navigation mod
   ]) {
     assert.match(help, new RegExp(topic), `detailed manual must explain ${topic}`);
   }
-  assert.match(help, /当前十四个导航模块/);
+  assert.match(help, /当前十五个导航模块/);
   assert.match(help, /润色指引/);
   assert.match(help, /20,000 字符/);
   assert.match(help, /周报模板/);

@@ -242,6 +242,31 @@ h1, h2, p { margin-top: 0; }
 .ai-result-card .text-button { padding: 5px 8px; border-radius: 999px; }
 .ai-result-card .text-button:hover { background: var(--acid-soft); }
 
+/* ---- 当前页面 AI 协作面板（v0.4.1） ---- */
+.ai-context-overlay { position: fixed; z-index: 70; top: 0; right: 0; bottom: 0; width: min(760px, calc(100vw - 218px)); padding: 0 24px 32px; overflow-y: auto; overscroll-behavior: contain; background: rgba(9,10,8,.985); border-left: 1px solid var(--line-strong); box-shadow: -24px 0 70px rgba(0,0,0,.48); }
+.ai-context-toolbar { position: sticky; z-index: 3; top: 0; margin: 0 -24px 18px; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: rgba(9,10,8,.96); border-bottom: 1px solid var(--line); backdrop-filter: blur(16px); }
+.ai-context-toolbar strong { display: block; margin-top: 4px; color: var(--paper-bright); font: 500 18px/1.1 var(--display); letter-spacing: 0; }
+.ai-context-overlay > .page-heading { min-height: 156px; margin-bottom: 14px; padding: 22px 8px; }
+.ai-context-overlay > .page-heading h1 { font-size: 42px; letter-spacing: 0; }
+.ai-context-overlay .desktop-services { grid-template-columns: 1fr; }
+.ai-context-overlay .skill-panel { margin-bottom: 0; }
+
+/* ---- 常用项管理（v0.4.1） ---- */
+.directory-summary { margin: -8px 0 16px; padding: 12px 16px; display: flex; align-items: center; gap: 18px; color: var(--muted); background: rgba(18,20,16,.64); border: 1px solid var(--line); border-radius: 8px; font-size: 10px; }
+.directory-summary span { display: inline-flex; align-items: baseline; gap: 6px; }
+.directory-summary strong { color: var(--acid); font: 600 18px/1 var(--display); }
+.directory-summary small { margin-left: auto; color: var(--muted); font-size: 9px; }
+.directory-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; align-items: start; }
+.directory-panel { padding-bottom: 18px; border-radius: 8px; }
+.directory-count { min-width: 46px; min-height: 30px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; color: var(--acid); background: var(--acid-soft); border: 1px solid rgba(216,255,63,.2); border-radius: 999px; font: 600 11px/1 "Aptos", sans-serif; }
+.directory-add-row { padding: 0 24px 16px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; }
+.directory-add-row input, .directory-row input { width: 100%; min-width: 0; padding: 10px 11px; color: var(--paper); background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: 8px; outline: 0; font-size: 10px; }
+.directory-add-row input:focus, .directory-row input:focus { border-color: rgba(216,255,63,.5); box-shadow: 0 0 0 4px rgba(216,255,63,.05); }
+.directory-list { margin: 0 24px; border-top: 1px solid var(--line); }
+.directory-row { min-height: 48px; display: grid; grid-template-columns: 24px minmax(0,1fr) 34px; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.directory-row-index { color: var(--muted); font: 600 9px/1 "Aptos Narrow", sans-serif; letter-spacing: 0; }
+.directory-panel .empty-state { min-height: 120px; }
+
 /* ---- 统计分析（v0.4.0） ---- */
 .stats-toolbar { align-items: flex-end; flex-wrap: wrap; }
 .stats-filter { margin: 0; min-width: 170px; }
@@ -431,7 +456,7 @@ h1, h2, p { margin-top: 0; }
   .metric { min-height: 132px; padding: 17px; }
   .metric::before { left: 17px; right: 17px; top: 45px; }
   .metric strong { margin-top: 19px; font-size: 39px; }
-  .dashboard-grid, .migration-grid, .about-grid, .desktop-services, .weekly-layout, .stats-grid { grid-template-columns: 1fr; }
+  .dashboard-grid, .migration-grid, .about-grid, .desktop-services, .weekly-layout, .stats-grid, .directory-grid { grid-template-columns: 1fr; }
   .stats-filter { min-width: 0; flex: 1; }
   .paper-panel { min-height: 330px; }
   .quick-actions { grid-template-columns: 1fr; }
@@ -457,6 +482,10 @@ h1, h2, p { margin-top: 0; }
   .legacy-setting > summary small { grid-column: 2; }
   .legacy-setting > pre { margin-right: 14px; margin-left: 14px; }
   .toast { right: 14px; bottom: 86px; max-width: calc(100% - 28px); }
+  .ai-context-overlay { left: 0; width: 100%; bottom: 84px; padding-right: 14px; padding-left: 14px; }
+  .ai-context-toolbar { margin-right: -14px; margin-left: -14px; padding-right: 14px; padding-left: 14px; }
+  .directory-summary { align-items: flex-start; flex-wrap: wrap; }
+  .directory-summary small { width: 100%; margin-left: 0; }
 }
 
 @media (max-width: 500px) {
@@ -477,6 +506,8 @@ h1, h2, p { margin-top: 0; }
   .drawer-header { padding: 22px 19px; }
   .about-hero { padding: 29px 24px; }
   .about-hero h2 { font-size: 38px; }
+  .directory-add-row { grid-template-columns: 1fr; }
+  .directory-add-row .secondary-button { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -4,7 +4,7 @@ import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 import type {
   ArchiveRecord, Attachment, Draft, MaterialRecord, MeetingRecord, OfficialDocument, ResearchRecord, SealRecord, Task, WeeklyReport
 } from '@hxhwang/domain';
-import { sampleDocuments, sampleMaterials, sampleMeetings, sampleResearches, sampleSeals, sampleTasks } from '@hxhwang/domain';
+import { mergeContactDirectory, sampleContactDirectory, sampleDocuments, sampleMaterials, sampleMeetings, sampleResearches, sampleSeals, sampleTasks } from '@hxhwang/domain';
 
 export type Kind = 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material' | 'attachment' | 'draft' | 'weekly' | 'archive' | 'setting';
 type RecordPayload = Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord | Attachment | Draft | WeeklyReport | ArchiveRecord | Record<string, unknown>;
@@ -109,8 +109,22 @@ export async function removeAttachmentsIfUnreferenced(candidateIds: string[]) {
   return removed;
 }
 
+const previousDemoUpdatedAt = new Map([
+  ['task_demo_1', '2026-07-22T08:00:00.000Z'],
+  ['task_demo_2', '2026-07-21T08:00:00.000Z'],
+  ['doc_demo_1', '2026-07-21T08:00:00.000Z'],
+  ['meeting_demo_1', '2026-07-22T08:00:00.000Z'],
+  ['research_demo_1', '2026-07-23T08:00:00.000Z'],
+  ['seal_demo_1', '2026-07-24T08:00:00.000Z'],
+  ['material_demo_1', '2026-07-24T09:00:00.000Z']
+]);
+
+export function shouldRefreshDemoRecord(id: string, existing?: { updatedAt?: string }) {
+  return !existing || existing.updatedAt === previousDemoUpdatedAt.get(id);
+}
+
 export async function seedDemoData(): Promise<void> {
-  const seedMarker = await getRecord<Record<string, unknown>>('demo-seed-v2');
+  const seedMarker = await getRecord<Record<string, unknown>>('demo-seed-v3');
   if (seedMarker) return;
   const groups: Array<[Kind, Array<{ id: string }>]> = [
     ['task', sampleTasks],
@@ -121,11 +135,30 @@ export async function seedDemoData(): Promise<void> {
     ['material', sampleMaterials]
   ];
   for (const [kind, samples] of groups) {
-    const existing = await listRecords(kind);
-    if (existing.length) continue;
-    for (const sample of samples) await putRecord(kind, sample.id, sample as RecordPayload);
+    for (const sample of samples) {
+      const existing = await getRecord<{ id: string; updatedAt?: string } & Record<string, unknown>>(sample.id);
+      if (shouldRefreshDemoRecord(sample.id, existing)) await putRecord(kind, sample.id, sample as RecordPayload);
+    }
   }
-  await putRecord('setting', 'demo-seed-v2', { type: 'demo-seed', version: 2, seededAt: new Date().toISOString() });
+  const existingDirectory = await getRecord<Record<string, unknown>>('contact-directory');
+  if (!existingDirectory) {
+    const [tasks, meetings, documents, researches, seals, materials] = await Promise.all([
+      listRecords<Task>('task'), listRecords<MeetingRecord>('meeting'), listRecords<OfficialDocument>('document'),
+      listRecords<ResearchRecord>('research'), listRecords<SealRecord>('seal'), listRecords<MaterialRecord>('material')
+    ]);
+    const people = [
+      ...tasks.map((task) => task.assigner), ...meetings.flatMap((meeting) => meeting.receiver.split(/[、，,;；\n]/)),
+      ...documents.map((document) => document.handler), ...researches.flatMap((research) => research.participants.split(/[、，,;；\n]/)),
+      ...seals.flatMap((seal) => [seal.userName, seal.approver]), ...materials.map((material) => material.handler)
+    ];
+    const units = [
+      ...tasks.flatMap((task) => [...task.partnerStatus.map((partner) => partner.name), ...task.stages.flatMap((stage) => stage.partnerStatus.map((partner) => partner.name))]),
+      ...meetings.map((meeting) => meeting.sendTo), ...documents.map((document) => document.fromUnit), ...materials.map((material) => material.fromUnit)
+    ];
+    const directory = mergeContactDirectory(sampleContactDirectory, people, units, sampleContactDirectory.updatedAt);
+    await putRecord('setting', 'contact-directory', { type: 'contact-directory', ...directory });
+  }
+  await putRecord('setting', 'demo-seed-v3', { type: 'demo-seed', version: 3, seededAt: new Date().toISOString() });
 }
 
 export async function clearAllData(): Promise<void> {

@@ -169,6 +169,23 @@ export interface ContactDirectory {
   updatedAt: string;
 }
 
+export const sampleContactDirectory: ContactDirectory = {
+  people: ['林晓岚', '陈致远', '郑明川', '周宁'],
+  units: [
+    '福建省人民政府办公厅',
+    '福建省发展和改革委员会',
+    '福建省财政厅',
+    '福建省民政厅',
+    '福建省住房和城乡建设厅',
+    '福建省人民政府办公厅综合处',
+    '福建省人民政府办公厅秘书一处',
+    '福建省人民政府办公厅秘书二处',
+    '福建省人民政府办公厅信息处',
+    '福建省人民政府督查室'
+  ],
+  updatedAt: '2026-07-27T00:00:00.000Z'
+};
+
 export interface AiSkill {
   id: string;
   name: string;
@@ -704,46 +721,46 @@ export function extractTaskFromText(rawText: string, today: string): TaskTextExt
 
 export const sampleTasks: Task[] = [
   {
-    id: 'task_demo_1', name: '推进基层治理年度工作总结', category: '重点项目', source: '会议议定', assigner: '办公室',
-    assignDate: '2026-07-20', deadline: '2026-07-28', status: 'progress', partnerStatus: [], stages: [],
-    remark: '汇总各科室数据，保留来源和口径。', workSummary: '已完成任务清单整理。', files: [],
-    createdAt: '2026-07-20T08:00:00.000Z', updatedAt: '2026-07-22T08:00:00.000Z'
+    id: 'task_demo_1', name: '推进全省基层治理年度工作总结', category: '重点项目', source: '会议议定', assigner: '林晓岚',
+    assignDate: '2026-07-20', deadline: '2026-07-28', status: 'progress', partnerStatus: [{ name: '福建省民政厅', status: 'progress', files: [] }], stages: [],
+    remark: '汇总省直有关单位和厅机关处室数据，保留来源和口径。', workSummary: '已完成省级任务清单整理。', files: [],
+    createdAt: '2026-07-20T08:00:00.000Z', updatedAt: '2026-07-27T01:00:00.000Z'
   },
   {
-    id: 'task_demo_2', name: '整理上级来文并建立关联', category: '日常工作', source: '文件收发', assigner: '综合科',
+    id: 'task_demo_2', name: '整理省政府办公厅来文并建立关联', category: '日常工作', source: '文件收发', assigner: '陈致远',
     assignDate: '2026-07-21', deadline: '2026-07-25', status: 'pending', partnerStatus: [], stages: [],
-    remark: '按工作类目归档。', workSummary: '', files: [],
-    createdAt: '2026-07-21T08:00:00.000Z', updatedAt: '2026-07-21T08:00:00.000Z'
+    remark: '按省级公文工作类目归档。', workSummary: '', files: [],
+    createdAt: '2026-07-21T08:00:00.000Z', updatedAt: '2026-07-27T01:01:00.000Z'
   }
 ];
 
 export const sampleDocuments: OfficialDocument[] = [
   {
-    id: 'doc_demo_1', title: '关于做好年度重点工作的通知', code: '淮社工办发〔2026〕12号', docType: '收文',
-    docDate: '2026-07-18', securityLevel: '公开', fromUnit: '区委办公室', fileCategory: '重点项目', workCategory: '重点项目',
-    handler: '综合科', sendScope: '各科室', receiptStatus: '已登记', remark: '待关联任务。', files: [],
-    createdAt: '2026-07-21T08:00:00.000Z', updatedAt: '2026-07-21T08:00:00.000Z'
+    id: 'doc_demo_1', title: '关于做好2026年全省重点工作的通知', code: '闽政〔2026〕1号', docType: '收文',
+    docDate: '2026-07-18', securityLevel: '公开', fromUnit: '福建省人民政府办公厅', fileCategory: '重点项目', workCategory: '重点项目',
+    handler: '陈致远', sendScope: '厅机关各处室', receiptStatus: '已登记', remark: '待关联省级重点任务。', files: [],
+    createdAt: '2026-07-21T08:00:00.000Z', updatedAt: '2026-07-27T01:02:00.000Z'
   }
 ];
 
 export const sampleMeetings: MeetingRecord[] = [{
-  id: 'meeting_demo_1', subject: '基层治理重点工作调度会', sendTo: '相关业务科室', receiver: '综合科、项目科',
-  notifyTime: '2026-07-22', meetingTime: '2026-07-24T09:00', location: '三楼会议室', remark: '虚构演示记录。', files: [],
-  createdAt: '2026-07-22T08:00:00.000Z', updatedAt: '2026-07-22T08:00:00.000Z'
+  id: 'meeting_demo_1', subject: '全省重点工作协调推进会', sendTo: '福建省发展和改革委员会', receiver: '林晓岚、陈致远',
+  notifyTime: '2026-07-22', meetingTime: '2026-07-24T09:00', location: '省政府会议室', remark: '虚构省级演示记录。', files: [],
+  createdAt: '2026-07-22T08:00:00.000Z', updatedAt: '2026-07-27T01:03:00.000Z'
 }];
 
 export const sampleResearches: ResearchRecord[] = [{
-  id: 'research_demo_1', researchTime: '2026-07-23', direction: '外出调研', subject: '基层服务阵地运行情况调研', location: '演示街道',
-  useCar: '否', participants: '办公室、综合科', summary: '查看公开演示流程和台账字段。', achievements: '形成虚构问题清单。', remark: '虚构演示记录。', files: [],
-  createdAt: '2026-07-23T08:00:00.000Z', updatedAt: '2026-07-23T08:00:00.000Z'
+  id: 'research_demo_1', researchTime: '2026-07-23', direction: '外出调研', subject: '基层服务阵地运行情况调研', location: '福州市鼓楼区',
+  useCar: '否', participants: '林晓岚、郑明川', summary: '查看省级演示流程和台账字段。', achievements: '形成虚构问题清单。', remark: '虚构省级演示记录。', files: [],
+  createdAt: '2026-07-23T08:00:00.000Z', updatedAt: '2026-07-27T01:04:00.000Z'
 }];
 
 export const sampleSeals: SealRecord[] = [{
-  id: 'seal_demo_1', sealTime: '2026-07-24', userName: '演示经办人', approver: '演示审批人', docName: '演示工作联系函', docType: '函',
-  remark: '虚构演示记录，不代表真实审批。', files: [], createdAt: '2026-07-24T08:00:00.000Z', updatedAt: '2026-07-24T08:00:00.000Z'
+  id: 'seal_demo_1', sealTime: '2026-07-24', userName: '郑明川', approver: '周宁', docName: '省直单位工作联系函', docType: '函',
+  remark: '虚构省级演示记录，不代表真实审批。', files: [], createdAt: '2026-07-24T08:00:00.000Z', updatedAt: '2026-07-27T01:05:00.000Z'
 }];
 
 export const sampleMaterials: MaterialRecord[] = [{
-  id: 'material_demo_1', materialName: 'A4 打印纸', spec: '70g / 500 张', quantity: 5, type: 'in', handlerTime: '2026-07-24', handler: '演示经办人',
-  fromUnit: '演示供应单位', remark: '虚构演示入库记录。', files: [], createdAt: '2026-07-24T09:00:00.000Z', updatedAt: '2026-07-24T09:00:00.000Z'
+  id: 'material_demo_1', materialName: 'A4 打印纸', spec: '70g / 500 张', quantity: 5, type: 'in', handlerTime: '2026-07-24', handler: '陈致远',
+  fromUnit: '福建省人民政府办公厅综合处', remark: '虚构省级演示入库记录。', files: [], createdAt: '2026-07-24T09:00:00.000Z', updatedAt: '2026-07-27T01:06:00.000Z'
 }];

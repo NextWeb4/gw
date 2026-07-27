@@ -4,8 +4,8 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import {
   Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowUpRight, BarChart3, BookOpen, CalendarDays, Check, ChevronRight, ClipboardList,
-  Bot, FileArchive, FileOutput, FileText, FileUp, FolderOpen, Globe2, Info, KeyRound, LayoutDashboard, Library, MapPin,
-  Menu, Orbit, Package, Pencil, Plus, RefreshCw, Save, Search, Server, ShieldCheck, Sparkles, Stamp, Upload, WandSparkles, X
+  Bot, Building2, FileArchive, FileOutput, FileText, FileUp, FolderOpen, Globe2, Info, KeyRound, LayoutDashboard, Library, MapPin,
+  Menu, Orbit, Package, Pencil, Plus, RefreshCw, Save, Search, Server, ShieldCheck, Sparkles, Stamp, Upload, UsersRound, WandSparkles, X
 } from 'lucide-react';
 import {
   buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, DEFAULT_WEEKLY_TEMPLATE, extractTaskFromText,
@@ -30,7 +30,7 @@ import knowledgePack from '../../../content/generated/knowledge-pack.json';
 import { importWritingDocument } from './document-import';
 import { syncPrivateWorkspace } from './private-services';
 
-type Tab = 'dashboard' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'writing' | 'weekly' | 'stats' | 'ai' | 'archive' | 'migration' | 'about';
+type Tab = 'dashboard' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'archive' | 'migration' | 'about';
 interface AiPrefill { source: string; purpose: string; custom?: string; nonce: number; }
 type AiAssistRequest = { source?: string; purpose?: string; custom?: string };
 type HxWindow = Window & { hxhwang?: {
@@ -50,6 +50,7 @@ const navItems: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> 
   { id: 'researches', label: '外出活动', icon: MapPin },
   { id: 'seals', label: '用章管理', icon: Stamp },
   { id: 'materials', label: '物资收发', icon: Package },
+  { id: 'directory', label: '常用项管理', icon: UsersRound },
   { id: 'writing', label: '公文写作', icon: Pencil },
   { id: 'weekly', label: '周报生成', icon: FileOutput },
   { id: 'stats', label: '统计分析', icon: BarChart3 },
@@ -129,6 +130,7 @@ function App() {
   // 带自增 key：同文案连续提示也会重置定时器并重新渲染，不会被相同 state 合并吞掉
   const setToast = (text: string) => setToastState((prev) => ({ text, key: prev.key + 1 }));
   const [aiPrefill, setAiPrefill] = useState<AiPrefill | null>(null);
+  const [aiOverlayOpen, setAiOverlayOpen] = useState(false);
   const directoryRef = useRef<ContactDirectory>(emptyDirectory());
   const directoryWriteQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingAttachmentsRef = useRef<Attachment[]>([]);
@@ -155,8 +157,10 @@ function App() {
       ...documentRows.map((document) => document.fromUnit), ...meetingRows.map((meeting) => meeting.sendTo), ...materialRows.map((material) => material.fromUnit),
       ...taskRows.flatMap((task) => [...task.partnerStatus.map((partner) => partner.name), ...task.stages.flatMap((stage) => stage.partnerStatus.map((partner) => partner.name))])
     ];
-    const stored = directorySetting ? { people: directorySetting.people || [], units: directorySetting.units || [], updatedAt: directorySetting.updatedAt || nowIso() } : emptyDirectory();
-    const nextDirectory = mergeContactDirectory(stored, derivedPeople, derivedUnits, stored.updatedAt);
+    const stored = directorySetting ? { people: directorySetting.people || [], units: directorySetting.units || [], updatedAt: directorySetting.updatedAt || nowIso() } : undefined;
+    const nextDirectory = stored
+      ? mergeContactDirectory(emptyDirectory(), stored.people, stored.units, stored.updatedAt)
+      : mergeContactDirectory(emptyDirectory(), derivedPeople, derivedUnits);
     directoryRef.current = nextDirectory;
     setDirectory(nextDirectory);
     setCustomTemplates(settings.filter((setting) => setting.type === 'custom-writing-template') as unknown as CustomWritingTemplate[]);
@@ -188,6 +192,21 @@ function App() {
     const write = directoryWriteQueue.current.then(() => putRecord('setting', 'contact-directory', { type: 'contact-directory', ...next }));
     directoryWriteQueue.current = write.catch(() => undefined);
     return write;
+  };
+  const replaceDirectory = async (people: string[], units: string[]) => {
+    const next = mergeContactDirectory(emptyDirectory(), people, units);
+    const write = directoryWriteQueue.current.then(() => putRecord('setting', 'contact-directory', { type: 'contact-directory', ...next }));
+    directoryWriteQueue.current = write.catch(() => undefined);
+    try {
+      await write;
+      directoryRef.current = next;
+      setDirectory(next);
+      setToast(`常用项已保存：${next.units.length} 个单位与处室，${next.people.length} 名人员`);
+      return true;
+    } catch (error) {
+      setToast(error instanceof Error ? `常用项保存失败：${error.message}` : '常用项保存失败');
+      return false;
+    }
   };
   const clearPendingAttachments = () => {
     pendingAttachmentsRef.current = [];
@@ -515,26 +534,45 @@ function App() {
   const editorAttachments = useMemo(() => [...attachments, ...pendingAttachments], [attachments, pendingAttachments]);
 
   const openAiAssistant = (request?: AiAssistRequest) => {
-    if (request) setAiPrefill({ source: request.source || 'workspace', purpose: request.purpose || '综合工作总结', custom: request.custom, nonce: Date.now() });
+    if (request) {
+      setAiPrefill({ source: request.source || 'workspace', purpose: request.purpose || '综合工作总结', custom: request.custom, nonce: Date.now() });
+      setAiOverlayOpen(true);
+      return;
+    }
+    setAiOverlayOpen(false);
     setTab('ai');
   };
+  const navigate = (nextTab: Tab) => {
+    setAiOverlayOpen(false);
+    setTab(nextTab);
+    setSearch('');
+  };
+  useEffect(() => {
+    if (!aiOverlayOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setAiOverlayOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [aiOverlayOpen]);
   const aiWorkspace: AiWorkspaceData = { tasks, meetings, documents, researches, seals, materials, weeklyReports, draft };
 
   const renderContent = () => {
-    if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} onNavigate={setTab} />;
+    if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} onNavigate={navigate} />;
     if (tab === 'tasks') return <TaskView tasks={filteredTasks} search={search} setSearch={setSearch} attachments={attachments} categoryTints={categoryTints} onNew={() => { clearPendingAttachments(); setTaskEditor(emptyTask()); }} onEdit={(task) => { clearPendingAttachments(); setTaskEditor(task); }} onDelete={deleteTask} />;
     if (tab === 'meetings') return <MeetingView meetings={filteredMeetings} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setMeetingEditor(emptyMeeting()); }} onEdit={(meeting) => { clearPendingAttachments(); setMeetingEditor(meeting); }} onDelete={deleteMeeting} />;
     if (tab === 'documents') return <DocumentView documents={filteredDocuments} search={search} setSearch={setSearch} attachments={attachments} onNew={() => { clearPendingAttachments(); setDocumentEditor(emptyDocument()); }} onEdit={(document) => { clearPendingAttachments(); setDocumentEditor(document); }} onDelete={deleteDocument} />;
     if (tab === 'researches') return <ResearchView researches={filteredResearches} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setResearchEditor(emptyResearch()); }} onEdit={(research) => { clearPendingAttachments(); setResearchEditor(research); }} onDelete={deleteResearch} />;
     if (tab === 'seals') return <SealView seals={filteredSeals} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setSealEditor(emptySeal()); }} onEdit={(seal) => { clearPendingAttachments(); setSealEditor(seal); }} onDelete={deleteSeal} />;
     if (tab === 'materials') return <MaterialView materials={filteredMaterials} allMaterials={materials} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setMaterialEditor(emptyMaterial()); }} onEdit={(material) => { clearPendingAttachments(); setMaterialEditor(material); }} onDelete={deleteMaterial} />;
+    if (tab === 'directory') return <DirectoryManager directory={directory} onSave={replaceDirectory} setToast={setToast} />;
     if (tab === 'writing') return <WritingStudio draft={draft} setDraft={setDraft} customTemplates={customTemplates} onSaveCustomTemplate={saveCustomTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
     if (tab === 'weekly') return <WeeklyView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} reports={weeklyReports} templates={weeklyTemplates} onSave={saveWeeklyReport} onDelete={deleteWeeklyReport} onSaveTemplate={saveWeeklyTemplate} onDeleteTemplate={deleteWeeklyTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
     if (tab === 'stats') return <StatsView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} categoryTints={categoryTints} onSetCategoryTint={setCategoryTint} />;
     if (tab === 'ai') return null;
     if (tab === 'archive') return <ArchiveView archives={archives} settings={legacySettings} attachments={attachments} onCopy={copyArchiveToEditable} />;
     if (tab === 'migration') return <MigrationView onImport={importLegacy} onRestore={restoreSnapshot} onReload={reload} setToast={setToast} />;
-    return <AboutView desktop={isDesktop} distribution={distributionMode} weeklyReports={weeklyReports} onNavigate={setTab} />;
+    return <AboutView desktop={isDesktop} distribution={distributionMode} weeklyReports={weeklyReports} onNavigate={navigate} />;
   };
 
   const activeNavIndex = navItems.findIndex((item) => item.id === tab);
@@ -547,13 +585,13 @@ function App() {
       <div className="brand-lockup"><span className="brand-mark" aria-hidden="true"><Orbit size={21} strokeWidth={1.5} /></span><div><strong>HxHwang Gw</strong><span>GOVERNANCE WORKSPACE</span></div></div>
       <div className="mode-label"><span className="status-dot" /><span>{isDesktop ? `桌面${modeLabel}` : modeLabel}</span></div>
       <nav className="nav-list" aria-label="主导航">
-        {navItems.map(({ id, label, icon: Icon }, index) => <button aria-label={label} className={`nav-button ${tab === id ? 'active' : ''}`} key={id} onClick={() => { setTab(id); setSearch(''); }}><span className="nav-index">{String(index + 1).padStart(2, '0')}</span><Icon size={17} strokeWidth={1.6} /><span>{label}</span>{tab === id && <ArrowUpRight size={14} />}</button>)}
+        {navItems.map(({ id, label, icon: Icon }, index) => <button aria-label={label} className={`nav-button ${tab === id ? 'active' : ''}`} key={id} onClick={() => navigate(id)}><span className="nav-index">{String(index + 1).padStart(2, '0')}</span><Icon size={17} strokeWidth={1.6} /><span>{label}</span>{tab === id && <ArrowUpRight size={14} />}</button>)}
       </nav>
-      <div className="sidebar-bottom"><button aria-label="关于与设置" className={`nav-button ${tab === 'about' ? 'active' : ''}`} onClick={() => setTab('about')}><span className="nav-index">{String(navItems.length + 1).padStart(2, '0')}</span><Info size={17} /><span>关于与设置</span>{tab === 'about' && <ArrowUpRight size={14} />}</button><div className="sidebar-credit"><span>ORIGIN / LOCAL</span><strong>© HaoXiangHwang</strong><a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a></div></div>
+      <div className="sidebar-bottom"><button aria-label="关于与设置" className={`nav-button ${tab === 'about' ? 'active' : ''}`} onClick={() => navigate('about')}><span className="nav-index">{String(navItems.length + 1).padStart(2, '0')}</span><Info size={17} /><span>关于与设置</span>{tab === 'about' && <ArrowUpRight size={14} />}</button><div className="sidebar-credit"><span>ORIGIN / LOCAL</span><strong>© HaoXiangHwang</strong><a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a></div></div>
     </aside>
     <main className="main-area" ref={mainAreaRef}>
       <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="topbar-context"><span>HX / {String(activeNavIndex >= 0 ? activeNavIndex + 1 : navItems.length + 1).padStart(2, '0')}</span><strong>{navItems.find((item) => item.id === tab)?.label ?? '关于与设置'}</strong></div><div className="breadcrumbs">本地优先 <span>/</span> 外发必须逐次确认</div><div className="topbar-actions"><span className="connection"><Activity size={15} /><span>{connectionLabel}</span><strong>{connectionDetail}</strong></span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
-      <div className="content-wrap">{renderContent()}<div className="ai-keepalive" hidden={tab !== 'ai'}><AiHub distribution={distributionMode} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>
+      <div className="content-wrap">{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>
       <footer className="page-footer"><span>HXHWANG GW / {__APP_VERSION__}</span><span>© HaoXiangHwang · <a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a> · <a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer">nextweb4.github.io</a></span></footer>
     </main>
     {taskEditor && <TaskEditor task={taskEditor} isNew={!tasks.some((task) => task.id === taskEditor.id)} directory={directory} attachments={editorAttachments} partnerGroups={partnerGroups} onSaveGroup={savePartnerGroup} onDeleteGroup={deletePartnerGroup} onRemember={rememberDirectoryValue} onChange={setTaskEditor} onAttach={(files) => void addAttachments(files, taskEditor.files, (ids) => setTaskEditor({ ...taskEditor, files: ids }))} onSave={() => void saveTask(taskEditor)} onClose={() => { clearPendingAttachments(); setTaskEditor(null); }} setToast={setToast} />}
@@ -626,6 +664,50 @@ function SealView({ seals, search, setSearch, onNew, onEdit, onDelete }: { seals
 function MaterialView({ materials, allMaterials, search, setSearch, onNew, onEdit, onDelete }: { materials: MaterialRecord[]; allMaterials: MaterialRecord[]; search: string; setSearch: (value: string) => void; onNew: () => void; onEdit: (material: MaterialRecord) => void; onDelete: (id: string) => void }) {
   const balances = calculateMaterialStock(allMaterials);
   return <><PageHeading eyebrow="保障台账" title="物资收发" detail="按物资名称和规格汇总入库、领用与当前账面库存。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />新建物资记录</button>} /><div className="toolbar"><div className="search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索物资、规格、经手人或单位" /></div><span className="toolbar-count">{materials.length} 笔收发</span></div><section className="panel table-panel"><div className="table-head business-columns"><span>物资名称</span><span>收发 / 数量</span><span>经手信息</span><span>账面库存</span><span /></div>{materials.map((material) => <div className="table-row business-columns" key={material.id}><div className="row-title"><strong>{material.materialName}</strong><small>{material.spec || '无规格'} · {material.fromUnit || '未填写来源/领用单位'} · 附件 {material.files.length}</small></div><span className={`status-pill ${material.type === 'in' ? 'done' : 'pending'}`}>{material.type === 'in' ? '入库' : '领用'} {material.quantity}</span><span className="muted-cell">{material.handlerTime || '未设日期'}<br />{material.handler || '未填写经手人'}</span><span className="stock-balance">{balances.get(`${material.materialName.trim()}|${material.spec.trim()}`) || 0}</span><RowActions editTitle="编辑物资记录" deleteTitle="删除物资记录" onEdit={() => onEdit(material)} onDelete={() => onDelete(material.id)} /></div>)}{!materials.length && <EmptyState text="没有匹配的物资记录" />}</section></>;
+}
+
+function DirectoryManager({ directory, onSave, setToast }: { directory: ContactDirectory; onSave: (people: string[], units: string[]) => Promise<boolean>; setToast: (text: string) => void }) {
+  const [people, setPeople] = useState(directory.people);
+  const [units, setUnits] = useState(directory.units);
+  const [newPerson, setNewPerson] = useState('');
+  const [newUnit, setNewUnit] = useState('');
+  useEffect(() => { setPeople(directory.people); setUnits(directory.units); }, [directory.updatedAt]);
+  const dirty = JSON.stringify(people) !== JSON.stringify(directory.people) || JSON.stringify(units) !== JSON.stringify(directory.units);
+  const addValue = (kind: 'people' | 'units') => {
+    const value = (kind === 'people' ? newPerson : newUnit).trim();
+    if (!value) return setToast(kind === 'people' ? '请填写人员姓名' : '请填写单位或处室名称');
+    const current = kind === 'people' ? people : units;
+    if (current.some((item) => item.trim() === value)) return setToast(`「${value}」已在${kind === 'people' ? '人员' : '单位'}常用项中`);
+    if (kind === 'people') { setPeople([...people, value]); setNewPerson(''); }
+    else { setUnits([...units, value]); setNewUnit(''); }
+  };
+  const updateValue = (kind: 'people' | 'units', index: number, value: string) => {
+    if (kind === 'people') setPeople(people.map((item, itemIndex) => itemIndex === index ? value : item));
+    else setUnits(units.map((item, itemIndex) => itemIndex === index ? value : item));
+  };
+  const removeValue = (kind: 'people' | 'units', index: number) => {
+    if (kind === 'people') setPeople(people.filter((_, itemIndex) => itemIndex !== index));
+    else setUnits(units.filter((_, itemIndex) => itemIndex !== index));
+  };
+  const save = async () => { await onSave(people, units); };
+  const renderSection = (kind: 'people' | 'units') => {
+    const isPeople = kind === 'people';
+    const values = isPeople ? people : units;
+    const pending = isPeople ? newPerson : newUnit;
+    const setPending = isPeople ? setNewPerson : setNewUnit;
+    const label = isPeople ? '人员' : '单位与处室';
+    const Icon = isPeople ? UsersRound : Building2;
+    return <section className="panel directory-panel">
+      <div className="panel-heading"><div><span className="eyebrow">{isPeople ? 'PEOPLE' : 'ORGANIZATIONS'}</span><h2>{label}</h2></div><span className="directory-count"><Icon size={15} />{values.length}</span></div>
+      <div className="directory-add-row"><input aria-label={`新增${label}`} value={pending} onChange={(event) => setPending(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') addValue(kind); }} placeholder={isPeople ? '输入人员姓名' : '输入省直单位或机关处室'} /><button type="button" className="secondary-button" onClick={() => addValue(kind)}><Plus size={15} />添加</button></div>
+      <div className="directory-list">{values.map((value, index) => <div className="directory-row" key={`${kind}:${index}`}><span className="directory-row-index">{String(index + 1).padStart(2, '0')}</span><input aria-label={`${label}常用项 ${index + 1}`} value={value} onChange={(event) => updateValue(kind, index, event.target.value)} /><button type="button" className="icon-button danger-icon" title={`删除${label}常用项 ${value || index + 1}`} onClick={() => removeValue(kind, index)}><X size={14} /></button></div>)}{!values.length && <EmptyState text={`暂无${label}常用项`} />}</div>
+    </section>;
+  };
+  return <>
+    <PageHeading eyebrow="本机目录" title="常用项管理" detail="单位、机关处室与人员分开维护，供各业务台账快速选择。" action={<button type="button" className="primary-button" disabled={!dirty} onClick={() => void save()}><Save size={16} />保存全部修改</button>} />
+    <div className="directory-summary"><span>单位与处室 <strong>{units.length}</strong></span><span>人员 <strong>{people.length}</strong></span><small>修改常用项不会改写已经保存的业务记录</small></div>
+    <div className="directory-grid">{renderSection('units')}{renderSection('people')}</div>
+  </>;
 }
 
 const statusChartOrder: Status[] = ['pending', 'progress', 'done', 'overdue'];
@@ -1221,7 +1303,7 @@ function AboutView({ desktop, distribution, weeklyReports, onNavigate }: { deskt
   return <>
     <PageHeading eyebrow="系统信息" title="关于 HxHwang Gw" detail="一个面向公文事务和写作工作的本地优先工作台。" />
     <section className="about-grid"><div className="panel about-hero"><span className="about-mark" aria-hidden="true"><Orbit size={28} strokeWidth={1.2} /></span><span className="eyebrow">HxHwang Gw · v{__APP_VERSION__}</span><h2>让材料有来源，让事项有去处。</h2><p>{description}</p><div className="about-links"><a href="mailto:Rays688888@Gmail.com"><Info size={15} />Rays688888@Gmail.com</a><a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer"><BookOpen size={15} />nextweb4.github.io</a></div></div><div className="panel about-list"><div><span>作者</span><strong>HaoXiangHwang</strong></div><div><span>版本</span><strong>{__APP_VERSION__}</strong></div><div><span>构建时间</span><strong>{new Date(__BUILD_TIME__).toLocaleString('zh-CN')}</strong></div><div><span>运行模式</span><strong>{desktop ? `桌面${modeName}` : modeName}</strong></div><div><span>数据位置</span><strong>浏览器 IndexedDB</strong></div><div><span>已保存周报</span><strong>{weeklyReports.length}</strong></div><div><span>项目许可</span><strong>保留全部权利</strong></div><div><span>版权</span><strong>Copyright (c) 2026 HaoXiangHwang</strong></div><div><span>规则包</span><strong>v{(knowledgePack as KnowledgePack).version} · 来源已标注</strong></div></div></section>
-    <section className="panel about-pointer"><div className="panel-heading"><div><span className="eyebrow">{distribution === 'intranet' ? '内部服务入口' : 'AI 服务入口'}</span><h2>{distribution === 'intranet' ? '同步与内部 AI 在「AI 助手」' : 'AI 能力在「AI 助手」'}</h2></div><Sparkles size={20} /></div><p className="about-pointer-note">{distribution === 'intranet' ? '内网同步、内部模型获取、脱敏预览和逐次确认已集中到左侧「AI 助手」模块。' : '服务商预设、模型获取、脱敏预览和逐次确认已集中到左侧「AI 助手」模块；填写的 API Key 只保留在当前会话。'}</p><div className="about-pointer-actions"><button className="secondary-button" onClick={() => onNavigate('ai')}><Sparkles size={16} />打开 AI 助手</button></div></section>
+    <section className="panel about-pointer"><div className="panel-heading"><div><span className="eyebrow">{distribution === 'intranet' ? '内部服务入口' : 'AI 服务入口'}</span><h2>{distribution === 'intranet' ? '同步与内部 AI 在「AI 助手」' : 'AI 配置与独立工作台'}</h2></div><Sparkles size={20} /></div><p className="about-pointer-note">{distribution === 'intranet' ? '内网同步和内部模型配置集中在「AI 助手」；从写作或周报发起时，同一会话会在当前页面侧栏完成脱敏、确认和结果展示。' : '服务商、模型与会话级 API Key 在「AI 助手」配置；从写作或周报发起时，同一会话会在当前页面侧栏完成脱敏、确认和结果展示。'}</p><div className="about-pointer-actions"><button className="secondary-button" onClick={() => onNavigate('ai')}><Sparkles size={16} />打开 AI 助手</button></div></section>
   </>;
 }
 

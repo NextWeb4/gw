@@ -9,7 +9,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: 'http://127.0.0.1:4193',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure'
   },
@@ -18,8 +18,8 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true } }
   ],
   webServer: {
-    command: 'pnpm --filter @hxhwang/web build && pnpm --filter @hxhwang/web exec vite preview --host 127.0.0.1 --port 4173',
-    url: 'http://127.0.0.1:4173',
+    command: 'pnpm --filter @hxhwang/web build && pnpm --filter @hxhwang/web exec vite preview --host 127.0.0.1 --port 4193',
+    url: 'http://127.0.0.1:4193',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000
   }

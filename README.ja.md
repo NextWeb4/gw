@@ -12,7 +12,7 @@
 
 公文事務、タスクとファイルの追跡、文書作成、週報、文書出力、制御されたプライベート同期のためのローカルファーストシステムです。
 
-![バージョン](https://img.shields.io/badge/version-0.4.0-0969da?style=flat-square)
+![バージョン](https://img.shields.io/badge/version-0.4.1-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,7 +22,7 @@
 
 HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラネット Web ビルド、インターネット/イントラネット Electron クライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、ネットワーク機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
 
-現在のリリースは `0.4.0` です。v0.3.1 に6つの編集可能な業務台帳、公開 Pages の完全なブラウザーローカル機能、DeepSeek・Kimi・智譜 GLM・DashScope・SiliconFlow などのプリセットを内蔵した独立ナビゲーション「AI 助手」（セッション限定のユーザー Key 方式）、決定的な集計を行う「統計分析」モジュール、ローカル規則によるタスク文字起こし（智能識別填単）、保存可能な公文ライティング指針ライブラリ（Skill）、章構成をカスタマイズできる週報テンプレート（模範文からの構造抽出付き）、追記マージ方式の協力単位グループとカテゴリ配色、および v0.3.1 で報告された日付・常用項目編集の修正を追加しています。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) の v0.4.0 節を参照してください。
+現在のリリースは `0.4.1` です。組織・部門と担当者を分けて追加・名称変更・削除できる「常用項管理」、架空の省庁レベル Web デモデータ、作成画面を離れずに処理結果まで確認できる公文・週報 AI パネルを追加しました。v0.4.0 の6業務台帳、統計分析、執筆指針、週報テンプレート、セッション限定ユーザー Key 方式 AI も含まれます。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
 
 公開 Pages はプライベート同期を表示しませんが、ローカル台帳、添付、旧 JSON/スナップショット、ユーザー自身の Key を使う互換 AI を利用できます。業務データは現在のブラウザーの IndexedDB にだけ保存され、Pages やプライベート API へ自動送信されません。[GitHub Pages](https://nextweb4.github.io/gw/) では公開、架空、または許可済みの非機密資料だけを扱ってください。
 
@@ -57,7 +57,7 @@ HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラ
 - NSIS インストーラーには Windows、AppImage/DEB のパッケージ化と最終 Linux 互換性確認には Linux。
 - Web ビルドには Chromium 系ブラウザー。
 
-リポジトリのバージョンは `0.4.0` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
+リポジトリのバージョンは `0.4.1` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
 
 ## インストールと実行
 

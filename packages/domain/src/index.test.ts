@@ -3,7 +3,7 @@ import {
   buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, defaultCategoryTint, extractTaskFromText,
   extractWeeklyTemplateFromSample, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, listStatisticsMonths, materialStockKey,
   mergeContactDirectory, mergePartnerGroupMembers, parseWeeklyTemplate, resolveCategoryTint, sampleDocuments, sampleMaterials,
-  sampleMeetings, sampleResearches, sampleSeals, sampleTasks
+  sampleContactDirectory, sampleMeetings, sampleResearches, sampleSeals, sampleTasks
 } from './index.js';
 
 const statisticsInput = {
@@ -26,14 +26,18 @@ describe('domain fixtures', () => {
   it('ships only fictional local demo records', () => {
     expect(sampleTasks.every((task) => task.id.startsWith('task_demo_'))).toBe(true);
     expect(sampleDocuments.every((doc) => doc.id.startsWith('doc_demo_'))).toBe(true);
+    expect(sampleDocuments[0]).toMatchObject({ code: '闽政〔2026〕1号', fromUnit: '福建省人民政府办公厅' });
+    expect(sampleContactDirectory.people).toEqual(['林晓岚', '陈致远', '郑明川', '周宁']);
+    expect(sampleContactDirectory.units).toContain('福建省人民政府办公厅综合处');
+    expect(sampleContactDirectory.units.every((unit) => unit.startsWith('福建省'))).toBe(true);
   });
 
   it('builds a date-bounded weekly summary from recorded facts', () => {
     const report = buildWeeklyReportSummary(sampleTasks, sampleDocuments, '2026-07-20', '2026-07-26');
     expect(report.taskIds).toEqual(['task_demo_1', 'task_demo_2']);
     expect(report.documentIds).toEqual(['doc_demo_1']);
-    expect(report.contentText).toContain('已完成任务清单整理');
-    expect(report.contentText).toContain('关于做好年度重点工作的通知');
+    expect(report.contentText).toContain('已完成省级任务清单整理');
+    expect(report.contentText).toContain('关于做好2026年全省重点工作的通知');
     expect(report.contentText).toContain('计划于2026-07-25前完成');
   });
 
@@ -207,9 +211,9 @@ describe('domain fixtures', () => {
     expect(report.researchIds).toEqual(['research_demo_1']);
     expect(report.sealIds).toEqual(['seal_demo_1']);
     expect(report.materialIds).toEqual(['material_demo_1']);
-    expect(report.contentText).toContain('基层治理重点工作调度会');
+    expect(report.contentText).toContain('全省重点工作协调推进会');
     expect(report.contentText).toContain('基层服务阵地运行情况调研');
-    expect(report.contentText).toContain('演示工作联系函');
+    expect(report.contentText).toContain('省直单位工作联系函');
     expect(report.contentText).toContain('A4 打印纸');
   });
 });

@@ -12,7 +12,7 @@
 
 A local-first system for official-document work, task and file tracking, drafting, weekly reports, document export, and controlled private synchronization.
 
-![Version](https://img.shields.io/badge/version-0.4.0-0969da?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.4.1-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,7 +22,7 @@ A local-first system for official-document work, task and file tracking, draftin
 
 HxHwang Gw is a pnpm monorepo that shares one domain model across a public GitHub Pages demonstration, separate Internet and intranet Web builds, and separate Internet and intranet Electron clients. It stores operational data locally first, separates network capabilities at build time, and provides explicit adapters for synchronization and AI requests.
 
-The current release is `0.4.0`. It extends v0.3.1 with six editable business ledgers, full browser-local Public Pages capabilities, a dedicated “AI 助手” (AI Assistant) navigation module with built-in OpenAI-compatible provider presets (DeepSeek, Kimi, Zhipu GLM, DashScope, SiliconFlow, Ollama and more) using bring-your-own session keys, a deterministic “统计分析” (Statistics) module, local-rule task text extraction (“智能识别填单”), a saveable writing-guidance skill library (“公文写作指引库”), customizable weekly-report templates with deterministic sample-structure extraction (“周报模板”), partner-unit groups with append-only merge (“配合单位分组”), deterministic category tinting (“类目配色”), and the date/common-contact editing fixes reported against v0.3.1. See the v0.4.0 section in [`RELEASE_NOTES.md`](RELEASE_NOTES.md) for details.
+The current release is `0.4.1`. It adds a dedicated reusable-directory manager for separately editing organizations/departments and people, replaces the Web demo with fictional provincial-level records, and keeps writing/weekly AI workflows and returned results on the originating page. It includes all v0.4.0 capabilities such as six editable ledgers, browser-local Public Pages, deterministic statistics, writing guidance, weekly templates, and session-only bring-your-own-key AI. See [`RELEASE_NOTES.md`](RELEASE_NOTES.md) for details.
 
 Public Pages does not expose private synchronization, but it supports the full local ledgers, attachments, legacy JSON/snapshots, and bring-your-own-key compatible AI. Business data stays in the current browser's IndexedDB and is not uploaded to Pages or the private API. Use [GitHub Pages](https://nextweb4.github.io/gw/) only with public, fictional, or approved non-sensitive material.
 
@@ -30,7 +30,7 @@ Public Pages does not expose private synchronization, but it supports the full l
 
 | Area | What is implemented |
 | --- | --- |
-| Work management | Editable task, meeting, document, field-activity, seal, and material ledgers with reusable people/organizations, stages, summaries, attachments, and search |
+| Work management | Editable task, meeting, document, field-activity, seal, and material ledgers with a dedicated reusable people/organization directory, stages, summaries, attachments, and search |
 | Writing | Rich-text drafting, DOCX/HTML/TXT import with sanitization, reusable custom formats, deterministic weekly reports, editable versions, and historical archives |
 | Documents | A shared A4-oriented engine for DOCX and PDF export; browser print is used on the Web and Electron printing on desktop |
 | Migration | Importers for two legacy prototype export shapes, with warnings when their shared version marker cannot identify the source reliably |
@@ -57,7 +57,7 @@ All variants remain local-first. Private synchronization begins only after a use
 - Windows for NSIS installers; Linux for AppImage/DEB packaging and final Linux compatibility checks.
 - A Chromium-class browser for the Web builds.
 
-The repository version is `0.4.0`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
+The repository version is `0.4.1`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
 
 ## Install and Run
 

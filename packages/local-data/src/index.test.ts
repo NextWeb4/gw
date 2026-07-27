@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { attachmentIdsFromPayload, LOCAL_SCHEMA_VERSION, parseLocalSnapshot } from './index.js';
+import { attachmentIdsFromPayload, LOCAL_SCHEMA_VERSION, parseLocalSnapshot, shouldRefreshDemoRecord } from './index.js';
 
 describe('local snapshot validation', () => {
   it('uses an explicit schema migration version for editable legacy business modules', () => {
     expect(LOCAL_SCHEMA_VERSION).toBe(2);
+  });
+
+  it('refreshes untouched legacy demo rows without overwriting user edits', () => {
+    expect(shouldRefreshDemoRecord('doc_demo_1')).toBe(true);
+    expect(shouldRefreshDemoRecord('doc_demo_1', { updatedAt: '2026-07-21T08:00:00.000Z' })).toBe(true);
+    expect(shouldRefreshDemoRecord('doc_demo_1', { updatedAt: '2026-07-27T10:30:00.000Z' })).toBe(false);
+    expect(shouldRefreshDemoRecord('user_document', { updatedAt: '2026-07-21T08:00:00.000Z' })).toBe(false);
   });
 
   it('accepts supported records and reports malformed entries', () => {

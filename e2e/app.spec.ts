@@ -22,10 +22,14 @@ test('loads the offline demo without third-party or private API traffic', async 
   });
 
   await page.reload();
-  await expect(page.getByText('推进基层治理年度工作总结')).toBeVisible();
-  await expect(page.getByText('整理上级来文并建立关联')).toBeVisible();
+  await expect(page.getByText('推进全省基层治理年度工作总结')).toBeVisible();
+  await expect(page.getByText('整理省政府办公厅来文并建立关联')).toBeVisible();
   if (testInfo.project.name === 'chromium') await expect(page.getByText('用户 Key 仅保留在当前会话')).toBeVisible();
   await expect(page.getByText('Rays688888@Gmail.com').last()).toBeVisible();
+  await page.getByRole('button', { name: '文件收发' }).click();
+  const demoDocument = page.locator('.table-row').filter({ hasText: '关于做好2026年全省重点工作的通知' });
+  await expect(demoDocument).toContainText('闽政〔2026〕1号');
+  await expect(demoDocument).toContainText('福建省人民政府办公厅');
   expect(unexpectedRequests).toEqual([]);
 });
 
@@ -37,7 +41,7 @@ test('reopens the cached demonstration while the browser is offline', async ({ p
   await context.setOffline(true);
   try {
     await page.reload();
-    await expect(page.getByText('推进基层治理年度工作总结')).toBeVisible();
+    await expect(page.getByText('推进全省基层治理年度工作总结')).toBeVisible();
     await expect(page.getByText('用户 Key 仅保留在当前会话')).toBeVisible();
   } finally {
     await context.setOffline(false);
@@ -312,19 +316,68 @@ test('keeps the session AI key while navigating between modules', async ({ page 
   await expect(page.getByLabel('请求地址')).toHaveValue('https://open.bigmodel.cn/api/paas/v4');
 });
 
-test('prefills the AI assistant from the writing studio and weekly report entries', async ({ page }) => {
+test('keeps writing and weekly AI work on the current page and returns a result there', async ({ page }) => {
+  const origin = new URL(page.url()).origin;
+  await page.route('**/context-provider/v1/**', async (route) => {
+    const pathName = new URL(route.request().url()).pathname;
+    if (pathName === '/context-provider/v1/models') return route.fulfill({ json: { data: [{ id: 'context-model' }] } });
+    if (pathName === '/context-provider/v1/chat/completions') return route.fulfill({ json: { choices: [{ message: { content: '当前页面润色结果' } }] } });
+    return route.abort();
+  });
+  await page.getByRole('button', { name: 'AI 助手' }).click();
+  await page.getByLabel('服务商预设').selectOption('custom');
+  await page.getByLabel('请求地址').fill(`${origin}/context-provider/v1`);
+  await page.getByLabel('API Key（仅当前会话）').fill('context-session-key');
+  await page.getByRole('button', { name: '获取 AI 模型' }).click();
+
   await page.getByRole('button', { name: '公文写作' }).click();
   await page.getByLabel('文稿标题').fill('AI 助手入口验证文稿');
   await page.getByRole('button', { name: 'AI 润色' }).click();
-  await expect(page.getByRole('heading', { name: 'AI 助手' })).toBeVisible();
-  await expect(page.getByLabel('处理用途')).toHaveValue('公文润色');
-  await expect(page.getByLabel('本机素材')).toHaveValue('custom');
-  await expect(page.getByLabel('待处理材料')).toHaveValue(/AI 助手入口验证文稿/);
+  await expect(page.locator('.shell')).toHaveAttribute('data-tab', 'writing');
+  const writingPanel = page.getByRole('dialog', { name: '当前页面 AI 协作面板' });
+  await expect(writingPanel).toBeVisible();
+  await expect(writingPanel.getByLabel('处理用途')).toHaveValue('公文润色');
+  await expect(writingPanel.getByLabel('本机素材')).toHaveValue('custom');
+  await expect(writingPanel.getByLabel('待处理材料')).toHaveValue(/AI 助手入口验证文稿/);
+  await writingPanel.getByRole('button', { name: '生成脱敏预览' }).click();
+  await writingPanel.getByLabel('我确认本次材料已脱敏、非涉密且允许发送到所选服务商').check();
+  await writingPanel.getByRole('button', { name: '确认本次 AI 请求' }).click();
+  await expect(writingPanel.getByText('当前页面润色结果', { exact: true })).toBeVisible();
+  await expect(page.locator('.shell')).toHaveAttribute('data-tab', 'writing');
+  await writingPanel.getByTitle('关闭当前页 AI 面板').click();
 
   await page.getByRole('button', { name: '周报生成' }).click();
   await page.getByRole('button', { name: 'AI 润色' }).click();
-  await expect(page.getByLabel('处理用途')).toHaveValue('周报润色');
-  await expect(page.getByLabel('待处理材料')).toHaveValue(/工作周报/);
+  await expect(page.locator('.shell')).toHaveAttribute('data-tab', 'weekly');
+  const weeklyPanel = page.getByRole('dialog', { name: '当前页面 AI 协作面板' });
+  await expect(weeklyPanel.getByLabel('处理用途')).toHaveValue('周报润色');
+  await expect(weeklyPanel.getByLabel('待处理材料')).toHaveValue(/工作周报/);
+});
+
+test('manages units and people separately and persists edits to business pickers', async ({ page }) => {
+  await page.getByRole('button', { name: '常用项管理' }).click();
+  await page.getByLabel('新增单位与处室').fill('福建省测试工作专班');
+  await page.getByLabel('新增单位与处室').press('Enter');
+  await page.getByLabel('新增人员').fill('测试人员');
+  await page.getByRole('button', { name: '添加' }).last().click();
+  await page.locator('.directory-panel').filter({ hasText: '人员' }).locator('.directory-row input').last().fill('测试人员甲');
+  await page.getByTitle('删除单位与处室常用项 福建省人民政府办公厅', { exact: true }).click();
+  await page.getByRole('button', { name: '保存全部修改' }).click();
+  await expect(page.getByText(/常用项已保存/)).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: '常用项管理' }).click();
+  const persistedValues = page.locator('.directory-row input');
+  await expect.poll(() => persistedValues.evaluateAll((nodes) => nodes.map((node) => (node as HTMLInputElement).value))).toEqual(expect.arrayContaining(['福建省测试工作专班', '测试人员甲']));
+  await expect.poll(() => persistedValues.evaluateAll((nodes) => nodes.map((node) => (node as HTMLInputElement).value))).not.toContain('福建省人民政府办公厅');
+
+  await page.getByRole('button', { name: '任务管理' }).click();
+  await page.getByRole('button', { name: '新建任务' }).click();
+  await expect.poll(() => page.getByLabel('选择常用交办人').locator('option').allTextContents()).toEqual(expect.arrayContaining(['从全部常用项选择', '测试人员甲']));
+  await page.getByTitle('关闭').click();
+  await page.getByRole('button', { name: '文件收发' }).click();
+  await page.getByRole('button', { name: '登记文件' }).click();
+  await expect.poll(() => page.getByLabel('选择常用来源单位').locator('option').allTextContents()).toEqual(expect.arrayContaining(['从全部常用项选择', '福建省测试工作专班']));
 });
 
 test('uses public Pages AI only after model discovery, redaction and per-request confirmation', async ({ page }) => {
@@ -476,7 +529,7 @@ test('applies category tint overrides across the task list and statistics', asyn
   await expect(page.locator('.stat-bar-row').filter({ hasText: '重点项目' }).locator('.stat-bar-fill')).toHaveClass(/tint-violet/);
 
   await page.getByRole('button', { name: '任务管理' }).click();
-  await expect(page.locator('.table-row').filter({ hasText: '推进基层治理年度工作总结' }).locator('.category-dot')).toHaveClass(/tint-violet/);
+  await expect(page.locator('.table-row').filter({ hasText: '推进全省基层治理年度工作总结' }).locator('.category-dot')).toHaveClass(/tint-violet/);
 
   await page.reload();
   await page.getByRole('button', { name: '统计分析' }).click();
@@ -647,9 +700,9 @@ test('preserves all common people during rapid additions', async ({ page }) => {
   }
   const options = page.locator('.reusable-field').filter({ hasText: '交办人' }).locator('datalist option');
   await expect.poll(() => options.count()).toBeGreaterThanOrEqual(5);
-  await expect.poll(() => options.evaluateAll((nodes) => nodes.map((node) => (node as HTMLOptionElement).value))).toEqual(expect.arrayContaining(['甲同志', '乙同志', '丙同志', '办公室', '综合科']));
+  await expect.poll(() => options.evaluateAll((nodes) => nodes.map((node) => (node as HTMLOptionElement).value))).toEqual(expect.arrayContaining(['甲同志', '乙同志', '丙同志', '林晓岚', '陈致远']));
   const picker = page.getByLabel('选择常用交办人');
-  await expect.poll(() => picker.locator('option').allTextContents()).toEqual(expect.arrayContaining(['从全部常用项选择', '办公室', '丙同志', '甲同志', '乙同志', '综合科']));
+  await expect.poll(() => picker.locator('option').allTextContents()).toEqual(expect.arrayContaining(['从全部常用项选择', '林晓岚', '丙同志', '甲同志', '乙同志', '陈致远']));
   await picker.selectOption('甲同志');
   await expect(assigner).toHaveValue('甲同志');
   await page.reload();
@@ -737,7 +790,7 @@ test('exports and restores a local snapshot', async ({ page }) => {
     Object.defineProperty(window, 'hxhwang', { configurable: true, value: { printPdf: async () => true } });
   });
   await page.reload();
-  const restoredTask = '推进基层治理年度工作总结';
+  const restoredTask = '推进全省基层治理年度工作总结';
   await page.getByRole('button', { name: '数据迁移' }).click();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: '导出快照' }).click();
@@ -834,11 +887,11 @@ test('generates, edits, persists and exports a weekly report', async ({ page }, 
   await page.getByLabel('开始日期').fill('2026-07-20');
   await page.getByLabel('结束日期').fill('2026-07-28');
   await page.getByRole('button', { name: '重新汇总' }).click();
-  await expect(page.getByLabel('周报正文')).toHaveValue(/已完成任务清单整理/);
-  await expect(page.getByLabel('周报正文')).toHaveValue(/关于做好年度重点工作的通知/);
-  await expect(page.getByLabel('周报正文')).toHaveValue(/基层治理重点工作调度会/);
+  await expect(page.getByLabel('周报正文')).toHaveValue(/已完成省级任务清单整理/);
+  await expect(page.getByLabel('周报正文')).toHaveValue(/关于做好2026年全省重点工作的通知/);
+  await expect(page.getByLabel('周报正文')).toHaveValue(/全省重点工作协调推进会/);
   await expect(page.getByLabel('周报正文')).toHaveValue(/基层服务阵地运行情况调研/);
-  await expect(page.getByLabel('周报正文')).toHaveValue(/演示工作联系函/);
+  await expect(page.getByLabel('周报正文')).toHaveValue(/省直单位工作联系函/);
   await expect(page.getByLabel('周报正文')).toHaveValue(/A4 打印纸/);
   await page.getByLabel('周报标题').fill('端到端测试周报');
   await page.getByLabel('周报正文').fill(`${await page.getByLabel('周报正文').inputValue()}\n人工补充：数据均已复核。`);
