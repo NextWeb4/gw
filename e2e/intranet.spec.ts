@@ -11,6 +11,9 @@ test('enables private controls without contacting a service before explicit conn
 
   await page.goto('/');
   await page.waitForLoadState('networkidle');
+  await expect(page.getByText('推进全省基层治理年度工作总结')).toHaveCount(0);
+  await page.getByRole('button', { name: '任务管理' }).click();
+  await expect(page.getByText('没有匹配的任务')).toBeVisible();
   await page.getByRole('button', { name: 'AI 助手' }).click();
   await expect(page.getByText('内网版', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('heading', { name: '同步连接' })).toBeVisible();
@@ -76,7 +79,7 @@ test('retrieves internal models and sends only explicitly confirmed redacted con
   await expect(confirmation).not.toBeChecked();
   await confirmation.check();
   await page.getByRole('button', { name: '确认发送到内部 AI' }).click();
-  await expect(page.getByText('内部模型结果', { exact: true })).toBeVisible();
+  await expect(page.locator('.ai-readable-result')).toHaveText('内部模型结果');
   const aiRequest = requests.find((request) => request.url.endsWith('/v1/ai/generate'));
   expect(aiRequest?.body).toEqual({ redactedContent: '联系人：[姓名]，手机[手机号]，邮箱[邮箱]', redacted: true, confirmed: true, purpose: '提纲生成', model: 'qwen3:4b' });
 });

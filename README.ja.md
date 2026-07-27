@@ -12,7 +12,7 @@
 
 公文事務、タスクとファイルの追跡、文書作成、週報、文書出力、制御されたプライベート同期のためのローカルファーストシステムです。
 
-![バージョン](https://img.shields.io/badge/version-0.4.2-0969da?style=flat-square)
+![バージョン](https://img.shields.io/badge/version-0.5.0-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,7 +22,7 @@
 
 HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラネット Web ビルド、インターネット/イントラネット Electron クライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、ネットワーク機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
 
-現在のリリースは `0.4.2` です。ワイド画面の6業務台帳は、幅を抑えた一覧と右側の読み取り専用詳細を使用し、左ナビゲーションはアクセシブルなアイコン表示に折りたためます。編集は既存ドロワーを使い、狭い画面では固定下部ナビゲーションを維持します。v0.4.1 の常用項管理、架空デモ、画面内 AI と既存機能も含まれます。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
+現在のリリースは `0.5.0` です。AI に検索可能なローカル履歴、フィールド変更要約、読み取り専用の3つの文章ガイダンスを追加しました。JSON/スナップショットはドラッグ＆ドロップで取り込め、「概要と設定」から版と CPU アーキテクチャ別のインストーラーを選択できます。インターネット版、イントラネット版、デスクトップ版は空の業務データで開始し、公開 Pages だけが架空デモを保持します。ワイド画面の詳細列と折りたたみナビゲーションも継続します。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
 
 公開 Pages はプライベート同期を表示しませんが、ローカル台帳、添付、旧 JSON/スナップショット、ユーザー自身の Key を使う互換 AI を利用できます。業務データは現在のブラウザーの IndexedDB にだけ保存され、Pages やプライベート API へ自動送信されません。[GitHub Pages](https://nextweb4.github.io/gw/) では公開、架空、または許可済みの非機密資料だけを扱ってください。
 
@@ -33,8 +33,8 @@ HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラ
 | 業務管理 | タスク、会議、文書、外出、押印、物資の編集可能な6台帳、再利用可能な担当者/組織、段階、要約、添付、検索 |
 | 文書作成 | リッチテキスト下書き、サニタイズ済み DOCX/HTML/TXT 取込、ローカルカスタム書式、決定的な週報、編集可能な版 |
 | 文書 | DOCX/PDF 共通の A4 指向エンジン。Web はブラウザー印刷、デスクトップは Electron 印刷を使用 |
-| 移行 | 2 種類の旧プロトタイプ書き出し形式に対応し、共通バージョン識別子で出所を特定できない場合は警告 |
-| ローカルデータ | IndexedDB ベースのリポジトリ、スナップショット、添付参照、明示的な復元/書き出し |
+| 移行 | 2 種類の旧プロトタイプ書き出し形式と JSON/スナップショットのドラッグ＆ドロップに対応し、出所を特定できない場合は警告 |
+| ローカルデータ | IndexedDB ベースのリポジトリ、スナップショット、添付参照、検索可能な AI 履歴、明示的な復元/書き出し |
 | エディション別サービス | 公開 Pages/インターネット版はセッション内 API Key と OpenAI 互換 URL、イントラネット版は認証済み同期と内部 AI ゲートウェイのみを使用 |
 
 旧 Skill、設定、週報、未マッピングの元フィールドは読み取り専用のプレーンテキストで保持され、取り込んだ HTML やスクリプト文字列は実行されません。
@@ -57,7 +57,7 @@ HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラ
 - NSIS インストーラーには Windows、AppImage/DEB のパッケージ化と最終 Linux 互換性確認には Linux。
 - Web ビルドには Chromium 系ブラウザー。
 
-リポジトリのバージョンは `0.4.2` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
+リポジトリのバージョンは `0.5.0` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
 
 ## インストールと実行
 

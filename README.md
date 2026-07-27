@@ -12,7 +12,7 @@
 
 A local-first system for official-document work, task and file tracking, drafting, weekly reports, document export, and controlled private synchronization.
 
-![Version](https://img.shields.io/badge/version-0.4.2-0969da?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.5.0-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,7 +22,7 @@ A local-first system for official-document work, task and file tracking, draftin
 
 HxHwang Gw is a pnpm monorepo that shares one domain model across a public GitHub Pages demonstration, separate Internet and intranet Web builds, and separate Internet and intranet Electron clients. It stores operational data locally first, separates network capabilities at build time, and provides explicit adapters for synchronization and AI requests.
 
-The current release is `0.4.2`. On wide screens, the six editable ledgers now use a narrower list with a read-only detail lane, while the left navigation can collapse to accessible icon-only mode. Editing still uses the existing drawers, and narrow screens retain the fixed bottom navigation. It includes all v0.4.1 directory, fictional-demo, in-page AI, local-ledger, statistics, writing, weekly-report, and session-only bring-your-own-key capabilities. See [`RELEASE_NOTES.md`](RELEASE_NOTES.md) for details.
+The current release is `0.5.0`. AI now includes searchable local history, field-change summaries, and three read-only writing-guidance presets. JSON and snapshots support drag-and-drop import, while About & Settings provides edition- and architecture-specific installer links. Internet, intranet, and desktop builds start with an empty business database; only Public Pages retains fictional demonstration records. The wide-screen detail lane and collapsible icon navigation remain available. See [`RELEASE_NOTES.md`](RELEASE_NOTES.md) for details.
 
 Public Pages does not expose private synchronization, but it supports the full local ledgers, attachments, legacy JSON/snapshots, and bring-your-own-key compatible AI. Business data stays in the current browser's IndexedDB and is not uploaded to Pages or the private API. Use [GitHub Pages](https://nextweb4.github.io/gw/) only with public, fictional, or approved non-sensitive material.
 
@@ -33,8 +33,8 @@ Public Pages does not expose private synchronization, but it supports the full l
 | Work management | Editable task, meeting, document, field-activity, seal, and material ledgers with a dedicated reusable people/organization directory, stages, summaries, attachments, and search |
 | Writing | Rich-text drafting, DOCX/HTML/TXT import with sanitization, reusable custom formats, deterministic weekly reports, editable versions, and historical archives |
 | Documents | A shared A4-oriented engine for DOCX and PDF export; browser print is used on the Web and Electron printing on desktop |
-| Migration | Importers for two legacy prototype export shapes, with warnings when their shared version marker cannot identify the source reliably |
-| Local data | IndexedDB-backed repositories, snapshots, attachment references, and explicit recovery/export operations |
+| Migration | Importers for two legacy prototype export shapes plus drag-and-drop JSON/snapshots, with warnings when their shared version marker cannot identify the source reliably |
+| Local data | IndexedDB-backed repositories, snapshots, attachment references, searchable AI history, and explicit recovery/export operations |
 | Edition services | Public Pages and Internet builds use a session-only API key with an OpenAI-compatible endpoint; intranet builds use authenticated private sync and the internal AI gateway only |
 
 Historical Skills, configuration, weekly reports, and unmapped source fields remain visible as read-only plain text. Imported HTML or script text is not executed.
@@ -57,7 +57,7 @@ All variants remain local-first. Private synchronization begins only after a use
 - Windows for NSIS installers; Linux for AppImage/DEB packaging and final Linux compatibility checks.
 - A Chromium-class browser for the Web builds.
 
-The repository version is `0.4.2`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
+The repository version is `0.5.0`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
 
 ## Install and Run
 

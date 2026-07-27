@@ -18,6 +18,9 @@ test('does not contact an AI provider until model retrieval and sends only confi
 
   await page.goto('/');
   await page.waitForLoadState('networkidle');
+  await expect(page.getByText('推进全省基层治理年度工作总结')).toHaveCount(0);
+  await page.getByRole('button', { name: '任务管理' }).click();
+  await expect(page.getByText('没有匹配的任务')).toBeVisible();
   await page.getByRole('button', { name: '关于与设置' }).click();
   await expect(page.getByText(/互联网版仅在你明确配置兼容 API/)).toBeVisible();
   await page.getByRole('button', { name: 'AI 助手', exact: true }).click();
@@ -50,7 +53,7 @@ test('does not contact an AI provider until model retrieval and sends only confi
   await expect(confirmation).not.toBeChecked();
   await confirmation.check();
   await page.getByRole('button', { name: '确认本次 AI 请求' }).click();
-  await expect(page.getByText('互联网模型结果', { exact: true })).toBeVisible();
+  await expect(page.locator('.ai-readable-result')).toHaveText('互联网模型结果');
   expect(requests).toHaveLength(3);
   expect(requests[2]).toMatchObject({ method: 'POST', authorization: 'Bearer rotated-memory-only-key', body: { model: 'model-a' } });
   expect(requests[2]?.url).toBe(`${origin}/provider/v1/chat/completions`);
@@ -86,7 +89,7 @@ test('uses the restricted desktop bridge for Internet-edition AI', async ({ page
   await page.getByRole('button', { name: '生成脱敏预览' }).click();
   await page.getByLabel('我确认本次材料已脱敏、非涉密且允许发送到所选服务商').check();
   await page.getByRole('button', { name: '确认本次 AI 请求' }).click();
-  await expect(page.getByText('桌面客户端总结结果', { exact: true })).toBeVisible();
+  await expect(page.locator('.ai-readable-result')).toHaveText('桌面客户端总结结果');
   await expect.poll(() => page.evaluate(() => JSON.parse(window.localStorage.getItem('desktop-model-request') || '{}'))).toEqual({ baseUrl: 'https://desktop-provider.example/v1', apiKey: 'desktop-session-key' });
   await expect.poll(() => page.evaluate(() => JSON.parse(window.localStorage.getItem('desktop-ai-request') || '{}'))).toMatchObject({
     baseUrl: 'https://desktop-provider.example/v1',

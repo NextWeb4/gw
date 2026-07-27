@@ -194,6 +194,37 @@ export interface AiSkill {
   updatedAt: string;
 }
 
+export interface AiGuidancePreset {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  sourceId: string;
+  sourceFiles: string[];
+}
+
+export interface AiFieldChange {
+  field: string;
+  label: string;
+  before: string;
+  after: string;
+}
+
+export interface AiHistoryEntry {
+  id: string;
+  source: 'public' | 'internet' | 'intranet';
+  purpose: string;
+  provider: string;
+  model: string;
+  skillName: string;
+  targetLabel: string;
+  input: string;
+  answer: string;
+  answerTruncated?: boolean;
+  changes: AiFieldChange[];
+  createdAt: string;
+}
+
 export interface PartnerGroup {
   id: string;
   name: string;

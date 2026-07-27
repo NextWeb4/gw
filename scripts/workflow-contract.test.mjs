@@ -43,6 +43,19 @@ test('public Pages workflows upload only the public build output', async () => {
   assert.equal(syncBuild?.env?.VITE_BASE_PATH, '/gw/');
 });
 
+test('only the public demonstration build initializes fictional business data', async () => {
+  const [viteConfig, app] = await Promise.all([
+    readFile(path.join(root, 'apps', 'web', 'vite.config.ts'), 'utf8'),
+    readFile(path.join(root, 'apps', 'web', 'src', 'App.tsx'), 'utf8'),
+  ]);
+
+  assert.match(viteConfig, /__SEED_DEMO_DATA__:\s*JSON\.stringify\(distributionMode === 'public'\)/);
+  assert.match(viteConfig, /sourcemap:\s*distributionMode === 'public'/, 'private Web and desktop artifacts must not embed public demo source text through source maps');
+  assert.match(app, /if \(__SEED_DEMO_DATA__\) await seedDemoData\(\)/);
+  assert.doesNotMatch(app, /(?:localStorage|document\.cookie).*ai-history|ai-history.*(?:localStorage|document\.cookie)/s, 'AI history must stay in the local data adapter');
+  assert.match(app, /putRecord\('setting', stored\.id, \{ type: 'ai-history'/, 'AI history must use the existing local setting records');
+});
+
 test('public PWA activates updates and reloads an already controlled page', async () => {
   const viteConfig = await readFile(path.join(root, 'apps', 'web', 'vite.config.ts'), 'utf8');
   const webEntry = await readFile(path.join(root, 'apps', 'web', 'src', 'main.tsx'), 'utf8');

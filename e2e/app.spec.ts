@@ -4,6 +4,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import { exportDraftDocx } from '../packages/documents/src/index';
 
 const fixture = (name: string) => path.resolve('packages', 'migration', 'test', 'fixtures', name);
+const appVersion = (JSON.parse(readFileSync(path.resolve('package.json'), 'utf8')) as { version: string }).version;
 
 test.beforeEach(async ({ page }) => {
   const consoleErrors: string[] = [];
@@ -59,6 +60,32 @@ test('collapses the desktop navigation and keeps record details linked to the ex
 
   await page.getByRole('button', { name: '展开左侧导航' }).click();
   await expect(page.locator('.shell')).not.toHaveClass(/sidebar-collapsed/);
+});
+
+test('lists every desktop edition and architecture with versioned release links', async ({ page }) => {
+  await page.getByRole('button', { name: '关于与设置' }).click();
+  await expect(page.getByText(`HxHwang Gw · v${appVersion}`)).toBeVisible();
+  const downloadLinks = page.locator('.download-grid a');
+  const releaseBase = `https://github.com/NextWeb4/gw/releases/download/v${appVersion}`;
+  const expectedFiles = (edition: 'internet' | 'intranet') => [
+    `HxHwang-Gw-${appVersion}-${edition}-x64-setup.exe`,
+    `HxHwang-Gw-${appVersion}-${edition}-arm64-setup.exe`,
+    `HxHwang-Gw-${appVersion}-${edition}-amd64.deb`,
+    `HxHwang-Gw-${appVersion}-${edition}-arm64.deb`,
+    `HxHwang-Gw-${appVersion}-${edition}-x86_64.AppImage`,
+    `HxHwang-Gw-${appVersion}-${edition}-arm64.AppImage`,
+  ];
+  const expectEdition = async (edition: 'internet' | 'intranet') => {
+    await expect(downloadLinks).toHaveCount(6);
+    await expect.poll(() => downloadLinks.evaluateAll((links) => links.map((link) => link.getAttribute('href'))))
+      .toEqual(expectedFiles(edition).map((file) => `${releaseBase}/${file}`));
+  };
+
+  await expectEdition('internet');
+  await page.getByRole('button', { name: '内网版', exact: true }).click();
+  await expectEdition('intranet');
+  await expect(page.getByRole('link', { name: '校验文件' })).toHaveAttribute('href', `${releaseBase}/SHA256SUMS.txt`);
+  await expect(page.getByText(/安装包从空业务库启动/)).toBeVisible();
 });
 
 test('reopens the cached demonstration while the browser is offline', async ({ page, context }, testInfo) => {
@@ -314,7 +341,7 @@ test('keeps public Pages business data local while enabling attachments and migr
   await page.getByTitle('关闭').click();
   await page.getByRole('button', { name: '数据迁移' }).click();
   await expect(page.locator('.file-drop input[type="file"]')).toBeEnabled();
-  await expect(page.getByText('数据只在本机解析')).toBeVisible();
+  await expect(page.getByText(/只在本机解析，不会上传/)).toBeVisible();
   const snapshot = page.waitForEvent('download');
   await page.getByRole('button', { name: '导出快照' }).click();
   const snapshotPath = await (await snapshot).path();
@@ -349,7 +376,7 @@ test('keeps writing and weekly AI work on the current page and returns a result 
   await page.route('**/context-provider/v1/**', async (route) => {
     const pathName = new URL(route.request().url()).pathname;
     if (pathName === '/context-provider/v1/models') return route.fulfill({ json: { data: [{ id: 'context-model' }] } });
-    if (pathName === '/context-provider/v1/chat/completions') return route.fulfill({ json: { choices: [{ message: { content: '当前页面润色结果' } }] } });
+    if (pathName === '/context-provider/v1/chat/completions') return route.fulfill({ json: { choices: [{ message: { content: 'AI 助手入口验证文稿（润色）\n当前页面润色结果' } }] } });
     return route.abort();
   });
   await page.getByRole('button', { name: 'AI 助手' }).click();
@@ -365,12 +392,15 @@ test('keeps writing and weekly AI work on the current page and returns a result 
   const writingPanel = page.getByRole('dialog', { name: '当前页面 AI 协作面板' });
   await expect(writingPanel).toBeVisible();
   await expect(writingPanel.getByLabel('处理用途')).toHaveValue('公文润色');
-  await expect(writingPanel.getByLabel('本机素材')).toHaveValue('custom');
+  await expect(writingPanel.getByText('已载入：当前公文草稿')).toBeVisible();
   await expect(writingPanel.getByLabel('待处理材料')).toHaveValue(/AI 助手入口验证文稿/);
   await writingPanel.getByRole('button', { name: '生成脱敏预览' }).click();
   await writingPanel.getByLabel('我确认本次材料已脱敏、非涉密且允许发送到所选服务商').check();
   await writingPanel.getByRole('button', { name: '确认本次 AI 请求' }).click();
-  await expect(writingPanel.getByText('当前页面润色结果', { exact: true })).toBeVisible();
+  await expect(writingPanel.locator('.ai-readable-result')).toContainText('当前页面润色结果');
+  await expect(writingPanel.locator('.ai-change-heading strong')).toHaveText('2');
+  await expect(writingPanel.locator('.ai-change-list')).toContainText('标题');
+  await expect(writingPanel.locator('.ai-change-list')).toContainText('正文');
   await expect(page.locator('.shell')).toHaveAttribute('data-tab', 'writing');
   await writingPanel.getByTitle('关闭当前页 AI 面板').click();
 
@@ -379,7 +409,32 @@ test('keeps writing and weekly AI work on the current page and returns a result 
   await expect(page.locator('.shell')).toHaveAttribute('data-tab', 'weekly');
   const weeklyPanel = page.getByRole('dialog', { name: '当前页面 AI 协作面板' });
   await expect(weeklyPanel.getByLabel('处理用途')).toHaveValue('周报润色');
+  await expect(weeklyPanel.getByText('已载入：当前周报')).toBeVisible();
   await expect(weeklyPanel.getByLabel('待处理材料')).toHaveValue(/工作周报/);
+  await weeklyPanel.getByTitle('关闭当前页 AI 面板').click();
+
+  await page.getByRole('button', { name: 'AI 助手' }).click();
+  await expect(page.getByRole('heading', { name: '历史生成与回答查询' })).toBeVisible();
+  await expect(page.locator('.ai-history-detail > section:last-child pre')).toContainText('当前页面润色结果');
+  await page.getByLabel('搜索 AI 历史').fill('入口验证文稿');
+  await expect(page.locator('.ai-history-row')).toHaveCount(1);
+  await page.reload();
+  await page.getByRole('button', { name: 'AI 助手' }).click();
+  await expect(page.locator('.ai-history-detail > section:last-child pre')).toContainText('当前页面润色结果');
+
+  await page.getByRole('button', { name: '数据迁移' }).click();
+  const historySnapshot = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出快照' }).click();
+  const historySnapshotPath = await (await historySnapshot).path();
+  if (!historySnapshotPath) throw new Error('AI 历史快照路径不可用');
+  const historySnapshotText = readFileSync(historySnapshotPath, 'utf8');
+  expect(historySnapshotText).toContain('当前页面润色结果');
+  expect(historySnapshotText).not.toContain('context-session-key');
+
+  await page.getByRole('button', { name: 'AI 助手' }).click();
+  page.once('dialog', async (dialog) => { await dialog.accept(); });
+  await page.getByTitle('删除本条 AI 历史').click();
+  await expect(page.getByText('暂无 AI 生成历史')).toBeVisible();
 });
 
 test('manages units and people separately and persists edits to business pickers', async ({ page }) => {
@@ -446,7 +501,7 @@ test('uses public Pages AI only after model discovery, redaction and per-request
   expect(requests).toHaveLength(1);
   await page.getByLabel('我确认本次材料已脱敏、非涉密且允许发送到所选服务商').check();
   await page.getByRole('button', { name: '确认本次 AI 请求' }).click();
-  await expect(page.getByText('公开版总结结果', { exact: true })).toBeVisible();
+  await expect(page.locator('.ai-readable-result')).toHaveText('公开版总结结果');
   expect(requests[1]).toMatchObject({ method: 'POST', authorization: 'Bearer public-memory-only-key', body: { model: 'summary-model' } });
 
   await page.getByRole('button', { name: '数据迁移' }).click();
@@ -614,6 +669,14 @@ test('saves a local polishing skill and sends it as the AI system guidance', asy
   });
 
   await page.getByRole('button', { name: 'AI 助手' }).click();
+  await expect(page.getByLabel('润色指引')).toHaveValue('');
+  await expect(page.getByLabel('润色指引').locator('option')).toHaveText([
+    '无（默认）',
+    '预制 · 精简润色版',
+    '预制 · 结构校核版',
+    '预制 · 总结成稿版',
+  ]);
+  await expect(page.locator('.preset-skill-card')).toHaveCount(3);
   await page.getByLabel('指引名称').fill('端到端公文指引');
   await page.getByLabel('指引内容').fill('标题使用四号黑体，正文多用动宾结构。');
   await page.getByRole('button', { name: '保存指引' }).click();
@@ -621,7 +684,7 @@ test('saves a local polishing skill and sends it as the AI system guidance', asy
   await expect(page.locator('.skill-row').filter({ hasText: '端到端公文指引' })).toBeVisible();
   expect(requests).toEqual([]);
 
-  await page.getByLabel('润色指引').selectOption({ label: '端到端公文指引' });
+  await page.getByLabel('润色指引').selectOption({ label: '本机 · 端到端公文指引' });
   await expect(page.getByText(/将附加「端到端公文指引」/)).toBeVisible();
   const origin = new URL(page.url()).origin;
   await page.getByLabel('请求地址').fill(`${origin}/skill-provider/v1`);
@@ -632,10 +695,18 @@ test('saves a local polishing skill and sends it as the AI system guidance', asy
   await page.getByRole('button', { name: '生成脱敏预览' }).click();
   await page.getByLabel('我确认本次材料已脱敏、非涉密且允许发送到所选服务商').check();
   await page.getByRole('button', { name: '确认本次 AI 请求' }).click();
-  await expect(page.getByText('按指引润色结果', { exact: true })).toBeVisible();
+  await expect(page.locator('.ai-readable-result')).toHaveText('按指引润色结果');
   const completion = requests.find((request) => request.pathname.endsWith('/chat/completions'));
   expect(completion?.body?.messages?.[0]?.content).toContain('写作指引（用户提供，须遵循且不得虚构事实）');
   expect(completion?.body?.messages?.[0]?.content).toContain('标题使用四号黑体，正文多用动宾结构。');
+
+  await page.getByLabel('润色指引').selectOption('preset:concise-polish');
+  await expect(page.getByText(/将附加「精简润色版」/)).toBeVisible();
+  await page.getByLabel('我确认本次材料已脱敏、非涉密且允许发送到所选服务商').check();
+  await page.getByRole('button', { name: '确认本次 AI 请求' }).click();
+  const completions = requests.filter((request) => request.pathname.endsWith('/chat/completions'));
+  expect(completions).toHaveLength(2);
+  expect(completions[1]?.body?.messages?.[0]?.content).toContain('在不新增事实、不改变原意和数据的前提下润色材料');
 
   await page.reload();
   await page.getByRole('button', { name: 'AI 助手' }).click();
@@ -766,7 +837,19 @@ test('imports both legacy fixture formats and keeps archive records read-only', 
   await page.getByRole('button', { name: '数据迁移' }).click();
   const importer = page.locator('.file-drop input[type="file"]');
 
-  await importer.setInputFiles(fixture('upgrade04.json'));
+  const dropZone = page.locator('.file-drop');
+  await dropZone.evaluate((element) => {
+    const dataTransfer = new DataTransfer();
+    element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer }));
+  });
+  await expect(dropZone).toHaveClass(/drag-active/);
+  await expect(dropZone).toContainText('松开即可导入');
+  await dropZone.evaluate((element, json) => {
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(new File([json], 'upgrade04.json', { type: 'application/json' }));
+    element.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+  }, readFileSync(fixture('upgrade04.json'), 'utf8'));
+  await expect(dropZone).not.toHaveClass(/drag-active/);
   await expect(page.getByText('任务管理系统LV08')).toBeVisible();
   await page.getByRole('button', { name: '历史档案' }).click();
   await expect(page.getByText('旧版会议', { exact: true })).toBeVisible();

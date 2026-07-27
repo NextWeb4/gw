@@ -14,7 +14,8 @@ export default defineConfig(({ mode }) => {
   define: {
     __APP_VERSION__: JSON.stringify(packageJson.version),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
-    __DISTRIBUTION_MODE__: JSON.stringify(distributionMode)
+    __DISTRIBUTION_MODE__: JSON.stringify(distributionMode),
+    __SEED_DEMO_DATA__: JSON.stringify(distributionMode === 'public')
   },
   plugins: [
     {
@@ -55,7 +56,7 @@ export default defineConfig(({ mode }) => {
   build: {
     outDir,
     target: 'es2022',
-    sourcemap: true,
+    sourcemap: distributionMode === 'public',
     rollupOptions: {
       output: {
         manualChunks(id) {

@@ -54,6 +54,24 @@
 - 保留：六类业务 CRUD、附件暂存、本机持久化、移动底栏、AI 当前页面板及全部联网边界。
 - 回滚：移除 `sidebarCollapsed`、业务选中状态、右侧详情组件与对应 CSS 后即可恢复 v0.4.1 单内容区；领域数据、数据库 schema 和 API 无需迁移。
 
+## v0.5.0 AI 历史、拖拽导入与安装入口方案审计
+
+| 方案名称 | 来源 | 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与当前项目的契合度 | 可能冲突点 | 是否采用 | 采用方式 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 现有 RxDB/Dexie `setting` 记录 | 当前已锁定依赖 | Apache-2.0 | 结构化本机 AI 历史、搜索、删除和快照备份 | 复用适配层；容量与查询能力适合回答正文；Web/Electron 一致 | 需限制条数和单条正文，避免本机库无限增长 | 已在项目持续使用 | 高 | 历史不得进入同步或混入会话密钥 | 采用 | 新增 `ai-history` payload，最多 200 条，只保存已脱敏输入和文本结果 |
+| Cookie / localStorage | 浏览器标准 | 标准能力 | 简单键值持久化 | 无依赖、接入快 | Cookie 约 4 KB 且会随请求；localStorage 同步阻塞、结构和容量不适合长回答 | 稳定 | 低 | 与 Key 非持久化和数据适配层边界冲突 | 不采用 | Cookie 不保存业务数据；localStorage 继续只用于既有 E2E 探针 |
+| jsdiff | [GitHub](https://github.com/kpdecker/jsdiff) | BSD-3-Clause | 字符/词/行级差异 | 通用 diff 成熟 | 用户要求的是“字段变化”，字符级高亮不能推断业务字段；会新增依赖 | 活跃 | 中 | 容易把生成型回答误写成字段级自动更新 | 不采用 | 使用调用方提供的字段快照与确定性前后摘要，不自动写回业务记录 |
+| 原生 Drag and Drop API | 浏览器标准 | 标准能力 | 文件拖拽、类型筛选 | 零依赖；可与现有文件 input 共用导入函数 | 需自行处理拖入状态和无障碍回退 | 稳定 | 高 | 若另写解析入口会放宽快照校验 | 采用 | `drop` 只提取首个文件并调用既有 `importFile`；文件选择始终保留 |
+| react-dropzone | [GitHub](https://github.com/react-dropzone/react-dropzone) | MIT | 拖拽文件组件和验证 | 交互封装成熟 | 本轮只有单一 JSON 区域，引入运行依赖收益不足 | 活跃 | 中 | 与现有 label/input 样式和解析入口重复 | 不采用 | 未来出现多区批量上传再重新审计 |
+| UA/Client Hints 自动选择架构 | 浏览器 API | 标准能力 | 自动推荐下载架构 | 减少一次选择 | 浏览器通常不能可靠提供 CPU 架构，兼容层和 ARM Windows 判断易错 | 不稳定/覆盖有限 | 低 | 错包会直接阻塞安装 | 不采用 | 明确显示 x64/arm64 与 amd64/arm64，由用户选择 |
+
+- 直接复用：RxDB 设置记录、现有快照导入导出、Lucide、浏览器 Drag and Drop、Release 资产命名和分版打包矩阵。
+- 只借鉴：成熟对话产品的可搜索历史列表和字段级变更摘要；不引入对话云同步、自动写回或新的全局状态库。
+- 不采用：Cookie/localStorage 历史、jsdiff、react-dropzone、自动 CPU 架构下载；这些方案分别与容量、字段语义、依赖收益或安装正确性冲突。
+- 内容来源：预制指引只从 `content/licensed/` 两份已登记 Markdown 蒸馏，保留 `licensed-writing-algorithm` 来源 ID，不扩展到未授权材料。
+- 联网变化：仅新增用户主动点击 GitHub Release 下载链接；AI、同步和页面加载的自动联网边界不变。
+- 回滚：删除 `ai-history` UI/设置记录、预制 JSON、拖拽事件与下载中心即可回退；历史为普通本机设置记录，不需要数据库 schema 回滚。
+
 ## 采用边界
 
 - 直接复用：Electron 打印能力、RxDB/Dexie 本地存储、Tiptap 编辑、docx 导出、Mammoth DOCX 转换、Playwright 验证。

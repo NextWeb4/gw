@@ -43,3 +43,15 @@ test('desktop ledger layout keeps accessible navigation collapse and a read-only
   assert.match(css, /\.content-wrap\.has-detail-panel[^}]*grid-template-columns:[^;}]*minmax\(300px,360px\)/s, 'wide business pages must reserve a right detail column');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.content-wrap, \.content-wrap\.has-detail-panel[^}]*width:\s*calc\(100% - 24px\)/, 'narrow layout must return the detail lane to the mobile content width');
 });
+
+test('AI compact mode keeps consent controls while history and downloads remain explicit', async () => {
+  const app = await read('apps/web/src/App.tsx');
+
+  assert.match(app, /compact && prefill \? <p className="ai-ready-summary"/, 'compact AI must summarize the current-page material');
+  assert.match(app, /脱敏预览（可继续修改）/, 'compact AI must retain the editable redaction preview');
+  assert.match(app, /我确认本次材料已脱敏、非涉密且允许发送到所选服务商/, 'Internet AI must retain per-request confirmation');
+  assert.match(app, /我确认本次材料已脱敏且允许发送到内部模型/, 'intranet AI must retain per-request confirmation');
+  assert.match(app, /!compact && <AiHistoryPanel/, 'full AI workspace must expose local history without crowding the compact panel');
+  assert.match(app, /HxHwang-Gw-\$\{__APP_VERSION__\}-\$\{edition\}-arm64-setup\.exe/, 'download center must expose versioned Windows ARM64 assets');
+  assert.match(app, /HxHwang-Gw-\$\{__APP_VERSION__\}-\$\{edition\}-x86_64\.AppImage/, 'download center must expose versioned Linux x86_64 assets');
+});
