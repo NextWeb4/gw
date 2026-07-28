@@ -54,12 +54,41 @@ test('collapses the desktop navigation and keeps record details linked to the ex
   await targetRow.click();
   await expect(targetRow).toHaveClass(/selected/);
   await expect(detailPanel.getByRole('heading', { level: 2 })).toContainText('整理省政府办公厅来文并建立关联');
+  await expect(detailPanel.getByRole('button', { name: '返回记录列表' })).toBeHidden();
   await detailPanel.getByRole('button', { name: '编辑此记录' }).click();
   await expect(page.getByRole('dialog', { name: '编辑任务' })).toBeVisible();
   await page.getByTitle('关闭').click();
 
   await page.getByRole('button', { name: '展开左侧导航' }).click();
   await expect(page.locator('.shell')).not.toHaveClass(/sidebar-collapsed/);
+});
+
+test('moves narrow-screen record selection to the detail and provides a return path to the list', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile', 'Narrow-screen detail flow is checked in the mobile project.');
+  await page.getByRole('button', { name: '任务管理' }).click();
+  const mainArea = page.locator('.main-area');
+  const tablePanel = page.locator('.table-panel');
+  const detailPanel = page.locator('.business-detail-panel');
+  const targetRow = page.locator('.selectable-row').filter({ hasText: '整理省政府办公厅来文并建立关联' });
+
+  await targetRow.click();
+  await expect(targetRow).toHaveClass(/selected/);
+  await expect(detailPanel.getByRole('heading', { level: 2 })).toContainText('整理省政府办公厅来文并建立关联');
+  await expect.poll(() => mainArea.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await expect.poll(() => detailPanel.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const viewport = element.closest('.main-area')!.getBoundingClientRect();
+    return rect.top >= viewport.top && rect.top < viewport.bottom;
+  })).toBe(true);
+
+  const backButton = detailPanel.getByRole('button', { name: '返回记录列表' });
+  await expect(backButton).toBeVisible();
+  await backButton.click();
+  await expect.poll(() => tablePanel.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const viewport = element.closest('.main-area')!.getBoundingClientRect();
+    return rect.bottom > viewport.top && rect.top < viewport.bottom;
+  })).toBe(true);
 });
 
 test('lists every desktop edition and architecture with versioned release links', async ({ page }) => {
@@ -704,8 +733,8 @@ test('saves a local polishing skill and sends it as the AI system guidance', asy
   await expect(page.getByText(/将附加「精简润色版」/)).toBeVisible();
   await page.getByLabel('我确认本次材料已脱敏、非涉密且允许发送到所选服务商').check();
   await page.getByRole('button', { name: '确认本次 AI 请求' }).click();
+  await expect.poll(() => requests.filter((request) => request.pathname.endsWith('/chat/completions')).length).toBe(2);
   const completions = requests.filter((request) => request.pathname.endsWith('/chat/completions'));
-  expect(completions).toHaveLength(2);
   expect(completions[1]?.body?.messages?.[0]?.content).toContain('在不新增事实、不改变原意和数据的前提下润色材料');
 
   await page.reload();

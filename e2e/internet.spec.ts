@@ -25,13 +25,21 @@ test('does not contact an AI provider until model retrieval and sends only confi
   await expect(page.getByText(/互联网版仅在你明确配置兼容 API/)).toBeVisible();
   await page.getByRole('button', { name: 'AI 助手', exact: true }).click();
   await expect(page.getByRole('heading', { name: '同步连接' })).toHaveCount(0);
+  const sectionNav = page.getByRole('navigation', { name: 'AI 页面分区' });
+  await expect(sectionNav).toBeVisible();
+  await sectionNav.getByRole('link', { name: '历史回答' }).click();
+  await expect.poll(() => page.locator('#ai-history').evaluate((element) => element.getBoundingClientRect().top < 170)).toBe(true);
+  await sectionNav.getByRole('link', { name: '本次协作' }).click();
   expect(requests).toEqual([]);
 
   const origin = new URL(page.url()).origin;
+  const connectionDetails = page.locator('details.full-ai-connection');
+  expect(await connectionDetails.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(true);
   await page.getByLabel('请求地址').fill(`${origin}/provider/v1`);
   await page.getByLabel('API Key（仅当前会话）').fill('memory-only-key');
   await page.getByRole('button', { name: '获取 AI 模型' }).click();
   await expect(page.getByLabel('选择模型')).toHaveValue('model-a');
+  await expect.poll(() => connectionDetails.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(false);
   expect(requests).toHaveLength(1);
   expect(requests[0]).toMatchObject({ method: 'GET', authorization: 'Bearer memory-only-key' });
   expect(requests[0]?.url).toBe(`${origin}/provider/v1/models`);
@@ -42,6 +50,7 @@ test('does not contact an AI provider until model retrieval and sends only confi
   expect(requests).toHaveLength(1);
   const confirmation = page.getByLabel('我确认本次材料已脱敏、非涉密且允许发送到所选服务商');
   await confirmation.check();
+  await connectionDetails.locator('summary').click();
   await page.getByLabel('请求地址').fill(`${origin}/provider/v1/`);
   await expect(confirmation).not.toBeChecked();
   await expect(page.getByLabel('选择模型')).toHaveCount(0);
@@ -49,6 +58,7 @@ test('does not contact an AI provider until model retrieval and sends only confi
   expect(requests).toHaveLength(1);
   await page.getByRole('button', { name: '获取 AI 模型' }).click();
   await expect(page.getByLabel('选择模型')).toHaveValue('model-a');
+  await connectionDetails.locator('summary').click();
   await page.getByLabel('API Key（仅当前会话）').fill('rotated-memory-only-key');
   await expect(confirmation).not.toBeChecked();
   await confirmation.check();

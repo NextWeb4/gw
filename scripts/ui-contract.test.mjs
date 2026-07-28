@@ -40,12 +40,17 @@ test('desktop ledger layout keeps accessible navigation collapse and a read-only
   assert.match(app, /aria-label=\{sidebarCollapsed \? '展开左侧导航' : '收起左侧导航，仅显示图标'\}/, 'sidebar collapse must keep an accessible name');
   assert.match(app, /<BusinessDetailPanel detail=\{businessDetail\}/, 'business records must share one detail component');
   assert.match(app, /编辑此记录/, 'detail lane must route editing through the existing editor');
+  assert.match(app, /返回记录列表/, 'narrow business detail must provide an explicit route back to the ledger');
   assert.match(css, /\.content-wrap\.has-detail-panel[^}]*grid-template-columns:[^;}]*minmax\(300px,360px\)/s, 'wide business pages must reserve a right detail column');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.content-wrap, \.content-wrap\.has-detail-panel[^}]*width:\s*calc\(100% - 24px\)/, 'narrow layout must return the detail lane to the mobile content width');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.row-actions \.icon-button[^}]*44px/, 'narrow ledger actions must keep a 44px touch target');
 });
 
 test('AI compact mode keeps consent controls while history and downloads remain explicit', async () => {
-  const app = await read('apps/web/src/App.tsx');
+  const [app, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/styles.css'),
+  ]);
 
   assert.match(app, /compact && prefill \? <p className="ai-ready-summary"/, 'compact AI must summarize the current-page material');
   assert.match(app, /脱敏预览（可继续修改）/, 'compact AI must retain the editable redaction preview');
@@ -58,6 +63,10 @@ test('AI compact mode keeps consent controls while history and downloads remain 
   assert.match(app, /打开本机管理页/, 'the relay admin must remain reachable before unlock');
   assert.doesNotMatch(app, /localStorage[^\n]*relay|relay[^\n]*localStorage/i, 'relay passwords and sessions must remain in component memory');
   assert.match(app, /!compact && <AiHistoryPanel/, 'full AI workspace must expose local history without crowding the compact panel');
+  assert.match(app, /<AiSectionNav \/>/, 'full AI workspace must expose section navigation for the long page');
+  assert.match(app, /<AiWorkflowProgress connectionReady=/, 'full AI workbench must expose the four-step request state');
+  assert.match(app, /className=\{`panel ai-advanced-config \$\{compact \? '' : 'full-ai-connection'\}`\}/, 'full AI connection settings must reuse the collapsible configuration control');
+  assert.match(css, /\.ai-section-nav[^}]*position:\s*sticky/, 'AI section navigation must remain reachable while the workspace scrolls');
   assert.match(app, /HxHwang-Gw-\$\{__APP_VERSION__\}-\$\{edition\}-arm64-setup\.exe/, 'download center must expose versioned Windows ARM64 assets');
   assert.match(app, /HxHwang-Gw-\$\{__APP_VERSION__\}-\$\{edition\}-x86_64\.AppImage/, 'download center must expose versioned Linux x86_64 assets');
 });

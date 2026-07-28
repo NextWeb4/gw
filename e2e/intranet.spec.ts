@@ -54,9 +54,12 @@ test('retrieves internal models and sends only explicitly confirmed redacted con
   await page.getByLabel('一次性访问码').fill('long-access-code');
   await page.getByRole('button', { name: '建立会话' }).click();
   await expect(page.getByRole('status')).toHaveText(/内网会话已建立/);
+  const connectionDetails = page.locator('details.full-ai-connection');
+  await expect.poll(() => connectionDetails.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(false);
   await expect(page.getByLabel('一次性访问码')).toHaveValue('');
 
   const requestsAfterFirstSession = requests.length;
+  await connectionDetails.locator('summary').click();
   await page.getByLabel('内部 API 地址').fill(`${new URL(page.url()).origin}/`);
   await expect(page.getByRole('button', { name: '获取内部模型' })).toBeDisabled();
   await expect(page.getByRole('button', { name: '同步全部业务数据' })).toBeDisabled();

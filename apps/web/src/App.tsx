@@ -148,6 +148,8 @@ function App() {
   const directoryWriteQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingAttachmentsRef = useRef<Attachment[]>([]);
   const mainAreaRef = useRef<HTMLElement>(null);
+  const primaryContentRef = useRef<HTMLDivElement>(null);
+  const businessDetailRef = useRef<HTMLElement>(null);
   const isDesktop = Boolean(desktopBridge());
 
   const reload = async () => {
@@ -641,15 +643,25 @@ function App() {
     if (detail.kind === 'seal') setSealEditor(detail.record);
     if (detail.kind === 'material') setMaterialEditor(detail.record);
   };
+  const scrollToBusinessRegion = (target: HTMLElement | null) => {
+    if (!target) return;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+  };
+  const selectBusinessRecord = (businessTab: BusinessTab, id: string) => {
+    setSelectedBusinessRecord({ tab: businessTab, id });
+    if (!window.matchMedia('(max-width: 1279px)').matches) return;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => scrollToBusinessRegion(businessDetailRef.current)));
+  };
 
   const renderContent = () => {
     if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} onNavigate={navigate} />;
-    if (tab === 'tasks') return <TaskView tasks={filteredTasks} selectedId={selectedTaskId} onSelect={(id) => setSelectedBusinessRecord({ tab: 'tasks', id })} search={search} setSearch={setSearch} attachments={attachments} categoryTints={categoryTints} onNew={() => { clearPendingAttachments(); setTaskEditor(emptyTask()); }} onEdit={(task) => { clearPendingAttachments(); setTaskEditor(task); }} onDelete={deleteTask} />;
-    if (tab === 'meetings') return <MeetingView meetings={filteredMeetings} selectedId={selectedMeetingId} onSelect={(id) => setSelectedBusinessRecord({ tab: 'meetings', id })} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setMeetingEditor(emptyMeeting()); }} onEdit={(meeting) => { clearPendingAttachments(); setMeetingEditor(meeting); }} onDelete={deleteMeeting} />;
-    if (tab === 'documents') return <DocumentView documents={filteredDocuments} selectedId={selectedDocumentId} onSelect={(id) => setSelectedBusinessRecord({ tab: 'documents', id })} search={search} setSearch={setSearch} attachments={attachments} onNew={() => { clearPendingAttachments(); setDocumentEditor(emptyDocument()); }} onEdit={(document) => { clearPendingAttachments(); setDocumentEditor(document); }} onDelete={deleteDocument} />;
-    if (tab === 'researches') return <ResearchView researches={filteredResearches} selectedId={selectedResearchId} onSelect={(id) => setSelectedBusinessRecord({ tab: 'researches', id })} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setResearchEditor(emptyResearch()); }} onEdit={(research) => { clearPendingAttachments(); setResearchEditor(research); }} onDelete={deleteResearch} />;
-    if (tab === 'seals') return <SealView seals={filteredSeals} selectedId={selectedSealId} onSelect={(id) => setSelectedBusinessRecord({ tab: 'seals', id })} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setSealEditor(emptySeal()); }} onEdit={(seal) => { clearPendingAttachments(); setSealEditor(seal); }} onDelete={deleteSeal} />;
-    if (tab === 'materials') return <MaterialView materials={filteredMaterials} allMaterials={materials} selectedId={selectedMaterialId} onSelect={(id) => setSelectedBusinessRecord({ tab: 'materials', id })} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setMaterialEditor(emptyMaterial()); }} onEdit={(material) => { clearPendingAttachments(); setMaterialEditor(material); }} onDelete={deleteMaterial} />;
+    if (tab === 'tasks') return <TaskView tasks={filteredTasks} selectedId={selectedTaskId} onSelect={(id) => selectBusinessRecord('tasks', id)} search={search} setSearch={setSearch} attachments={attachments} categoryTints={categoryTints} onNew={() => { clearPendingAttachments(); setTaskEditor(emptyTask()); }} onEdit={(task) => { clearPendingAttachments(); setTaskEditor(task); }} onDelete={deleteTask} />;
+    if (tab === 'meetings') return <MeetingView meetings={filteredMeetings} selectedId={selectedMeetingId} onSelect={(id) => selectBusinessRecord('meetings', id)} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setMeetingEditor(emptyMeeting()); }} onEdit={(meeting) => { clearPendingAttachments(); setMeetingEditor(meeting); }} onDelete={deleteMeeting} />;
+    if (tab === 'documents') return <DocumentView documents={filteredDocuments} selectedId={selectedDocumentId} onSelect={(id) => selectBusinessRecord('documents', id)} search={search} setSearch={setSearch} attachments={attachments} onNew={() => { clearPendingAttachments(); setDocumentEditor(emptyDocument()); }} onEdit={(document) => { clearPendingAttachments(); setDocumentEditor(document); }} onDelete={deleteDocument} />;
+    if (tab === 'researches') return <ResearchView researches={filteredResearches} selectedId={selectedResearchId} onSelect={(id) => selectBusinessRecord('researches', id)} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setResearchEditor(emptyResearch()); }} onEdit={(research) => { clearPendingAttachments(); setResearchEditor(research); }} onDelete={deleteResearch} />;
+    if (tab === 'seals') return <SealView seals={filteredSeals} selectedId={selectedSealId} onSelect={(id) => selectBusinessRecord('seals', id)} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setSealEditor(emptySeal()); }} onEdit={(seal) => { clearPendingAttachments(); setSealEditor(seal); }} onDelete={deleteSeal} />;
+    if (tab === 'materials') return <MaterialView materials={filteredMaterials} allMaterials={materials} selectedId={selectedMaterialId} onSelect={(id) => selectBusinessRecord('materials', id)} search={search} setSearch={setSearch} onNew={() => { clearPendingAttachments(); setMaterialEditor(emptyMaterial()); }} onEdit={(material) => { clearPendingAttachments(); setMaterialEditor(material); }} onDelete={deleteMaterial} />;
     if (tab === 'directory') return <DirectoryManager directory={directory} onSave={replaceDirectory} setToast={setToast} />;
     if (tab === 'writing') return <WritingStudio draft={draft} setDraft={setDraft} customTemplates={customTemplates} onSaveCustomTemplate={saveCustomTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
     if (tab === 'weekly') return <WeeklyView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} reports={weeklyReports} templates={weeklyTemplates} onSave={saveWeeklyReport} onDelete={deleteWeeklyReport} onSaveTemplate={saveWeeklyTemplate} onDeleteTemplate={deleteWeeklyTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
@@ -679,7 +691,7 @@ function App() {
     </aside>
     <main className="main-area" ref={mainAreaRef}>
       <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="topbar-context"><span>HX / {String(activeNavIndex >= 0 ? activeNavIndex + 1 : navItems.length + 1).padStart(2, '0')}</span><strong>{navItems.find((item) => item.id === tab)?.label ?? '关于与设置'}</strong></div><div className="breadcrumbs">本地优先 <span>/</span> 外发必须逐次确认</div><div className="topbar-actions"><span className="connection"><Activity size={15} /><span>{connectionLabel}</span><strong>{connectionDetail}</strong></span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
-      <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''}`}><div className="primary-content">{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} compact={aiOverlayOpen} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} history={aiHistory} onSaveHistory={saveAiHistory} onDeleteHistory={deleteAiHistory} onClearHistory={clearAiHistory} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && <BusinessDetailPanel detail={businessDetail} attachments={attachments} onEdit={() => editBusinessDetail(businessDetail)} />}</div>
+      <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''}`}><div className="primary-content" ref={primaryContentRef}>{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} compact={aiOverlayOpen} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} history={aiHistory} onSaveHistory={saveAiHistory} onDeleteHistory={deleteAiHistory} onClearHistory={clearAiHistory} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && <BusinessDetailPanel detail={businessDetail} attachments={attachments} panelRef={businessDetailRef} onBackToList={() => scrollToBusinessRegion(primaryContentRef.current)} onEdit={() => editBusinessDetail(businessDetail)} />}</div>
       <footer className="page-footer"><span>HXHWANG GW / {__APP_VERSION__}</span><span>© HaoXiangHwang · <a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a> · <a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer">nextweb4.github.io</a></span></footer>
     </main>
     {taskEditor && <TaskEditor task={taskEditor} isNew={!tasks.some((task) => task.id === taskEditor.id)} directory={directory} attachments={editorAttachments} partnerGroups={partnerGroups} onSaveGroup={savePartnerGroup} onDeleteGroup={deletePartnerGroup} onRemember={rememberDirectoryValue} onChange={setTaskEditor} onAttach={(files) => void addAttachments(files, taskEditor.files, (ids) => setTaskEditor({ ...taskEditor, files: ids }))} onSave={() => void saveTask(taskEditor)} onClose={() => { clearPendingAttachments(); setTaskEditor(null); }} setToast={setToast} />}
@@ -771,7 +783,7 @@ interface BusinessDetailModel {
   sections: Array<{ title: string; content: React.ReactNode }>;
 }
 
-function BusinessDetailPanel({ detail, attachments, onEdit }: { detail: BusinessDetail; attachments: Attachment[]; onEdit: () => void }) {
+function BusinessDetailPanel({ detail, attachments, panelRef, onBackToList, onEdit }: { detail: BusinessDetail; attachments: Attachment[]; panelRef: React.RefObject<HTMLElement | null>; onBackToList: () => void; onEdit: () => void }) {
   const show = (value: string | number | undefined) => String(value ?? '').trim() || '未填写';
   const model: BusinessDetailModel = (() => {
     if (detail.kind === 'task') {
@@ -858,9 +870,9 @@ function BusinessDetailPanel({ detail, attachments, onEdit }: { detail: Business
   })();
   const linkedAttachments = detail.record.files.map((id) => attachments.find((attachment) => attachment.id === id)).filter((attachment): attachment is Attachment => Boolean(attachment));
   const Icon = model.icon;
-  return <aside className="panel business-detail-panel" aria-label="记录详情">
+  return <aside className="panel business-detail-panel" aria-label="记录详情" ref={panelRef}>
     <div className="detail-panel-header"><span className="detail-icon"><Icon size={18} /></span><div><span className="eyebrow">{model.eyebrow}</span><h2><span className="sr-only">记录详情：</span>{model.title}</h2></div><span className={`status-pill ${model.badgeClass}`}>{model.badge}</span></div>
-    <div className="detail-panel-actions"><button type="button" className="secondary-button" onClick={onEdit}><Pencil size={15} />编辑此记录</button></div>
+    <div className="detail-panel-actions"><button type="button" className="secondary-button mobile-detail-back" onClick={onBackToList}><ClipboardList size={15} />返回记录列表</button><button type="button" className="secondary-button" onClick={onEdit}><Pencil size={15} />编辑此记录</button></div>
     <dl className="detail-fields">{model.fields.map((field) => <div key={field.label}><dt>{field.label}</dt><dd>{field.value}</dd></div>)}</dl>
     {model.sections.map((section) => <section className="detail-section" key={section.title}><h3>{section.title}</h3><div>{section.content}</div></section>)}
     <section className="detail-section detail-attachments"><h3>本机附件 <span>{linkedAttachments.length}</span></h3>{linkedAttachments.length ? <div>{linkedAttachments.map((attachment) => <button type="button" key={attachment.id} disabled={attachment.data === undefined} title={attachment.data === undefined ? '附件内容不可用' : `下载附件 ${attachment.name}`} onClick={() => downloadStoredAttachment(attachment)}><FileText size={14} /><span>{attachment.name}</span><small>{formatBytes(attachment.size)}</small><ArrowDownToLine size={13} /></button>)}</div> : <p>当前记录没有附件</p>}</section>
@@ -1573,12 +1585,38 @@ function createAiHistoryEntry(input: Omit<AiHistoryEntry, 'id' | 'createdAt'>): 
   return { ...input, id: createId('ai-history'), createdAt: nowIso() };
 }
 
+function AiSectionNav() {
+  return <nav className="ai-section-nav" aria-label="AI 页面分区">
+    <a href="#ai-workflow"><Sparkles size={14} />本次协作</a>
+    <a href="#ai-history"><Archive size={14} />历史回答</a>
+    <a href="#ai-guidance"><BookOpen size={14} />写作指引</a>
+  </nav>;
+}
+
+function AiWorkflowProgress({ connectionReady, materialReady, redactionReady, resultReady }: { connectionReady: boolean; materialReady: boolean; redactionReady: boolean; resultReady: boolean }) {
+  const readiness = [connectionReady, materialReady, redactionReady, resultReady];
+  const currentIndex = readiness.findIndex((ready) => !ready);
+  const steps = [
+    { label: '连接', detail: '服务与模型' },
+    { label: '材料', detail: '选择或粘贴' },
+    { label: '脱敏', detail: '预览并确认' },
+    { label: '结果', detail: '只读返回' }
+  ];
+  return <ol className="ai-workflow-progress" aria-label="AI 协作流程">
+    {steps.map((step, index) => {
+      const state = readiness[index] ? 'complete' : index === currentIndex ? 'current' : 'pending';
+      return <li className={state} key={step.label} aria-current={state === 'current' ? 'step' : undefined}><span>{readiness[index] ? <Check size={13} /> : String(index + 1).padStart(2, '0')}</span><div><strong>{step.label}</strong><small>{step.detail}</small></div></li>;
+    })}
+  </ol>;
+}
+
 function AiHub({ distribution, compact, workspace, attachments, prefill, skills, history, onSaveHistory, onDeleteHistory, onClearHistory, onSaveSkill, onDeleteSkill, onReload, setToast }: { distribution: 'public' | 'intranet' | 'internet'; compact: boolean; workspace: AiWorkspaceData; attachments: Attachment[]; prefill: AiPrefill | null; skills: AiSkill[]; history: AiHistoryEntry[]; onSaveHistory: (entry: AiHistoryEntry) => Promise<void>; onDeleteHistory: (entry: AiHistoryEntry) => Promise<void>; onClearHistory: () => Promise<void>; onSaveSkill: (name: string, content: string) => Promise<boolean>; onDeleteSkill: (skill: AiSkill) => Promise<void>; onReload: () => Promise<void>; setToast: (text: string) => void }) {
   const detail = distribution === 'intranet'
     ? '通过单位内部网关同步业务数据并调用内部模型；密钥始终保存在服务端，每次发送前都需脱敏确认。'
     : '内置常用服务商地址，填入自己的 API Key 即可总结、提纲与润色；Key 只保留在当前会话，发送前逐次脱敏确认。';
   return <>
     {!compact && <PageHeading eyebrow={distribution === 'intranet' ? '内部服务' : 'AI 工作台'} title="AI 助手" detail={detail} />}
+    {!compact && <AiSectionNav />}
     {distribution === 'intranet'
       ? <IntranetServices compact={compact} workspace={workspace} attachments={attachments} prefill={prefill} skills={skills} onSaveHistory={onSaveHistory} onReload={onReload} setToast={setToast} />
       : <InternetAiServices compact={compact} workspace={workspace} publicMode={distribution === 'public'} prefill={prefill} skills={skills} onSaveHistory={onSaveHistory} setToast={setToast} />}
@@ -1597,7 +1635,7 @@ function AiHistoryPanel({ history, onDelete, onClear }: { history: AiHistoryEntr
   }, [history, query]);
   const selected = filtered.find((entry) => entry.id === selectedId) || filtered[0];
   useEffect(() => { if (selected && selected.id !== selectedId) setSelectedId(selected.id); }, [selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <section className="panel ai-history-panel">
+  return <section className="panel ai-history-panel" id="ai-history">
     <div className="panel-heading"><div><span className="eyebrow">LOCAL AI HISTORY</span><h2>历史生成与回答查询</h2></div><div className="button-row"><span className="toolbar-count">{history.length} 条</span><button type="button" className="text-button" disabled={!history.length} onClick={() => void onClear()}><X size={14} />清空历史</button></div></div>
     <div className="ai-history-search"><Search size={15} /><input aria-label="搜索 AI 历史" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索用途、模型、指引、请求或回答" /></div>
     <div className="ai-history-layout">
@@ -1618,7 +1656,7 @@ function SkillManager({ skills, onSaveSkill, onDeleteSkill, setToast }: { skills
       await onSaveSkill(file.name.replace(/\.(md|markdown|txt)$/i, ''), text);
     }
   };
-  return <section className="panel skill-panel">
+  return <section className="panel skill-panel" id="ai-guidance">
     <div className="panel-heading"><div><span className="eyebrow">润色指引 / SKILL</span><h2>公文写作指引库</h2></div><span className="toolbar-count">预制 {guidancePresets.length} · 本机 {skills.length}</span></div>
     <div className="skill-body">
       <p className="skill-note">默认不附加任何指引。预制版本从已授权 Markdown 蒸馏并保持只读；本机指引进入快照备份但不参与内网同步。选择指引不会绕过脱敏和逐次确认。</p>
@@ -1677,9 +1715,10 @@ function IntranetServices({ compact, workspace, attachments, prefill, skills, on
   const resultText = extractOpenAiText(aiResult);
   const changes = buildAiFieldChanges(prefill?.changeContext, redactedContent, resultText);
   const connectionForm = <><Field label="内部 API 地址" value={baseUrl} onChange={changeBaseUrl} placeholder="https://intranet.example/api" /><Field label="一次性访问码" type="password" value={accessCode} onChange={setAccessCode} /><div className="button-row"><button className="secondary-button" onClick={() => void connect()}><Server size={16} />建立会话</button>{!compact && <button className="primary-button" disabled={!client} onClick={() => void sync()}><RefreshCw size={16} />同步全部业务数据</button>}</div><p className="service-note">模型服务由内网后台配置；访问码只用于当前会话，不会写入本机历史。</p></>;
-  return <section className={`desktop-services ${compact ? 'compact-ai-services' : ''}`}>
-    {compact ? <details className="panel ai-advanced-config" open={!client}><summary><span><Server size={15} />内部连接</span><strong>{client ? '已连接，后台模型配置已接管' : '首次使用需要建立会话'}</strong></summary><div>{connectionForm}</div></details> : <div className="panel service-panel"><div className="panel-heading"><div><span className="eyebrow">内部服务</span><h2>同步连接</h2></div><span className={`status-pill ${client ? 'done' : 'pending'}`}>{client ? '已连接' : '未连接'}</span></div>{connectionForm}</div>}
+  return <section className={`desktop-services ${compact ? 'compact-ai-services' : ''}`} id="ai-workflow">
+    <details className={`panel ai-advanced-config ${compact ? '' : 'full-ai-connection'}`} open={!client}><summary>{compact ? <><span><Server size={15} />内部连接</span><strong>{client ? '已连接，后台模型配置已接管' : '首次使用需要建立会话'}</strong></> : <><span className="ai-connection-title"><span className="eyebrow">内部服务</span><strong className="ai-connection-heading" role="heading" aria-level={2}>同步连接</strong></span><span className={`status-pill ${client ? 'done' : 'pending'}`}>{client ? '已连接' : '未连接'}</span></>}</summary><div>{connectionForm}</div></details>
     <div className="panel service-panel ai-workbench"><div className="panel-heading"><div><span className="eyebrow">内部 AI</span><h2>{compact ? '本次协作' : '总结与润色'}</h2></div>{compact && client && <span className="status-pill done">后台已配置</span>}</div>
+      {!compact && <AiWorkflowProgress connectionReady={Boolean(client)} materialReady={Boolean(redactionSource.trim())} redactionReady={Boolean(redactedContent)} resultReady={aiResult !== undefined} />}
       {!models.length ? <button className="secondary-button" disabled={!client} onClick={() => void loadModels()}><Bot size={16} />获取内部模型</button> : compact ? <p className="ai-ready-summary"><Bot size={14} />{model || '服务端默认模型'}</p> : <SelectField label="内部模型" value={model} options={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}
       <div className="ai-control-grid"><SelectField label="处理用途" value={purpose} options={aiPurposeOptions} onChange={(value) => { setPurpose(value); invalidateAiResult(); }} /><SelectField label="润色指引" value={effectiveGuidanceId} options={guidanceOptions(skills)} onChange={(value) => { setSkillId(value); invalidateAiResult(); }} /></div>
       {selectedGuidance && <p className="skill-attach-note">将附加「{selectedGuidance.name}」（{selectedGuidance.content.length} 字）作为系统写作指引。</p>}
@@ -1815,9 +1854,10 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
   </div>;
   const directForm = <><Field label="请求地址" value={baseUrl} onChange={changeBaseUrl} placeholder="https://api.example.com/v1" /><Field label="API Key（仅当前会话）" type="password" value={apiKey} onChange={(value) => { setApiKey(value); invalidateAiResult(); }} /><button className="secondary-button" onClick={() => void loadModels()}><Bot size={16} />获取 AI 模型</button>{models.length > 0 && <SelectField label="选择模型" value={model} options={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}<p className="provider-note">{selectedDirectProvider.note}{selectedDirectProvider.officialDocs && <> · <a href={selectedDirectProvider.officialDocs} target="_blank" rel="noreferrer">官方文档</a></>}</p><p className="service-note"><KeyRound size={13} /> API Key 只在当前会话使用，不写入本机历史、IndexedDB、日志或快照。</p></>;
   const configForm = <><SelectField label="服务商预设" value={providerId} options={providerOptions} onChange={chooseProvider} />{relayMode ? relayForm : directForm}</>;
-  return <section className={`desktop-services internet-services ${compact ? 'compact-ai-services' : ''}`}>
-    {compact ? <details className="panel ai-advanced-config" open={!model}><summary><span><Globe2 size={15} />模型连接</span><strong>{model ? `${selectedProviderLabel} · ${model}` : '首次使用需要配置或解锁模型'}</strong></summary><div>{configForm}</div></details> : <div className="panel service-panel"><div className="panel-heading"><div><span className="eyebrow">{publicMode ? '公开 Pages · 用户自备 Key / 本机中转' : '互联网版'}</span><h2>兼容 API 配置</h2></div><Globe2 size={20} /></div>{configForm}</div>}
+  return <section className={`desktop-services internet-services ${compact ? 'compact-ai-services' : ''}`} id="ai-workflow">
+    <details className={`panel ai-advanced-config ${compact ? '' : 'full-ai-connection'}`} open={!model}><summary>{compact ? <><span><Globe2 size={15} />模型连接</span><strong>{model ? `${selectedProviderLabel} · ${model}` : '首次使用需要配置或解锁模型'}</strong></> : <><span className="ai-connection-title"><span className="eyebrow">{publicMode ? '公开 Pages · 用户自备 Key / 本机中转' : '互联网版'}</span><strong className="ai-connection-heading" role="heading" aria-level={2}>兼容 API 配置</strong></span><span className={`status-pill ${model ? 'done' : 'pending'}`}>{model ? '模型已就绪' : '待配置'}</span></>}</summary><div>{configForm}</div></details>
     <div className="panel service-panel ai-workbench"><div className="panel-heading"><div><span className="eyebrow">逐次确认</span><h2>{compact ? '本次协作' : '总结、提纲与润色'}</h2></div>{compact && model && <span className="status-pill done">配置已就绪</span>}</div>
+      {!compact && <AiWorkflowProgress connectionReady={Boolean(model)} materialReady={Boolean(redactionSource.trim())} redactionReady={Boolean(redactedContent)} resultReady={aiResult !== undefined} />}
       {compact && model && <p className="ai-ready-summary"><Bot size={14} />{selectedProviderLabel} · {model}</p>}
       <div className="ai-control-grid"><SelectField label="处理用途" value={purpose} options={aiPurposeOptions} onChange={(value) => { setPurpose(value); invalidateAiResult(); }} /><SelectField label="润色指引" value={effectiveGuidanceId} options={guidanceOptions(skills)} onChange={(value) => { setSkillId(value); invalidateAiResult(); }} /></div>
       {selectedGuidance && <p className="skill-attach-note">将附加「{selectedGuidance.name}」（{selectedGuidance.content.length} 字）作为系统写作指引。</p>}
