@@ -12,7 +12,7 @@
 
 公文事務、タスクとファイルの追跡、文書作成、週報、文書出力、制御されたプライベート同期のためのローカルファーストシステムです。
 
-![バージョン](https://img.shields.io/badge/version-0.6.2-0969da?style=flat-square)
+![バージョン](https://img.shields.io/badge/version-0.6.3-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,7 +22,7 @@
 
 HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラネット Web ビルド、インターネット/イントラネット Electron クライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、ネットワーク機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
 
-現在のリリースは `0.6.2` です。狭い画面で台帳レコードを選ぶと詳細へ自動移動し、一覧へ戻る操作も表示されます。AI ワークスペースには固定セクションナビゲーション、4 段階の進行表示、接続またはモデル準備後に閉じる接続設定を追加しました。マスキング、都度確認、セッション限定の秘密情報、明示的な通信条件は変更していません。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
+現在のリリースは `0.6.3` です。ローカル中継に provider 認証方式の選択を追加し、`auto` はまず Bearer を使用して、上流が `401` または `403` を返した場合だけ `x-api-key` を再試行します。上流 URL と Key は Pages へ返さず、マスキング、都度確認、セッション限定の秘密情報、明示的な通信条件も変更していません。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
 
 公開 Pages はプライベート同期を表示しませんが、ローカル台帳、添付、旧 JSON/スナップショット、ユーザー自身の Key を使う AI、明示的に解除した `127.0.0.1` 中継を利用できます。ページ読込やパスワード入力だけでは中継へ接続しません。業務データは現在のブラウザーの IndexedDB に保存されます。[GitHub Pages](https://nextweb4.github.io/gw/) では公開、架空、または許可済みの非機密資料だけを扱ってください。
 

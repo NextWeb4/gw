@@ -149,6 +149,15 @@ describe('private sync client', () => {
     }
   });
 
+  it('turns relay authentication responses into an actionable provider configuration error', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ token: 'relay-session', expiresIn: 3600 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'ai_provider_error', status: 401 }), { status: 502 }));
+    const client = new RelayAiClient({ baseUrl: 'http://127.0.0.1:8787', fetcher });
+    await client.createSession('local-password');
+    await expect(client.listModels('mystery-01')).rejects.toThrow(/鉴权失败.*本机中转管理页.*Bearer.*x-api-key/);
+  });
+
   it('appends bounded user guidance to the system prompt without touching the material', async () => {
     expect(composeAiSystemPrompt('公文润色')).toBe('当前任务用途：公文润色。只处理用户确认的脱敏材料，不得编造事实；无法确认的信息必须明确标注。');
     expect(composeAiSystemPrompt('公文润色', '  多用动宾结构。  ')).toContain('写作指引（用户提供，须遵循且不得虚构事实）：\n多用动宾结构。');

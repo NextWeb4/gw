@@ -12,7 +12,7 @@
 
 一个本地优先的公文事务、任务与文件跟踪、文稿写作、周报、文档导出和受控私有同步系统。
 
-![版本](https://img.shields.io/badge/version-0.6.2-0969da?style=flat-square)
+![版本](https://img.shields.io/badge/version-0.6.3-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,7 +22,7 @@
 
 HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联网/内网 Web 构建和互联网/内网 Electron 客户端之间共享同一套领域模型。系统首先把业务数据保存在本地，在构建时隔离不同联网能力，并通过显式适配器提供同步和 AI 请求。
 
-当前发布版本为 `0.6.2`：窄屏点选台账记录后会自动定位到详情，并提供明确的“返回记录列表”；完整 AI 工作台新增固定分区导航、四步请求状态，并在服务或模型就绪后自动收起连接配置。脱敏、逐次确认、会话级密钥和显式联网边界均未改变。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
+当前发布版本为 `0.6.3`：本机中转站新增服务商鉴权方式选择；“自动”模式先使用 Bearer，仅在上游返回 `401` 或 `403` 时改用 `x-api-key`，提升兼容中转站的模型发现成功率。真实上游地址和 Key 仍不会下发 Pages，脱敏、逐次确认、会话级密钥和显式联网边界均未改变。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
 
 公开 Pages 不显示私有同步，但支持完整本机台账、附件、历史 JSON/快照、用户自备 Key 的兼容 AI，以及用户主动解锁的 `127.0.0.1` 本机中转站；页面加载和填写密码不会自动联系中转服务。所有业务数据只进入当前浏览器 IndexedDB。[GitHub Pages](https://nextweb4.github.io/gw/) 仅适合公开、虚构或获准的非敏感材料。
 

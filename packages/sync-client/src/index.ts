@@ -92,6 +92,7 @@ async function relayTransportFailure(error: unknown) {
 async function responseError(response: Response, prefix: string) {
   const payload = await response.clone().json().catch(() => undefined) as { error?: unknown; status?: unknown } | undefined;
   const code = typeof payload?.error === 'string' ? payload.error : '';
+  const providerStatus = typeof payload?.status === 'number' ? payload.status : undefined;
   const messages: Record<string, string> = {
     invalid_relay_password: '中转站密码错误',
     relay_session_required: '中转站会话已失效，请重新输入密码',
@@ -99,7 +100,9 @@ async function responseError(response: Response, prefix: string) {
     relay_model_required: '该站点未配置默认模型，请先获取并选择模型',
     relay_disabled: '本机中转服务尚未启用',
     ai_provider_unreachable: '本机中转服务无法连接上游站点',
-    ai_provider_error: `上游站点请求失败${typeof payload?.status === 'number' ? `：${payload.status}` : ''}`,
+    ai_provider_error: providerStatus === 401 || providerStatus === 403
+      ? `上游站点鉴权失败：${providerStatus}。请在本机中转管理页确认 API Key，并尝试“自动 / Bearer / x-api-key”鉴权方式`
+      : `上游站点请求失败${providerStatus ? `：${providerStatus}` : ''}`,
     ai_provider_response_too_large: '上游站点响应超过 2 MB 限制',
     invalid_ai_provider_response: '上游站点返回了无效 JSON'
   };
