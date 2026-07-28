@@ -9,7 +9,7 @@
 - 方案参考 `jlcodes99/cockpit-tools` 的端点和双鉴权思路，但该项目默认使用 `CC BY-NC-SA 4.0`，本项目没有复制其源码或引入其依赖，仅基于协议事实独立实现最小兼容层。
 - 工作区版本升至 `0.6.3`，私有服务端升至 `0.2.1`。无新依赖、数据库 schema、自动联网或客户端协议变化；脱敏、逐次确认、会话级密码/Key 和显式联网边界保持不变。
 - 2026-07-28 本机回归已通过：服务端 lint、格式检查、25 项集成测试（另有 2 项 PostgreSQL 条件测试跳过）和构建；客户端 lint、格式检查、全部单元/契约测试、主 E2E 57 项通过/7 项条件跳过、互联网 E2E 3 项、内网 E2E 2 项及生产构建。管理页在 1440×900 与 390×844 下验证三种鉴权选项和零页面级横向溢出。
-- [Pages run 30356986954](https://github.com/NextWeb4/gw/actions/runs/30356986954) 已成功，线上构建已实测显示 `0.6.3`；桌面 Release 工作流以 [run 30356989688](https://github.com/NextWeb4/gw/actions/runs/30356989688) 为准。
+- [Pages run 30356986954](https://github.com/NextWeb4/gw/actions/runs/30356986954) 已成功，线上构建已实测显示 `0.6.3`；[desktop run 30356989688](https://github.com/NextWeb4/gw/actions/runs/30356989688) 也已成功，Release 包含 12 个互联网/内网、Windows/Linux、x64/arm64 安装资产和 `SHA256SUMS.txt`。
 
 ## v0.6.2
 
