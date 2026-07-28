@@ -2,7 +2,7 @@
 
 版本：v0.6.1  
 文档日期：2026-07-28  
-文档状态：v0.6.1  
+文档状态：v0.6.1 已发布  
 适用范围：公开演示版、互联网 Web/桌面版、内网 Web/桌面版  
 在线演示：[https://nextweb4.github.io/gw/](https://nextweb4.github.io/gw/)  
 软件下载：[https://github.com/NextWeb4/gw/releases/latest](https://github.com/NextWeb4/gw/releases/latest)

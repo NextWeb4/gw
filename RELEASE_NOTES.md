@@ -7,6 +7,7 @@
 - 中转配置区在解锁前显示 Chrome 权限提示，并始终提供“打开本机管理页”入口，便于先确认后端是否启动。页面加载、选择中转入口和填写密码仍保持零请求，只有用户点击解锁后才会触发权限与网络访问。
 - 第一性原理回归已覆盖：Chrome 151 未授权状态为 `prompt` 且回环请求被拒绝；授予 `local-network-access` 后同一 Pages Origin 可读取本机健康接口并完成密码会话。单元测试同时锁定权限拒绝提示与 `loopback` 请求标注。
 - 工作区版本升至 `0.6.1`；本机后端继续使用已发布的 `0.2.0` 协议，无新依赖、无数据库 schema、无许可证变化，也没有把密码、API Key、上游地址或加密密钥加入公开仓库。
+- [Pages run 30338701480](https://github.com/NextWeb4/gw/actions/runs/30338701480) 与 [desktop run 30338765244](https://github.com/NextWeb4/gw/actions/runs/30338765244) 已成功；Release 包含 12 个分版/架构安装资产、`SHA256SUMS.txt` 和 GitHub 自动生成的两份源码归档。
 
 ## v0.6.0
 
