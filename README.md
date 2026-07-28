@@ -12,7 +12,7 @@
 
 A local-first system for official-document work, task and file tracking, drafting, weekly reports, document export, and controlled private synchronization.
 
-![Version](https://img.shields.io/badge/version-0.5.0-0969da?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.6.0-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,9 +22,9 @@ A local-first system for official-document work, task and file tracking, draftin
 
 HxHwang Gw is a pnpm monorepo that shares one domain model across a public GitHub Pages demonstration, separate Internet and intranet Web builds, and separate Internet and intranet Electron clients. It stores operational data locally first, separates network capabilities at build time, and provides explicit adapters for synchronization and AI requests.
 
-The current release is `0.5.0`. AI now includes searchable local history, field-change summaries, and three read-only writing-guidance presets. JSON and snapshots support drag-and-drop import, while About & Settings provides edition- and architecture-specific installer links. Internet, intranet, and desktop builds start with an empty business database; only Public Pages retains fictional demonstration records. The wide-screen detail lane and collapsible icon navigation remain available. See [`RELEASE_NOTES.md`](RELEASE_NOTES.md) for details.
+The current release is `0.6.0`. Public Pages and the Internet edition now offer an optional loopback relay mode: after an explicit local password unlock, users can refresh server-managed mystery providers, discover models, and send only confirmed redacted material. Upstream URLs, API keys, and encryption keys stay in the local backend. Bring-your-own-key direct AI, local history, field changes, guidance presets, drag-and-drop migration, the three-column detail layout, and edition-specific installers remain available. See [`RELEASE_NOTES.md`](RELEASE_NOTES.md) for details.
 
-Public Pages does not expose private synchronization, but it supports the full local ledgers, attachments, legacy JSON/snapshots, and bring-your-own-key compatible AI. Business data stays in the current browser's IndexedDB and is not uploaded to Pages or the private API. Use [GitHub Pages](https://nextweb4.github.io/gw/) only with public, fictional, or approved non-sensitive material.
+Public Pages does not expose private synchronization, but it supports local ledgers, attachments, legacy JSON/snapshots, bring-your-own-key AI, and an explicitly unlocked `127.0.0.1` relay. Page load and password entry do not contact the relay automatically. Business data stays in the current browser's IndexedDB. Use [GitHub Pages](https://nextweb4.github.io/gw/) only with public, fictional, or approved non-sensitive material.
 
 ## Core Capabilities
 

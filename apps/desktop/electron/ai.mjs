@@ -73,7 +73,13 @@ async function requestJson(payload, resource, init) {
 
 export async function requestAiModels(payload) {
   const response = await requestJson(payload, 'models', { method: 'GET' });
-  return [...new Set((Array.isArray(response.data) ? response.data : []).map((item) => typeof item?.id === 'string' ? item.id.trim() : '').filter((id) => id.length > 0 && id.length <= 200))].sort();
+  const rows = Array.isArray(response.data) ? response.data : Array.isArray(response.models) ? response.models : [];
+  return [...new Set(rows.map((item) => {
+    if (typeof item === 'string') return item.trim();
+    if (typeof item?.id === 'string') return item.id.trim();
+    if (typeof item?.name === 'string') return item.name.trim();
+    return '';
+  }).filter((id) => id.length > 0 && id.length <= 200))].sort();
 }
 
 export async function requestAiCompletion(payload) {

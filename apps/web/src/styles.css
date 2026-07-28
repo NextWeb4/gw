@@ -314,6 +314,11 @@ h1, h2, p { margin-top: 0; }
 .ai-control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .ai-ready-summary { margin: 0 0 13px; padding: 10px 12px; display: flex; align-items: center; gap: 8px; color: var(--paper-muted); background: rgba(216,255,63,.04); border: 1px solid rgba(216,255,63,.14); border-radius: 10px; font-size: 9px; }
 .ai-ready-summary svg { color: var(--acid); }
+.relay-config-box { margin-top: 12px; padding: 14px; display: grid; gap: 10px; background: rgba(216,255,63,.035); border: 1px solid rgba(216,255,63,.16); border-radius: 12px; }
+.relay-config-box .field { margin: 0; }
+.relay-config-box .button-row { margin: 0; align-items: center; }
+.relay-config-box .provider-note { margin: 0; }
+.relay-config-box .text-button { justify-self: start; }
 .compact-ai-services { grid-template-columns: 1fr; margin-top: 0; }
 .compact-ai-services .service-panel { padding: 18px; }
 .ai-advanced-config { overflow: hidden; border-radius: 12px; }

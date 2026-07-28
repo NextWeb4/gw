@@ -51,6 +51,10 @@ test('AI compact mode keeps consent controls while history and downloads remain 
   assert.match(app, /脱敏预览（可继续修改）/, 'compact AI must retain the editable redaction preview');
   assert.match(app, /我确认本次材料已脱敏、非涉密且允许发送到所选服务商/, 'Internet AI must retain per-request confirmation');
   assert.match(app, /我确认本次材料已脱敏且允许发送到内部模型/, 'intranet AI must retain per-request confirmation');
+  assert.match(app, /中转站密码（仅当前会话）/, 'relay password must be explicitly session-only');
+  assert.match(app, /解锁并刷新站点/, 'relay providers must require an explicit unlock action');
+  assert.match(app, /刷新站点/, 'relay provider metadata refresh must remain user-triggered');
+  assert.doesNotMatch(app, /localStorage[^\n]*relay|relay[^\n]*localStorage/i, 'relay passwords and sessions must remain in component memory');
   assert.match(app, /!compact && <AiHistoryPanel/, 'full AI workspace must expose local history without crowding the compact panel');
   assert.match(app, /HxHwang-Gw-\$\{__APP_VERSION__\}-\$\{edition\}-arm64-setup\.exe/, 'download center must expose versioned Windows ARM64 assets');
   assert.match(app, /HxHwang-Gw-\$\{__APP_VERSION__\}-\$\{edition\}-x86_64\.AppImage/, 'download center must expose versioned Linux x86_64 assets');

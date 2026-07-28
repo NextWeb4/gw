@@ -12,7 +12,7 @@
 
 公文事務、タスクとファイルの追跡、文書作成、週報、文書出力、制御されたプライベート同期のためのローカルファーストシステムです。
 
-![バージョン](https://img.shields.io/badge/version-0.5.0-0969da?style=flat-square)
+![バージョン](https://img.shields.io/badge/version-0.6.0-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,9 +22,9 @@
 
 HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラネット Web ビルド、インターネット/イントラネット Electron クライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、ネットワーク機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
 
-現在のリリースは `0.5.0` です。AI に検索可能なローカル履歴、フィールド変更要約、読み取り専用の3つの文章ガイダンスを追加しました。JSON/スナップショットはドラッグ＆ドロップで取り込め、「概要と設定」から版と CPU アーキテクチャ別のインストーラーを選択できます。インターネット版、イントラネット版、デスクトップ版は空の業務データで開始し、公開 Pages だけが架空デモを保持します。ワイド画面の詳細列と折りたたみナビゲーションも継続します。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
+現在のリリースは `0.6.0` です。公開 Pages とインターネット版に任意のローカル中継モードを追加しました。ユーザーが明示的にローカルパスワードを入力すると、バックエンドで管理された「シークレットサイト」を更新し、モデルを取得して、確認済みの匿名化資料だけを送信できます。上流 URL、API Key、暗号化キーはローカルバックエンドから外へ出ません。BYOK 直結、AI 履歴、変更要約、文章ガイダンス、ドラッグ＆ドロップ移行、3列レイアウト、版別インストーラーも継続します。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
 
-公開 Pages はプライベート同期を表示しませんが、ローカル台帳、添付、旧 JSON/スナップショット、ユーザー自身の Key を使う互換 AI を利用できます。業務データは現在のブラウザーの IndexedDB にだけ保存され、Pages やプライベート API へ自動送信されません。[GitHub Pages](https://nextweb4.github.io/gw/) では公開、架空、または許可済みの非機密資料だけを扱ってください。
+公開 Pages はプライベート同期を表示しませんが、ローカル台帳、添付、旧 JSON/スナップショット、ユーザー自身の Key を使う AI、明示的に解除した `127.0.0.1` 中継を利用できます。ページ読込やパスワード入力だけでは中継へ接続しません。業務データは現在のブラウザーの IndexedDB に保存されます。[GitHub Pages](https://nextweb4.github.io/gw/) では公開、架空、または許可済みの非機密資料だけを扱ってください。
 
 ## 主な機能
 

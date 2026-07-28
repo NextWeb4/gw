@@ -23,7 +23,7 @@ test('lists models and generates only confirmed redacted content', async () => {
   const calls = [];
   globalThis.fetch = async (url, init) => {
     calls.push([url, init]);
-    if (String(url).endsWith('/v1/models')) return new Response(JSON.stringify({ data: [{ id: 'model-b' }, { id: 'model-a' }] }), { status: 200 });
+    if (String(url).endsWith('/v1/models')) return new Response(JSON.stringify({ models: ['model-b', { name: 'model-a' }] }), { status: 200 });
     return new Response(JSON.stringify({ choices: [{ message: { content: '结果' } }] }), { status: 200 });
   };
   try {

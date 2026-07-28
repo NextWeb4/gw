@@ -23,7 +23,7 @@ import {
   removeRecord, seedDemoData, type Kind
 } from '@hxhwang/local-data';
 import { migrateLegacyExport, type MigrationBundle } from '@hxhwang/migration';
-import { AI_MAX_CONTENT_LENGTH, AI_MAX_GUIDANCE_LENGTH, AI_PROVIDER_PRESETS, DirectAiClient, extractOpenAiText, PrivateSyncClient } from '@hxhwang/sync-client';
+import { AI_MAX_CONTENT_LENGTH, AI_MAX_GUIDANCE_LENGTH, AI_PROVIDER_PRESETS, DirectAiClient, extractOpenAiText, PrivateSyncClient, RelayAiClient, type RelayProviderDescriptor } from '@hxhwang/sync-client';
 import { redactSensitiveContent } from '@hxhwang/sync-client/redaction';
 import { buildPrintableDocument, downloadBlob, draftBodyLines, exportDraftDocx } from '@hxhwang/documents';
 import knowledgePack from '../../../content/generated/knowledge-pack.json';
@@ -1698,6 +1698,11 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
   const [providerId, setProviderId] = useState(defaultPreset.id);
   const [baseUrl, setBaseUrl] = useState(defaultPreset.baseUrl);
   const [apiKey, setApiKey] = useState('');
+  const [relayBaseUrl, setRelayBaseUrl] = useState('http://127.0.0.1:8787');
+  const [relayPassword, setRelayPassword] = useState('');
+  const [relayClient, setRelayClient] = useState<RelayAiClient | null>(null);
+  const [relayProviders, setRelayProviders] = useState<RelayProviderDescriptor[]>([]);
+  const [relayRevision, setRelayRevision] = useState('');
   const [models, setModels] = useState<string[]>([]);
   const [model, setModel] = useState('');
   const [purpose, setPurpose] = useState('综合工作总结');
@@ -1707,6 +1712,10 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
   const [redactedContent, setRedactedContent] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [aiResult, setAiResult] = useState<unknown>();
+  const relayMode = providerId === 'relay' || providerId.startsWith('relay:');
+  const selectedRelayProvider = relayProviders.find((provider) => `relay:${provider.id}` === providerId);
+  const selectedDirectProvider = AI_PROVIDER_PRESETS.find((preset) => preset.id === providerId) || AI_PROVIDER_PRESETS.at(-1)!;
+  const selectedProviderLabel = selectedRelayProvider?.label || (relayMode ? '本机神秘站点' : selectedDirectProvider.label);
   const effectiveGuidanceId = resolveGuidance(skillId, skills)?.id || '';
   const selectedGuidance = resolveGuidance(effectiveGuidanceId, skills);
   useEffect(() => {
@@ -1719,24 +1728,96 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
     setConfirmed(false);
     setAiResult(undefined);
     setToast(!content ? '所选素材为空，可直接粘贴材料' : content.length > AI_MAX_CONTENT_LENGTH ? `素材已载入并截取前 ${AI_MAX_CONTENT_LENGTH} 个字符` : '素材已载入，请生成脱敏预览并逐次确认');
-    // 仅在收到新的 AI 助手请求（nonce 变化）时载入素材
   }, [prefill?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
-  const selectedProvider = AI_PROVIDER_PRESETS.find((preset) => preset.id === providerId) || AI_PROVIDER_PRESETS.at(-1)!;
   const invalidateAiResult = () => { setConfirmed(false); setAiResult(undefined); };
+  const resetModels = () => { setModels([]); setModel(''); invalidateAiResult(); };
   const createClient = () => new DirectAiClient({ baseUrl, apiKey });
-  const chooseProvider = (id: string) => { const provider = AI_PROVIDER_PRESETS.find((preset) => preset.id === id); setProviderId(id); if (provider && provider.id !== 'custom') setBaseUrl(provider.baseUrl); setModels([]); setModel(''); invalidateAiResult(); };
-  const changeBaseUrl = (value: string) => { setBaseUrl(value); setProviderId('custom'); setModels([]); setModel(''); invalidateAiResult(); };
-  const loadModels = async () => { if (!baseUrl.trim()) return setToast('请填写兼容 API 请求地址'); invalidateAiResult(); try { const list = desktopBridge()?.listAiModels ? await desktopBridge()!.listAiModels(baseUrl, apiKey) : await createClient().listModels(); setModels(list); setModel(list[0] || ''); setToast(`已获取 ${list.length} 个可用模型`); } catch (error) { setModels([]); setModel(''); setToast(error instanceof Error ? error.message : '获取模型失败'); } };
+  const chooseProvider = (id: string) => {
+    const provider = AI_PROVIDER_PRESETS.find((preset) => preset.id === id);
+    setProviderId(id);
+    if (provider && provider.id !== 'custom') setBaseUrl(provider.baseUrl);
+    resetModels();
+  };
+  const changeBaseUrl = (value: string) => { setBaseUrl(value); setProviderId('custom'); resetModels(); };
+  const changeRelayBaseUrl = (value: string) => { setRelayBaseUrl(value); setRelayClient(null); setRelayProviders([]); setRelayRevision(''); setProviderId('relay'); resetModels(); };
+  const applyRelayDirectory = (directory: { revision: string; providers: RelayProviderDescriptor[] }) => {
+    setRelayProviders(directory.providers);
+    setRelayRevision(directory.revision);
+    const currentId = providerId.startsWith('relay:') ? providerId.slice(6) : '';
+    const next = directory.providers.find((provider) => provider.id === currentId) || directory.providers[0];
+    setProviderId(next ? `relay:${next.id}` : 'relay');
+    resetModels();
+    return next;
+  };
+  const unlockRelay = async () => {
+    if (!relayPassword) return setToast('请输入本机中转密码');
+    try {
+      const nextClient = new RelayAiClient({ baseUrl: relayBaseUrl });
+      await nextClient.createSession(relayPassword);
+      const directory = await nextClient.listProviders();
+      setRelayClient(nextClient);
+      setRelayPassword('');
+      applyRelayDirectory(directory);
+      setToast(directory.providers.length ? `已解锁并载入 ${directory.providers.length} 个神秘站点` : '已解锁，但后台尚未启用站点');
+    } catch (error) { setRelayClient(null); setRelayProviders([]); setRelayRevision(''); setToast(error instanceof Error ? error.message : '中转站解锁失败'); }
+  };
+  const refreshRelay = async () => {
+    if (!relayClient) return setToast('请先输入密码解锁本机中转站');
+    try { const directory = await relayClient.listProviders(); applyRelayDirectory(directory); setToast(`站点数据已刷新：${directory.providers.length} 个，revision ${directory.revision}`); }
+    catch (error) { setToast(error instanceof Error ? error.message : '站点刷新失败'); }
+  };
+  const loadModels = async () => {
+    resetModels();
+    try {
+      if (relayMode) {
+        if (!relayClient || !selectedRelayProvider) return setToast('请先解锁并选择已启用的神秘站点');
+        const result = await relayClient.listModels(selectedRelayProvider.id);
+        setModels(result.models); setModel(result.defaultModel || result.models[0] || ''); setToast(`已从${selectedRelayProvider.label}获取 ${result.models.length} 个模型`);
+      } else {
+        if (!baseUrl.trim()) return setToast('请填写兼容 API 请求地址');
+        const list = desktopBridge()?.listAiModels ? await desktopBridge()!.listAiModels(baseUrl, apiKey) : await createClient().listModels();
+        setModels(list); setModel(list[0] || ''); setToast(`已获取 ${list.length} 个可用模型`);
+      }
+    } catch (error) { setModels([]); setModel(''); setToast(error instanceof Error ? error.message : '获取模型失败'); }
+  };
   const loadMaterial = () => { const content = buildAiWorkspaceMaterial(materialSource, workspace); if (!content) return setToast('所选本机素材为空'); setRedactionSource(content.slice(0, AI_MAX_CONTENT_LENGTH)); setRedactedContent(''); setConfirmed(false); setAiResult(undefined); setToast(content.length > AI_MAX_CONTENT_LENGTH ? `素材已载入并截取前 ${AI_MAX_CONTENT_LENGTH} 个字符` : '本机素材已载入'); };
   const previewRedaction = () => { if (!redactionSource.trim()) return setToast('请先填写待处理材料'); if (redactionSource.length > AI_MAX_CONTENT_LENGTH) return setToast(`待处理材料不能超过 ${AI_MAX_CONTENT_LENGTH} 个字符`); setRedactedContent(redactSensitiveContent(redactionSource)); setConfirmed(false); setAiResult(undefined); };
-  const sendAi = async () => { if (!redactedContent) return setToast('请先生成并检查脱敏预览'); if (!confirmed) return setToast('请勾选本次发送确认'); if (!model) return setToast('请先获取并选择模型'); try { const payload = { baseUrl, apiKey, model, redactedContent, redacted: true as const, confirmed: true as const, purpose, ...(selectedGuidance ? { guidance: selectedGuidance.content } : {}) }; const result = desktopBridge()?.generateAi ? await desktopBridge()!.generateAi(payload) : await createClient().generate(payload); const answer = extractOpenAiText(result); const changes = buildAiFieldChanges(prefill?.changeContext, redactedContent, answer); setAiResult(result); setConfirmed(false); if (answer) await onSaveHistory(createAiHistoryEntry({ source: publicMode ? 'public' : 'internet', purpose, provider: selectedProvider.label, model, skillName: selectedGuidance?.name || '', targetLabel: prefill?.changeContext?.targetLabel || '本机材料', input: redactedContent, answer, changes })); setToast(answer ? 'AI 结果已返回并保存到本机历史；原稿未被覆盖' : 'AI 结果已返回；原稿未被覆盖'); } catch (error) { setToast(error instanceof Error ? error.message : 'AI 请求失败'); } };
+  const sendAi = async () => {
+    if (!redactedContent) return setToast('请先生成并检查脱敏预览');
+    if (!confirmed) return setToast('请勾选本次发送确认');
+    if (!model) return setToast('请先获取并选择模型');
+    try {
+      const common = { model, redactedContent, redacted: true as const, confirmed: true as const, purpose, ...(selectedGuidance ? { guidance: selectedGuidance.content } : {}) };
+      const result = relayMode
+        ? relayClient && selectedRelayProvider ? await relayClient.generate(selectedRelayProvider.id, common) : undefined
+        : desktopBridge()?.generateAi ? await desktopBridge()!.generateAi({ baseUrl, apiKey, ...common }) : await createClient().generate(common);
+      if (result === undefined) return setToast('请重新解锁并选择神秘站点');
+      const answer = extractOpenAiText(result);
+      const changes = buildAiFieldChanges(prefill?.changeContext, redactedContent, answer);
+      setAiResult(result); setConfirmed(false);
+      if (answer) await onSaveHistory(createAiHistoryEntry({ source: publicMode ? 'public' : 'internet', purpose, provider: selectedProviderLabel, model, skillName: selectedGuidance?.name || '', targetLabel: prefill?.changeContext?.targetLabel || '本机材料', input: redactedContent, answer, changes }));
+      setToast(answer ? 'AI 结果已返回并保存到本机历史；原稿未被覆盖' : 'AI 结果已返回；原稿未被覆盖');
+    } catch (error) { setToast(error instanceof Error ? error.message : 'AI 请求失败'); }
+  };
   const resultText = extractOpenAiText(aiResult);
   const changes = buildAiFieldChanges(prefill?.changeContext, redactedContent, resultText);
-  const configForm = <><SelectField label="服务商预设" value={providerId} options={AI_PROVIDER_PRESETS.map((provider) => ({ value: provider.id, label: provider.label }))} onChange={chooseProvider} /><Field label="请求地址" value={baseUrl} onChange={changeBaseUrl} placeholder="https://api.example.com/v1" /><Field label="API Key（仅当前会话）" type="password" value={apiKey} onChange={(value) => { setApiKey(value); invalidateAiResult(); }} /><button className="secondary-button" onClick={() => void loadModels()}><Bot size={16} />获取 AI 模型</button>{models.length > 0 && <SelectField label="选择模型" value={model} options={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}<p className="provider-note">{selectedProvider.note}{selectedProvider.officialDocs && <> · <a href={selectedProvider.officialDocs} target="_blank" rel="noreferrer">官方文档</a></>}</p><p className="service-note"><KeyRound size={13} /> API Key 只在当前会话使用，不写入本机历史、IndexedDB、日志或快照。</p></>;
+  const providerOptions = [
+    ...AI_PROVIDER_PRESETS.map((provider) => ({ value: provider.id, label: provider.label })),
+    { value: 'relay', label: '神秘站点（本机中转 · 需密码）' },
+    ...relayProviders.map((provider) => ({ value: `relay:${provider.id}`, label: `神秘 · ${provider.label}` }))
+  ];
+  const relayForm = <div className="relay-config-box">
+    <Field label="本机中转地址" value={relayBaseUrl} onChange={changeRelayBaseUrl} placeholder="http://127.0.0.1:8787" />
+    {!relayClient ? <><Field label="中转站密码（仅当前会话）" type="password" value={relayPassword} onChange={setRelayPassword} /><button className="secondary-button" onClick={() => void unlockRelay()}><KeyRound size={16} />解锁并刷新站点</button></> : <div className="button-row"><button className="secondary-button" onClick={() => void refreshRelay()}><RefreshCw size={16} />刷新站点</button><a className="text-button" href={`${relayBaseUrl.replace(/\/+$/, '')}/relay-admin`} target="_blank" rel="noreferrer"><Server size={14} />打开本机管理页</a></div>}
+    <p className="provider-note">{relayClient ? `已解锁 ${relayProviders.length} 个站点 · revision ${relayRevision || '—'}` : '密码、会话和站点目录只保留在当前页面内存；真实地址与 API Key 不会从后端返回。'}</p>
+    {selectedRelayProvider && <><p className="ai-ready-summary"><Server size={14} />当前站点：{selectedRelayProvider.label}</p><button className="secondary-button" onClick={() => void loadModels()}><Bot size={16} />获取中转站模型</button>{models.length > 0 && <SelectField label="选择模型" value={model} options={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}</>}
+  </div>;
+  const directForm = <><Field label="请求地址" value={baseUrl} onChange={changeBaseUrl} placeholder="https://api.example.com/v1" /><Field label="API Key（仅当前会话）" type="password" value={apiKey} onChange={(value) => { setApiKey(value); invalidateAiResult(); }} /><button className="secondary-button" onClick={() => void loadModels()}><Bot size={16} />获取 AI 模型</button>{models.length > 0 && <SelectField label="选择模型" value={model} options={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}<p className="provider-note">{selectedDirectProvider.note}{selectedDirectProvider.officialDocs && <> · <a href={selectedDirectProvider.officialDocs} target="_blank" rel="noreferrer">官方文档</a></>}</p><p className="service-note"><KeyRound size={13} /> API Key 只在当前会话使用，不写入本机历史、IndexedDB、日志或快照。</p></>;
+  const configForm = <><SelectField label="服务商预设" value={providerId} options={providerOptions} onChange={chooseProvider} />{relayMode ? relayForm : directForm}</>;
   return <section className={`desktop-services internet-services ${compact ? 'compact-ai-services' : ''}`}>
-    {compact ? <details className="panel ai-advanced-config" open={!model}><summary><span><Globe2 size={15} />模型连接</span><strong>{model ? `${selectedProvider.label} · ${model}` : '首次使用需要填写 API 并获取模型'}</strong></summary><div>{configForm}</div></details> : <div className="panel service-panel"><div className="panel-heading"><div><span className="eyebrow">{publicMode ? '公开 Pages · 用户自备 Key' : '互联网版'}</span><h2>兼容 API 配置</h2></div><Globe2 size={20} /></div>{configForm}</div>}
+    {compact ? <details className="panel ai-advanced-config" open={!model}><summary><span><Globe2 size={15} />模型连接</span><strong>{model ? `${selectedProviderLabel} · ${model}` : '首次使用需要配置或解锁模型'}</strong></summary><div>{configForm}</div></details> : <div className="panel service-panel"><div className="panel-heading"><div><span className="eyebrow">{publicMode ? '公开 Pages · 用户自备 Key / 本机中转' : '互联网版'}</span><h2>兼容 API 配置</h2></div><Globe2 size={20} /></div>{configForm}</div>}
     <div className="panel service-panel ai-workbench"><div className="panel-heading"><div><span className="eyebrow">逐次确认</span><h2>{compact ? '本次协作' : '总结、提纲与润色'}</h2></div>{compact && model && <span className="status-pill done">配置已就绪</span>}</div>
-      {compact && model && <p className="ai-ready-summary"><Bot size={14} />{selectedProvider.label} · {model}</p>}
+      {compact && model && <p className="ai-ready-summary"><Bot size={14} />{selectedProviderLabel} · {model}</p>}
       <div className="ai-control-grid"><SelectField label="处理用途" value={purpose} options={aiPurposeOptions} onChange={(value) => { setPurpose(value); invalidateAiResult(); }} /><SelectField label="润色指引" value={effectiveGuidanceId} options={guidanceOptions(skills)} onChange={(value) => { setSkillId(value); invalidateAiResult(); }} /></div>
       {selectedGuidance && <p className="skill-attach-note">将附加「{selectedGuidance.name}」（{selectedGuidance.content.length} 字）作为系统写作指引。</p>}
       {compact && prefill ? <p className="ai-ready-summary"><FileText size={14} />已载入：{prefill.changeContext?.targetLabel || '当前页面材料'}</p> : <div className="material-source-row"><SelectField label="本机素材" value={materialSource} options={aiSourceOptions} onChange={(value) => { setMaterialSource(value); invalidateAiResult(); }} /><button className="secondary-button" onClick={loadMaterial}><FileText size={15} />载入素材</button></div>}
@@ -1744,7 +1825,7 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
       <button className="secondary-button" onClick={previewRedaction}><ShieldCheck size={16} />生成脱敏预览</button>
       {redactedContent && <><TextArea label="脱敏预览（可继续修改）" value={redactedContent} onChange={(value) => { setRedactedContent(value); invalidateAiResult(); }} /><ConfirmationCheck checked={confirmed} onChange={setConfirmed} label="我确认本次材料已脱敏、非涉密且允许发送到所选服务商" /><button className="primary-button" disabled={!confirmed} onClick={() => void sendAi()}><Sparkles size={16} />确认本次 AI 请求</button></>}
       {aiResult !== undefined && <AiResult result={aiResult} text={resultText} changes={changes} setToast={setToast} />}
-      <p className="service-note">AI 输出只读展示并保存到当前客户端历史；公开 Pages 直连仍受服务商 CORS 限制。</p>
+      <p className="service-note">AI 输出只读展示并保存到当前客户端历史；直连受服务商 CORS 限制，本机中转由当前设备代为访问上游。</p>
     </div>
   </section>;
 }

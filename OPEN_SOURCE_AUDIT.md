@@ -72,6 +72,23 @@
 - 联网变化：仅新增用户主动点击 GitHub Release 下载链接；AI、同步和页面加载的自动联网边界不变。
 - 回滚：删除 `ai-history` UI/设置记录、预制 JSON、拖拽事件与下载中心即可回退；历史为普通本机设置记录，不需要数据库 schema 回滚。
 
+## v0.6.0 本机中转站与神秘站点方案审计
+
+| 方案名称 | 来源 | 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与当前项目的契合度 | 可能冲突点 | 是否采用 | 采用方式 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 现有 `PrivateSyncClient` 模式派生 `RelayAiClient` | 当前 `packages/sync-client` | 项目自有 / UNLICENSED | 会话、provider 目录、模型发现、生成代理 | 复用安全 URL、响应上限和逐次确认；不增加依赖 | 需维护一套 relay 路由类型 | 高 | 不能把 upstream URL/Key 下发前端 | 采用 | 新客户端只持有回环基址、临时 session 和 provider ID |
+| 浏览器直接调用中转站 | Fetch 标准 | Web 标准 | 直接访问 OpenAI 兼容接口 | 无需本地服务 | 受 CORS、证书、DNS、Private Network Access 影响；Key 暴露给页面 | 规范稳定但服务端支持不一 | 低 | 与“防逆向”和 Key 不持久化边界冲突 | 保留为现有用户自备 Key 模式，不用于神秘站点 | `Failed to fetch` 转换为明确诊断并推荐本机 relay |
+| 前端 AES/Web Crypto 加密密码与站点 | Web Crypto API | Web 标准 | 对构建常量做加密/混淆 | 表面上不显示明文 | 解密材料必须随页面交付，攻击者可复现；不能保护公开部署秘密 | 稳定 | 低 | 与真实保密目标直接冲突 | 不采用 | 密码、地址、Key 和加密密钥均不进入前端 |
+| TanStack Query / SWR 自动刷新 | TanStack / Vercel | MIT | 缓存、轮询、请求状态 | 数据同步体验成熟 | 会引入自动请求与新状态层；本需求要求显式解锁和刷新 | 活跃 | 低 | 可能破坏页面加载与填写密码时零外联 | 不采用 | 使用现有 React 状态和显式按钮 |
+| 原生 React 状态 + 现有 Lucide | 当前锁定依赖 | MIT / ISC | 动态 provider 选项、密码输入、刷新与错误状态 | 不新增依赖，能锁定显式联网边界 | 需自行维护少量状态转换 | 活跃 | 高 | session 不得持久化 | 采用 | 中转密码、token、provider revision 仅保留在组件内存 |
+
+- 直接复用：`AI_MAX_CONTENT_LENGTH`、`AI_MAX_GUIDANCE_LENGTH`、响应体积限制、脱敏、逐次确认、AI 历史与现有 provider UI。
+- 只借鉴：成熟代理控制台的“公开别名 + 服务端私密配置”设计；前端不获得真实上游地址。
+- 不采用：前端密码加密、Cookie/localStorage session、后台轮询、自动架构探测或第二套 AI 结果组件。
+- 适配范围：`packages/sync-client` 新增 relay 客户端；`apps/web` 增加动态神秘站点选择、解锁、刷新和可操作网络错误；直连与内网模式继续保留。
+- 联网变化：只有用户点击“解锁并刷新站点”“获取模型”或确认生成后才请求回环服务；页面加载、选择入口和填写密码保持零请求。
+- 回滚：移除 `RelayAiClient` 与中转 UI 即可恢复 v0.5.0 直连行为，不涉及本地业务数据库 schema。
+
 ## 采用边界
 
 - 直接复用：Electron 打印能力、RxDB/Dexie 本地存储、Tiptap 编辑、docx 导出、Mammoth DOCX 转换、Playwright 验证。

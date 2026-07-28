@@ -12,7 +12,7 @@
 
 一个本地优先的公文事务、任务与文件跟踪、文稿写作、周报、文档导出和受控私有同步系统。
 
-![版本](https://img.shields.io/badge/version-0.5.0-0969da?style=flat-square)
+![版本](https://img.shields.io/badge/version-0.6.0-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -22,9 +22,9 @@
 
 HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联网/内网 Web 构建和互联网/内网 Electron 客户端之间共享同一套领域模型。系统首先把业务数据保存在本地，在构建时隔离不同联网能力，并通过显式适配器提供同步和 AI 请求。
 
-当前发布版本为 `0.5.0`：AI 已增加本机历史查询、字段变化摘要和三份只读预制写作指引；JSON/快照可拖拽导入，“关于与设置”可按互联网/内网版本和 CPU 架构直接选择安装包。互联网版、内网版和桌面安装包首次启动为空业务库，公开 Pages 仍保留虚构演示数据；宽屏三栏与可折叠图标导航继续保留。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
+当前发布版本为 `0.6.0`：公开 Pages 和互联网版新增可选的本机中转模式，用户显式输入本机密码后可刷新后端维护的“神秘站点”、获取模型并发送已确认脱敏材料。上游地址、API Key 和配置密钥始终留在本机后端；直连用户自备 Key、AI 历史、字段变化、预制指引、拖拽迁移、三栏详情和分版安装包继续保留。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
 
-公开 Pages 不显示私有同步，但支持完整本机台账、附件、历史 JSON/快照和用户自备 Key 的兼容 AI；所有业务数据只进入当前浏览器 IndexedDB，不会上传到 Pages 或私有 API。[GitHub Pages](https://nextweb4.github.io/gw/) 仅适合公开、虚构或获准的非敏感材料。
+公开 Pages 不显示私有同步，但支持完整本机台账、附件、历史 JSON/快照、用户自备 Key 的兼容 AI，以及用户主动解锁的 `127.0.0.1` 本机中转站；页面加载和填写密码不会自动联系中转服务。所有业务数据只进入当前浏览器 IndexedDB。[GitHub Pages](https://nextweb4.github.io/gw/) 仅适合公开、虚构或获准的非敏感材料。
 
 ## 核心能力
 

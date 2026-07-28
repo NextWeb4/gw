@@ -354,7 +354,7 @@ test('keeps private sync absent while exposing session-only AI controls on publi
   await expect(page.getByRole('heading', { name: '同步连接' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: '兼容 API 配置' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '总结、提纲与润色' })).toBeVisible();
-  await expect(page.getByLabel('服务商预设').locator('option')).toHaveText(['OpenAI', 'DeepSeek', 'Moonshot / Kimi', '智谱 GLM', '阿里云百炼 / DashScope', 'SiliconFlow', '本机 Ollama', '自定义兼容接口']);
+  await expect(page.getByLabel('服务商预设').locator('option')).toHaveText(['OpenAI', 'DeepSeek', 'Moonshot / Kimi', '智谱 GLM', '阿里云百炼 / DashScope', 'SiliconFlow', '本机 Ollama', '自定义兼容接口', '神秘站点（本机中转 · 需密码）']);
   await expect(page.getByLabel('API Key（仅当前会话）')).toHaveValue('');
   const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');
   expect(csp).toContain("connect-src 'self' https: http://127.0.0.1:* http://localhost:*");

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AI_MAX_CONTENT_LENGTH, AI_MAX_GUIDANCE_LENGTH, AI_PROVIDER_PRESETS, composeAiSystemPrompt, DirectAiClient, extractOpenAiText, PrivateSyncClient, redactSensitiveContent, resolveOpenAiEndpoint } from './index.js';
+import { AI_MAX_CONTENT_LENGTH, AI_MAX_GUIDANCE_LENGTH, AI_PROVIDER_PRESETS, composeAiSystemPrompt, DirectAiClient, extractOpenAiText, PrivateSyncClient, redactSensitiveContent, RelayAiClient, resolveOpenAiEndpoint } from './index.js';
 
 describe('private sync client', () => {
   it('redacts common identifiers locally before any AI request is created', () => {
@@ -102,6 +102,36 @@ describe('private sync client', () => {
     await expect(client.generate({ model: 'model-a', redactedContent: 'x'.repeat(AI_MAX_CONTENT_LENGTH + 1), redacted: true, confirmed: true, purpose: '润色' })).rejects.toThrow(/120000/);
     await expect(client.generate({ model: 'model-a', redactedContent: '已脱敏内容', redacted: true, confirmed: true, purpose: '' })).rejects.toThrow(/用途/);
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('turns browser transport failures into an actionable CORS diagnostic', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => { throw new TypeError('Failed to fetch'); });
+    const client = new DirectAiClient({ baseUrl: 'https://relay.example/v1', apiKey: 'memory-only', fetcher });
+    await expect(client.listModels()).rejects.toThrow(/CORS.*Private Network Access.*证书.*地址错误.*改用本机中转/);
+  });
+
+  it('accepts common relay model-list shapes in direct desktop mode', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ models: ['model-z', { name: 'model-a' }, { id: 'model-b' }] }), { status: 200 }));
+    const client = new DirectAiClient({ baseUrl: 'https://relay.example/v1', fetcher });
+    await expect(client.listModels()).resolves.toEqual(['model-a', 'model-b', 'model-z']);
+  });
+
+  it('unlocks a loopback relay, refreshes providers and proxies models and confirmed generation by provider id', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ token: 'relay-session', expiresIn: 3600 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ revision: 'rev-1', providers: [{ id: 'mystery-01', label: '神秘站点 01', defaultModel: 'relay-model' }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: ['relay-model'], defaultModel: 'relay-model' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ result: { choices: [{ message: { content: '中转结果' } }] }, audit: { purpose: '润色', provider: '神秘站点 01', model: 'relay-model', contentHash: 'hash', createdAt: 'now' } }), { status: 200 }));
+    const client = new RelayAiClient({ baseUrl: 'http://127.0.0.1:8787', fetcher });
+    await expect(client.listProviders()).rejects.toThrow(/解锁/);
+    await client.createSession('local-password');
+    await expect(client.listProviders()).resolves.toMatchObject({ revision: 'rev-1', providers: [{ id: 'mystery-01' }] });
+    await expect(client.listModels('mystery-01')).resolves.toEqual({ models: ['relay-model'], defaultModel: 'relay-model' });
+    await expect(client.generate('mystery-01', { model: 'relay-model', redactedContent: '已脱敏材料', redacted: true, confirmed: true, purpose: '润色' })).resolves.toMatchObject({ result: { choices: expect.any(Array) } });
+    expect(fetcher.mock.calls[1]?.[1]?.headers).toMatchObject({ 'x-relay-session': 'relay-session' });
+    expect(String(fetcher.mock.calls[2]?.[0])).toContain('/v1/relay/providers/mystery-01/models');
+    const generatedBody = JSON.parse(String(fetcher.mock.calls[3]?.[1]?.body));
+    expect(generatedBody).toMatchObject({ model: 'relay-model', redactedContent: '已脱敏材料', confirmed: true, redacted: true });
   });
 
   it('appends bounded user guidance to the system prompt without touching the material', async () => {

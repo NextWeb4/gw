@@ -101,3 +101,62 @@ test('uses the restricted desktop bridge for Internet-edition AI', async ({ page
     redactedContent: '联系人：[姓名]，手机[手机号]，完成桌面端总结。'
   });
 });
+
+test('unlocks local mystery providers, refreshes their revision and proxies only confirmed redacted content', async ({ page }) => {
+  const relayRequests: Array<{ method: string; pathname: string; session?: string; body?: Record<string, unknown> }> = [];
+  await page.route('http://127.0.0.1:8787/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const corsHeaders = {
+      'access-control-allow-origin': 'http://127.0.0.1:4175',
+      'access-control-allow-methods': 'GET,POST,OPTIONS',
+      'access-control-allow-headers': 'content-type,x-relay-session',
+      'access-control-allow-private-network': 'true'
+    };
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: corsHeaders });
+    const body = request.method() === 'POST' ? request.postDataJSON() as Record<string, unknown> : undefined;
+    relayRequests.push({ method: request.method(), pathname: url.pathname, session: request.headers()['x-relay-session'], body });
+    if (url.pathname === '/v1/relay/session') {
+      if (body?.password !== 'browser-memory-password') return route.fulfill({ status: 401, headers: corsHeaders, json: { error: 'invalid_relay_password' } });
+      return route.fulfill({ headers: corsHeaders, json: { token: 'relay-browser-session', expiresIn: 3600 } });
+    }
+    if (request.headers()['x-relay-session'] !== 'relay-browser-session') return route.fulfill({ status: 401, headers: corsHeaders, json: { error: 'relay_session_required' } });
+    if (url.pathname === '/v1/relay/providers') return route.fulfill({ headers: corsHeaders, json: { revision: 'relay-revision-2', providers: [{ id: 'mystery-01', label: '神秘站点 01', defaultModel: 'mystery-model' }, { id: 'mystery-02', label: '神秘站点 02', defaultModel: '' }] } });
+    if (url.pathname === '/v1/relay/providers/mystery-01/models') return route.fulfill({ headers: corsHeaders, json: { models: ['mystery-model', 'mystery-model-lite'], defaultModel: 'mystery-model' } });
+    if (url.pathname === '/v1/relay/providers/mystery-01/generate') return route.fulfill({ headers: corsHeaders, json: { result: { choices: [{ message: { content: '神秘站点生成结果' } }] }, audit: { purpose: body?.purpose, provider: '神秘站点 01', model: body?.model, contentHash: 'hash', createdAt: 'now' } } });
+    return route.fulfill({ status: 404, headers: corsHeaders, json: { error: 'not_found' } });
+  });
+
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'AI 助手' }).click();
+  expect(relayRequests).toEqual([]);
+  await page.getByLabel('服务商预设').selectOption('relay');
+  await page.getByLabel('中转站密码（仅当前会话）').fill('browser-memory-password');
+  expect(relayRequests).toEqual([]);
+  await page.getByRole('button', { name: '解锁并刷新站点' }).click();
+  await expect(page.getByLabel('服务商预设')).toHaveValue('relay:mystery-01');
+  await expect(page.getByLabel('服务商预设').locator('option')).toContainText(['神秘 · 神秘站点 01', '神秘 · 神秘站点 02']);
+  await expect(page.getByText(/revision relay-revision-2/)).toBeVisible();
+  await expect(page.getByLabel('中转站密码（仅当前会话）')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: '打开本机管理页' })).toHaveAttribute('href', 'http://127.0.0.1:8787/relay-admin');
+
+  const beforeRefresh = relayRequests.length;
+  await page.getByRole('button', { name: '刷新站点' }).click();
+  await expect.poll(() => relayRequests.length).toBe(beforeRefresh + 1);
+  await page.getByRole('button', { name: '获取中转站模型' }).click();
+  await expect(page.getByLabel('选择模型')).toHaveValue('mystery-model');
+  await page.getByLabel('待处理材料').fill('联系人：张三，手机13812345678');
+  await page.getByRole('button', { name: '生成脱敏预览' }).click();
+  await page.getByLabel('我确认本次材料已脱敏、非涉密且允许发送到所选服务商').check();
+  await page.getByRole('button', { name: '确认本次 AI 请求' }).click();
+  await expect(page.locator('.ai-readable-result')).toHaveText('神秘站点生成结果');
+  const generated = relayRequests.find((request) => request.pathname.endsWith('/generate'));
+  expect(generated).toMatchObject({ session: 'relay-browser-session', body: { model: 'mystery-model', redactedContent: '联系人：[姓名]，手机[手机号]', redacted: true, confirmed: true } });
+  expect(JSON.stringify(relayRequests)).not.toContain('relay.example');
+  expect(JSON.stringify(relayRequests)).not.toContain('apiKey');
+
+  await page.reload();
+  await page.getByRole('button', { name: 'AI 助手' }).click();
+  await expect(page.getByLabel('服务商预设')).toHaveValue('deepseek');
+});

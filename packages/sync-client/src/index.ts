@@ -7,6 +7,9 @@ export interface AiGenerateRequest { redactedContent: string; confirmed: true; r
 export interface AiGenerateResponse { result: unknown; audit: { purpose: string; provider: string; model: string; contentHash: string; createdAt: string } }
 export interface AttachmentTransfer { id: string; name: string; mimeType: string; size: number; dataBase64: string; sha256: string; createdAt?: string; }
 export interface DirectAiClientOptions { baseUrl: string; apiKey?: string; fetcher?: typeof fetch; }
+export interface RelayAiClientOptions { baseUrl: string; sessionToken?: string; fetcher?: typeof fetch; }
+export interface RelayProviderDescriptor { id: string; label: string; defaultModel: string; }
+export interface RelayProviderDirectory { revision: string; providers: RelayProviderDescriptor[]; }
 export interface AiProviderPreset { id: string; label: string; baseUrl: string; officialDocs: string; note: string; }
 export const AI_MAX_CONTENT_LENGTH = 120_000;
 export const AI_MAX_GUIDANCE_LENGTH = 20_000;
@@ -45,6 +48,31 @@ export function extractOpenAiText(payload: unknown): string {
   if (typeof content === 'string') return content.trim();
   if (Array.isArray(content)) return content.map((part) => part && typeof part === 'object' && 'text' in part ? String((part as { text?: unknown }).text || '') : '').join('').trim();
   return '';
+}
+
+function transportFailure(label: string, error: unknown) {
+  if (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name)) return new Error(`${label}请求超时，请检查服务状态和网络连接`);
+  const cause = `${label}无法访问。浏览器可能因 CORS、Private Network Access、证书或地址错误阻止请求；`;
+  return new Error(label === '本机中转站'
+    ? `${cause}请确认本机中转服务已启动并允许当前网页来源。`
+    : `${cause}请检查服务商地址和证书；若服务商不允许浏览器直连，请改用本机中转。`);
+}
+
+async function responseError(response: Response, prefix: string) {
+  const payload = await response.clone().json().catch(() => undefined) as { error?: unknown; status?: unknown } | undefined;
+  const code = typeof payload?.error === 'string' ? payload.error : '';
+  const messages: Record<string, string> = {
+    invalid_relay_password: '中转站密码错误',
+    relay_session_required: '中转站会话已失效，请重新输入密码',
+    relay_provider_not_found: '所选神秘站点不存在或尚未启用',
+    relay_model_required: '该站点未配置默认模型，请先获取并选择模型',
+    relay_disabled: '本机中转服务尚未启用',
+    ai_provider_unreachable: '本机中转服务无法连接上游站点',
+    ai_provider_error: `上游站点请求失败${typeof payload?.status === 'number' ? `：${payload.status}` : ''}`,
+    ai_provider_response_too_large: '上游站点响应超过 2 MB 限制',
+    invalid_ai_provider_response: '上游站点返回了无效 JSON'
+  };
+  return new Error(messages[code] || `${prefix}：${response.status}`);
 }
 
 async function readLimitedResponseText(response: Response) {
@@ -156,9 +184,14 @@ export class DirectAiClient {
   }
 
   async listModels() {
-    const payload = await this.request<{ data?: Array<{ id?: unknown }> }>('models', { method: 'GET' });
-    const rows = Array.isArray(payload?.data) ? payload.data : [];
-    return [...new Set(rows.map((item) => typeof item.id === 'string' ? item.id.trim() : '').filter((id) => id.length > 0 && id.length <= 200))].sort();
+    const payload = await this.request<{ data?: unknown; models?: unknown }>('models', { method: 'GET' });
+    const rows = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.models) ? payload.models : [];
+    return [...new Set(rows.map((item) => {
+      if (typeof item === 'string') return item.trim();
+      if (item && typeof item === 'object' && typeof (item as { id?: unknown }).id === 'string') return (item as { id: string }).id.trim();
+      if (item && typeof item === 'object' && typeof (item as { name?: unknown }).name === 'string') return (item as { name: string }).name.trim();
+      return '';
+    }).filter((id) => id.length > 0 && id.length <= 200))].sort();
   }
 
   async generate(request: AiGenerateRequest & { model: string }) {
@@ -175,16 +208,76 @@ export class DirectAiClient {
   }
 
   private async request<T>(resource: 'models' | 'chat/completions', init: { method: 'GET' | 'POST'; body?: string }): Promise<T> {
-    const response = await this.fetcher(resolveOpenAiEndpoint(this.baseUrl, resource), {
-      method: init.method,
-      body: init.body,
-      redirect: 'error',
-      signal: AbortSignal.timeout(60_000),
-      headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}) }
-    });
-    if (!response.ok) throw new Error(`AI 服务请求失败：${response.status}`);
+    let response: Response;
+    try {
+      response = await this.fetcher(resolveOpenAiEndpoint(this.baseUrl, resource), {
+        method: init.method,
+        body: init.body,
+        redirect: 'error',
+        signal: AbortSignal.timeout(60_000),
+        headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}) }
+      });
+    } catch (error) { throw transportFailure('AI 服务', error); }
+    if (!response.ok) throw await responseError(response, 'AI 服务请求失败');
     const text = await readLimitedResponseText(response);
     try { return JSON.parse(text) as T; }
     catch { throw new Error('AI 服务返回了无效 JSON'); }
+  }
+}
+
+export class RelayAiClient {
+  private readonly baseUrl: URL;
+  private readonly fetcher: typeof fetch;
+  private sessionToken?: string;
+
+  constructor(options: RelayAiClientOptions) {
+    const baseUrl = new URL(options.baseUrl);
+    if (!['127.0.0.1', 'localhost'].includes(baseUrl.hostname) || !['http:', 'https:'].includes(baseUrl.protocol)) throw new Error('本机中转地址必须使用 127.0.0.1 或 localhost');
+    if (baseUrl.username || baseUrl.password) throw new Error('本机中转地址不得包含凭据');
+    this.baseUrl = new URL(baseUrl.href.endsWith('/') ? baseUrl.href : `${baseUrl.href}/`);
+    this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
+    this.sessionToken = options.sessionToken;
+  }
+
+  async createSession(password: string) {
+    const payload = await this.request<{ token: string; expiresIn: number }>('v1/relay/session', { method: 'POST', body: JSON.stringify({ password }), authenticated: false });
+    if (!payload.token) throw new Error('本机中转服务未返回会话令牌');
+    this.sessionToken = payload.token;
+    return payload;
+  }
+
+  async listProviders() {
+    return this.request<RelayProviderDirectory>('v1/relay/providers', { method: 'GET', authenticated: true });
+  }
+
+  async listModels(providerId: string) {
+    return this.request<{ models: string[]; defaultModel: string }>(`v1/relay/providers/${encodeURIComponent(providerId)}/models`, { method: 'GET', authenticated: true });
+  }
+
+  async generate(providerId: string, request: AiGenerateRequest & { model: string }) {
+    if (!request.confirmed || !request.redacted || !request.redactedContent.trim()) throw new Error('必须先确认脱敏内容');
+    if (request.redactedContent.length > AI_MAX_CONTENT_LENGTH) throw new Error(`已脱敏内容不能超过 ${AI_MAX_CONTENT_LENGTH} 个字符`);
+    if (!request.model.trim() || request.model.length > 200) throw new Error('请选择有效的 AI 模型');
+    if (!request.purpose.trim() || request.purpose.length > 200) throw new Error('AI 处理用途无效');
+    if (request.guidance && request.guidance.length > AI_MAX_GUIDANCE_LENGTH) throw new Error(`润色指引不能超过 ${AI_MAX_GUIDANCE_LENGTH} 个字符`);
+    return this.request<AiGenerateResponse>(`v1/relay/providers/${encodeURIComponent(providerId)}/generate`, { method: 'POST', authenticated: true, body: JSON.stringify(request) });
+  }
+
+  private async request<T>(path: string, options: { method: 'GET' | 'POST'; body?: string; authenticated: boolean }): Promise<T> {
+    if (options.authenticated && !this.sessionToken) throw new Error('请先输入密码解锁本机中转站');
+    let response: Response;
+    try {
+      response = await this.fetcher(new URL(path, this.baseUrl), {
+        method: options.method,
+        body: options.body,
+        redirect: 'error',
+        signal: AbortSignal.timeout(60_000),
+        headers: { ...(options.body ? { 'content-type': 'application/json' } : {}), ...(this.sessionToken ? { 'x-relay-session': this.sessionToken } : {}) }
+      });
+    } catch (error) { throw transportFailure('本机中转站', error); }
+    if (!response.ok) throw await responseError(response, '本机中转请求失败');
+    const text = await readLimitedResponseText(response);
+    try { return JSON.parse(text) as T; }
+    catch { throw new Error('本机中转服务返回了无效 JSON'); }
   }
 }
