@@ -54,6 +54,8 @@ test('AI compact mode keeps consent controls while history and downloads remain 
   assert.match(app, /中转站密码（仅当前会话）/, 'relay password must be explicitly session-only');
   assert.match(app, /解锁并刷新站点/, 'relay providers must require an explicit unlock action');
   assert.match(app, /刷新站点/, 'relay provider metadata refresh must remain user-triggered');
+  assert.match(app, /Chrome 会询问是否允许“本地网络访问”/, 'the relay UI must explain Chrome local-network permission before unlock');
+  assert.match(app, /打开本机管理页/, 'the relay admin must remain reachable before unlock');
   assert.doesNotMatch(app, /localStorage[^\n]*relay|relay[^\n]*localStorage/i, 'relay passwords and sessions must remain in component memory');
   assert.match(app, /!compact && <AiHistoryPanel/, 'full AI workspace must expose local history without crowding the compact panel');
   assert.match(app, /HxHwang-Gw-\$\{__APP_VERSION__\}-\$\{edition\}-arm64-setup\.exe/, 'download center must expose versioned Windows ARM64 assets');

@@ -14,6 +14,7 @@ export interface AiProviderPreset { id: string; label: string; baseUrl: string; 
 export const AI_MAX_CONTENT_LENGTH = 120_000;
 export const AI_MAX_GUIDANCE_LENGTH = 20_000;
 const AI_MAX_RESPONSE_BYTES = 2_000_000;
+type LocalNetworkRequestInit = RequestInit & { targetAddressSpace?: 'public' | 'local' | 'loopback' };
 
 export function composeAiSystemPrompt(purpose: string, guidance?: string) {
   const base = `当前任务用途：${purpose.trim()}。只处理用户确认的脱敏材料，不得编造事实；无法确认的信息必须明确标注。`;
@@ -52,10 +53,40 @@ export function extractOpenAiText(payload: unknown): string {
 
 function transportFailure(label: string, error: unknown) {
   if (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name)) return new Error(`${label}请求超时，请检查服务状态和网络连接`);
-  const cause = `${label}无法访问。浏览器可能因 CORS、Private Network Access、证书或地址错误阻止请求；`;
+  const cause = `${label}无法访问。浏览器可能因 CORS、本地网络访问权限、证书或地址错误阻止请求；`;
   return new Error(label === '本机中转站'
     ? `${cause}请确认本机中转服务已启动并允许当前网页来源。`
     : `${cause}请检查服务商地址和证书；若服务商不允许浏览器直连，请改用本机中转。`);
+}
+
+function loopbackRequestInit(url: URL, init: RequestInit): LocalNetworkRequestInit {
+  const requestInit: LocalNetworkRequestInit = { ...init };
+  if (['127.0.0.1', 'localhost'].includes(url.hostname)) requestInit.targetAddressSpace = 'loopback';
+  return requestInit;
+}
+
+async function localNetworkPermissionState(): Promise<PermissionState | undefined> {
+  if (typeof navigator === 'undefined' || !navigator.permissions?.query) return undefined;
+  for (const name of ['loopback-network', 'local-network-access']) {
+    try {
+      return (await navigator.permissions.query({ name } as PermissionDescriptor)).state;
+    } catch {
+      // Chromium currently keeps the legacy alias while the fine-grained name rolls out.
+    }
+  }
+  return undefined;
+}
+
+async function relayTransportFailure(error: unknown) {
+  if (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name)) return transportFailure('本机中转站', error);
+  const permission = await localNetworkPermissionState();
+  if (permission === 'denied') {
+    return new Error('浏览器已拒绝当前网页访问本机中转站。请在地址栏的网站设置中把“本地网络访问”改为“允许”，刷新页面后重新解锁。');
+  }
+  if (permission === 'prompt') {
+    return new Error('浏览器尚未允许当前网页访问本机中转站。点击解锁后请在“本地网络访问”提示中选择“允许”；若没有弹窗，请在地址栏的网站设置中手动允许后刷新。');
+  }
+  return transportFailure('本机中转站', error);
 }
 
 async function responseError(response: Response, prefix: string) {
@@ -209,14 +240,15 @@ export class DirectAiClient {
 
   private async request<T>(resource: 'models' | 'chat/completions', init: { method: 'GET' | 'POST'; body?: string }): Promise<T> {
     let response: Response;
+    const url = resolveOpenAiEndpoint(this.baseUrl, resource);
     try {
-      response = await this.fetcher(resolveOpenAiEndpoint(this.baseUrl, resource), {
+      response = await this.fetcher(url, loopbackRequestInit(url, {
         method: init.method,
         body: init.body,
         redirect: 'error',
         signal: AbortSignal.timeout(60_000),
         headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}) }
-      });
+      }));
     } catch (error) { throw transportFailure('AI 服务', error); }
     if (!response.ok) throw await responseError(response, 'AI 服务请求失败');
     const text = await readLimitedResponseText(response);
@@ -266,15 +298,16 @@ export class RelayAiClient {
   private async request<T>(path: string, options: { method: 'GET' | 'POST'; body?: string; authenticated: boolean }): Promise<T> {
     if (options.authenticated && !this.sessionToken) throw new Error('请先输入密码解锁本机中转站');
     let response: Response;
+    const url = new URL(path, this.baseUrl);
     try {
-      response = await this.fetcher(new URL(path, this.baseUrl), {
+      response = await this.fetcher(url, loopbackRequestInit(url, {
         method: options.method,
         body: options.body,
         redirect: 'error',
         signal: AbortSignal.timeout(60_000),
         headers: { ...(options.body ? { 'content-type': 'application/json' } : {}), ...(this.sessionToken ? { 'x-relay-session': this.sessionToken } : {}) }
-      });
-    } catch (error) { throw transportFailure('本机中转站', error); }
+      }));
+    } catch (error) { throw await relayTransportFailure(error); }
     if (!response.ok) throw await responseError(response, '本机中转请求失败');
     const text = await readLimitedResponseText(response);
     try { return JSON.parse(text) as T; }

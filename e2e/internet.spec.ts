@@ -132,6 +132,8 @@ test('unlocks local mystery providers, refreshes their revision and proxies only
   await page.getByRole('button', { name: 'AI 助手' }).click();
   expect(relayRequests).toEqual([]);
   await page.getByLabel('服务商预设').selectOption('relay');
+  await expect(page.getByText(/Chrome 会询问是否允许“本地网络访问”/)).toBeVisible();
+  await expect(page.getByRole('link', { name: '打开本机管理页' })).toHaveAttribute('href', 'http://127.0.0.1:8787/relay-admin');
   await page.getByLabel('中转站密码（仅当前会话）').fill('browser-memory-password');
   expect(relayRequests).toEqual([]);
   await page.getByRole('button', { name: '解锁并刷新站点' }).click();

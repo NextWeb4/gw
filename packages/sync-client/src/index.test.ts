@@ -107,7 +107,7 @@ describe('private sync client', () => {
   it('turns browser transport failures into an actionable CORS diagnostic', async () => {
     const fetcher = vi.fn<typeof fetch>(async () => { throw new TypeError('Failed to fetch'); });
     const client = new DirectAiClient({ baseUrl: 'https://relay.example/v1', apiKey: 'memory-only', fetcher });
-    await expect(client.listModels()).rejects.toThrow(/CORS.*Private Network Access.*证书.*地址错误.*改用本机中转/);
+    await expect(client.listModels()).rejects.toThrow(/CORS.*本地网络访问权限.*证书.*地址错误.*改用本机中转/);
   });
 
   it('accepts common relay model-list shapes in direct desktop mode', async () => {
@@ -128,10 +128,25 @@ describe('private sync client', () => {
     await expect(client.listProviders()).resolves.toMatchObject({ revision: 'rev-1', providers: [{ id: 'mystery-01' }] });
     await expect(client.listModels('mystery-01')).resolves.toEqual({ models: ['relay-model'], defaultModel: 'relay-model' });
     await expect(client.generate('mystery-01', { model: 'relay-model', redactedContent: '已脱敏材料', redacted: true, confirmed: true, purpose: '润色' })).resolves.toMatchObject({ result: { choices: expect.any(Array) } });
+    expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ targetAddressSpace: 'loopback' });
     expect(fetcher.mock.calls[1]?.[1]?.headers).toMatchObject({ 'x-relay-session': 'relay-session' });
     expect(String(fetcher.mock.calls[2]?.[0])).toContain('/v1/relay/providers/mystery-01/models');
     const generatedBody = JSON.parse(String(fetcher.mock.calls[3]?.[1]?.body));
     expect(generatedBody).toMatchObject({ model: 'relay-model', redactedContent: '已脱敏材料', confirmed: true, redacted: true });
+  });
+
+  it('explains how to recover when Chrome denies loopback network permission', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => { throw new TypeError('Failed to fetch'); });
+    const query = vi.fn(async () => ({ state: 'denied' }));
+    vi.stubGlobal('navigator', { permissions: { query } });
+    try {
+      const client = new RelayAiClient({ baseUrl: 'http://127.0.0.1:8787', fetcher });
+      await expect(client.createSession('local-password')).rejects.toThrow(/网站设置.*本地网络访问.*允许.*刷新/);
+      expect(query).toHaveBeenCalled();
+      expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ targetAddressSpace: 'loopback' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('appends bounded user guidance to the system prompt without touching the material', async () => {

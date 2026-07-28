@@ -72,6 +72,22 @@
 - 联网变化：仅新增用户主动点击 GitHub Release 下载链接；AI、同步和页面加载的自动联网边界不变。
 - 回滚：删除 `ai-history` UI/设置记录、预制 JSON、拖拽事件与下载中心即可回退；历史为普通本机设置记录，不需要数据库 schema 回滚。
 
+## v0.6.1 Chrome Local Network Access 兼容审计
+
+问题本质：公开 Pages 是公网安全上下文，`127.0.0.1` 是回环地址。Chrome 142+ 在 Fetch 真正到达 Fastify/CORS/密码路由前先检查 Local Network Access；因此权限拒绝会表现为网络级 `TypeError: Failed to fetch`，后端无法通过修改模型解析或密码逻辑修复。
+
+| 方案名称 | 来源 | 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与当前项目的契合度 | 可能冲突点 | 是否采用 | 采用方式 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Fetch `targetAddressSpace: 'loopback'` | [WICG Local Network Access](https://wicg.github.io/local-network-access/) | W3C 文档许可 / Web 标准 | 明确声明请求目标为回环地址空间 | 无依赖、旧浏览器忽略未知字典项、符合 Chrome 新权限模型 | 仍必须由用户授权 | 2026-07-06 草案持续更新 | 高 | 不能误写为 `local`，否则 Chrome 会因实际地址为 `loopback` 拒绝 | 采用 | 只对 `127.0.0.1`/`localhost` 的 AI Fetch 增加标注 |
+| Permissions API 读取权限状态 | Web Permissions API / Chromium 兼容别名 | Web 标准 | 在网络失败后区分 `denied`、`prompt` 与其他故障 | 可给出准确恢复步骤；不主动联网 | 权限名称仍处于细化迁移期 | Chrome 同时支持细粒度名称与旧别名 | 高 | 不得在页面加载时主动请求权限 | 采用 | 失败后先查 `loopback-network`，不支持时回退 `local-network-access` |
+| 浏览器扩展、启动参数或企业策略预授权 | Chrome 管理能力 | 浏览器/管理员配置 | 跳过普通用户提示 | 自动化环境方便 | 普通 Pages 无权配置；会绕过用户安全决策 | 浏览器外部能力 | 低 | 与显式授权和公开部署边界冲突 | 不采用 | 仅测试通过 Playwright 临时授予权限，不进入产品 |
+| 为回环服务部署自签 HTTPS | 本机证书方案 | 取决于证书工具 | 让本机服务使用 TLS | 可用于受管设备 | 证书安装、信任与轮换成本高；LNA 权限仍存在 | 成熟但运维复杂 | 低 | 超出本机一键启动目标，易制造证书告警 | 不采用 | 保留回环 HTTP；桌面版作为浏览器限制下的替代路径 |
+
+- 直接复用：浏览器 Fetch 与 Permissions API；没有新增 npm 包。
+- 只借鉴：Chrome 官方权限恢复文案；产品不尝试操控浏览器权限 UI。
+- 保留：Fastify 精确 Origin CORS、临时 relay session、AES-256-GCM 配置、逐次脱敏确认和显式联网按钮。
+- 回滚：移除请求标注与权限诊断即可回到 v0.6.0；不涉及业务数据或后端协议迁移。
+
 ## v0.6.0 本机中转站与神秘站点方案审计
 
 | 方案名称 | 来源 | 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与当前项目的契合度 | 可能冲突点 | 是否采用 | 采用方式 |
