@@ -10,6 +10,7 @@
 - 方案复核了 `jlcodes99/cockpit-tools` 提交 `923cc6c` 中 Codex 的 Base URL + `/models` 与 Claude Gateway 的 `/v1/models` 两条链路。该项目采用 `CC BY-NC-SA 4.0`，本项目仅借鉴协议行为，没有复制源码、预设、文案或数据，也没有新增依赖。
 - 工作区版本升至 `0.6.4`，私有服务端升至 `0.2.2`。页面加载、选择中转入口和填写密码仍为零请求；只有显式解锁、刷新、获取模型或确认生成才联网。
 - 2026-07-29 本机回归已通过：服务端 lint、格式检查、30 项集成测试（另有 2 项 PostgreSQL 条件测试跳过）和构建；客户端 lint、格式检查、全部单元/契约测试、主 E2E 57 项通过/7 项条件跳过、互联网 E2E 3 项、内网 E2E 2 项及生产构建。管理页在 1440×900 与 390×844 下验证三种 API 路径选项和零页面级横向溢出。当前本机没有启用真实第三方 provider，真实站点连通性仍需由用户配置后验证。
+- [服务端 run 30468673475](https://github.com/NextWeb4/hxhwang-gw-server/actions/runs/30468673475)、[Pages run 30468731438](https://github.com/NextWeb4/gw/actions/runs/30468731438) 和 [desktop run 30468732985](https://github.com/NextWeb4/gw/actions/runs/30468732985) 均已成功。线上 bundle 已核对为 `0.6.4`；[v0.6.4 Release](https://github.com/NextWeb4/gw/releases/tag/v0.6.4) 包含 12 个互联网/内网、Windows/Linux、x64/arm64 安装包和 `SHA256SUMS.txt`，校验文件含 12 条有效记录。
 
 ## v0.6.3
 
