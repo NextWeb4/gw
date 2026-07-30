@@ -333,7 +333,8 @@ function App() {
       setToast(error instanceof Error ? `删除失败：${error.message}` : '删除失败');
     }
   };
-  const saveAiHistory = async (entry: AiHistoryEntry) => {
+  const saveAiHistory = async (entry: AiHistoryEntry, isCurrent: () => boolean = () => true) => {
+    if (!isCurrent()) return false;
     const answerLimit = 200_000;
     const stored: AiHistoryEntry = {
       ...entry,
@@ -342,9 +343,12 @@ function App() {
       ...(entry.answer.length > answerLimit ? { answerTruncated: true } : {})
     };
     await putRecord('setting', stored.id, { type: 'ai-history', ...stored });
+    if (!isCurrent()) { await removeRecord(stored.id); return false; }
     const retained = [stored, ...aiHistory.filter((item) => item.id !== stored.id)].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
     for (const expired of retained.slice(200)) await removeRecord(expired.id);
+    if (!isCurrent()) { await removeRecord(stored.id); return false; }
     setAiHistory(retained.slice(0, 200));
+    return true;
   };
   const deleteAiHistory = async (entry: AiHistoryEntry) => {
     if (!window.confirm(`确认删除 ${entry.createdAt.slice(0, 10)} 的 AI 历史？`)) return;
@@ -1215,7 +1219,7 @@ function ReusableField({ label, value, suggestions, onChange, onRemember }: { la
 }
 function TextArea({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) { return <label className="field"><span>{label}</span><textarea value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} /></label>; }
 function SelectField({ label, value, options, onChange }: { label: string; value: string; options: Array<string | { value: string; label: string }>; onChange: (value: string) => void }) { return <label className="field"><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => { const normalized = typeof option === 'string' ? { value: option, label: option } : option; return <option value={normalized.value} key={normalized.value}>{normalized.label}</option>; })}</select></label>; }
-function useLatestModelRequest() {
+function useLatestRequest() {
   const runIdRef = useRef(0);
   const controllerRef = useRef<AbortController | undefined>(undefined);
   const [loading, setLoading] = useState(false);
@@ -1252,6 +1256,13 @@ function ModelRequestControl({ loading, modelCount, initialLabel, refreshLabel, 
     <button type="button" className="secondary-button" aria-busy={loading} disabled={disabled || loading} onClick={onRequest}>{loading ? <RefreshCw size={16} className="model-request-spinner" /> : <Bot size={16} />}{loading ? activeLabel : modelCount ? refreshLabel : initialLabel}</button>
     {loading && <button type="button" className="text-button model-request-stop" onClick={onCancel}><X size={14} />停止等待</button>}
     {loading && modelCount > 0 && <small role="status">当前 {modelCount} 个模型继续可用，成功后再更新</small>}
+  </div>;
+}
+function AiGenerationControl({ loading, disabled, idleLabel, onRequest, onCancel }: { loading: boolean; disabled: boolean; idleLabel: string; onRequest: () => void; onCancel: () => void }) {
+  return <div className="ai-generation-control">
+    <button type="button" className="primary-button" aria-busy={loading} disabled={disabled || loading} onClick={onRequest}>{loading ? <RefreshCw size={16} className="model-request-spinner" /> : <Sparkles size={16} />}{loading ? '正在生成结果' : idleLabel}</button>
+    {loading && <button type="button" className="text-button model-request-stop" onClick={onCancel}><X size={14} />停止等待生成结果</button>}
+    {loading && <small role="status">请求完成前保留上次成功结果；停止等待后迟到响应不会写入结果或历史。</small>}
   </div>;
 }
 function AttachmentField({ ids, attachments, onAttach, onRemove }: { ids: string[]; attachments: Attachment[]; onAttach: (files: FileList) => void; onRemove: (id: string) => void }) { const selected = ids.map((id) => attachments.find((attachment) => attachment.id === id)).filter((attachment): attachment is Attachment => Boolean(attachment)); return <div className="attachment-field"><div className="attachment-heading"><span>附件</span><small>单个文件不超过 8 MB，仅保存在本机</small></div>{selected.length > 0 && <div className="attachment-list">{selected.map((attachment) => <div className="attachment-row" key={attachment.id}><FileText size={14} /><span>{attachment.name}</span><small>{formatBytes(attachment.size)}</small><button type="button" className="icon-button" title={`下载附件 ${attachment.name}`} disabled={attachment.data === undefined} onClick={() => downloadStoredAttachment(attachment)}><ArrowDownToLine size={14} /></button><button type="button" className="icon-button danger-icon" title={`解除关联 ${attachment.name}`} onClick={() => onRemove(attachment.id)}><X size={14} /></button></div>)}</div>}<label className="attachment-picker"><Upload size={15} /><span>选择附件</span><input type="file" multiple onChange={(event) => { if (event.target.files?.length) onAttach(event.target.files); event.currentTarget.value = ''; }} /></label></div>; }
@@ -1649,7 +1660,7 @@ function AiWorkflowProgress({ connectionReady, materialReady, redactionReady, re
   </ol>;
 }
 
-function AiHub({ distribution, compact, workspace, attachments, prefill, skills, history, onSaveHistory, onDeleteHistory, onClearHistory, onSaveSkill, onDeleteSkill, onReload, setToast }: { distribution: 'public' | 'intranet' | 'internet'; compact: boolean; workspace: AiWorkspaceData; attachments: Attachment[]; prefill: AiPrefill | null; skills: AiSkill[]; history: AiHistoryEntry[]; onSaveHistory: (entry: AiHistoryEntry) => Promise<void>; onDeleteHistory: (entry: AiHistoryEntry) => Promise<void>; onClearHistory: () => Promise<void>; onSaveSkill: (name: string, content: string) => Promise<boolean>; onDeleteSkill: (skill: AiSkill) => Promise<void>; onReload: () => Promise<void>; setToast: (text: string) => void }) {
+function AiHub({ distribution, compact, workspace, attachments, prefill, skills, history, onSaveHistory, onDeleteHistory, onClearHistory, onSaveSkill, onDeleteSkill, onReload, setToast }: { distribution: 'public' | 'intranet' | 'internet'; compact: boolean; workspace: AiWorkspaceData; attachments: Attachment[]; prefill: AiPrefill | null; skills: AiSkill[]; history: AiHistoryEntry[]; onSaveHistory: (entry: AiHistoryEntry, isCurrent?: () => boolean) => Promise<boolean>; onDeleteHistory: (entry: AiHistoryEntry) => Promise<void>; onClearHistory: () => Promise<void>; onSaveSkill: (name: string, content: string) => Promise<boolean>; onDeleteSkill: (skill: AiSkill) => Promise<void>; onReload: () => Promise<void>; setToast: (text: string) => void }) {
   const detail = distribution === 'intranet'
     ? '通过单位内部网关同步业务数据并调用内部模型；密钥始终保存在服务端，每次发送前都需脱敏确认。'
     : '内置常用服务商地址，填入自己的 API Key 即可总结、提纲与润色；Key 只保留在当前会话，发送前逐次脱敏确认。';
@@ -1716,7 +1727,7 @@ function SkillManager({ skills, onSaveSkill, onDeleteSkill, setToast }: { skills
   </section>;
 }
 
-function IntranetServices({ compact, workspace, attachments, prefill, skills, onSaveHistory, onReload, setToast }: { compact: boolean; workspace: AiWorkspaceData; attachments: Attachment[]; prefill: AiPrefill | null; skills: AiSkill[]; onSaveHistory: (entry: AiHistoryEntry) => Promise<void>; onReload: () => Promise<void>; setToast: (text: string) => void }) {
+function IntranetServices({ compact, workspace, attachments, prefill, skills, onSaveHistory, onReload, setToast }: { compact: boolean; workspace: AiWorkspaceData; attachments: Attachment[]; prefill: AiPrefill | null; skills: AiSkill[]; onSaveHistory: (entry: AiHistoryEntry, isCurrent?: () => boolean) => Promise<boolean>; onReload: () => Promise<void>; setToast: (text: string) => void }) {
   const [baseUrl, setBaseUrl] = useState('http://127.0.0.1:8787');
   const [accessCode, setAccessCode] = useState('');
   const [client, setClient] = useState<PrivateSyncClient | null>(null);
@@ -1729,7 +1740,8 @@ function IntranetServices({ compact, workspace, attachments, prefill, skills, on
   const [skillId, setSkillId] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [aiResult, setAiResult] = useState<unknown>();
-  const modelRequest = useLatestModelRequest();
+  const modelRequest = useLatestRequest();
+  const generationRequest = useLatestRequest();
   const effectiveGuidanceId = resolveGuidance(skillId, skills)?.id || '';
   const selectedGuidance = resolveGuidance(effectiveGuidanceId, skills);
   useEffect(() => {
@@ -1741,10 +1753,11 @@ function IntranetServices({ compact, workspace, attachments, prefill, skills, on
     setRedactedContent('');
     setConfirmed(false);
     setAiResult(undefined);
+    generationRequest.invalidate();
     setToast(!content ? '所选素材为空，可直接粘贴材料' : content.length > AI_MAX_CONTENT_LENGTH ? `素材已载入并截取前 ${AI_MAX_CONTENT_LENGTH} 个字符` : '素材已载入，请生成脱敏预览并逐次确认');
     // 仅在收到新的 AI 助手请求（nonce 变化）时载入素材
   }, [prefill?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
-  const invalidateAiResult = () => { setConfirmed(false); setAiResult(undefined); };
+  const invalidateAiResult = () => { generationRequest.invalidate(); setConfirmed(false); setAiResult(undefined); };
   const resetModels = () => { modelRequest.invalidate(); setModels([]); setModel(''); invalidateAiResult(); };
   const changeBaseUrl = (value: string) => { setBaseUrl(value); setClient(null); resetModels(); };
   const connect = async () => { resetModels(); setClient(null); try { const next = new PrivateSyncClient({ baseUrl }); await next.createSession(accessCode); setClient(next); setAccessCode(''); setToast('内网会话已建立，访问码未保存'); } catch (error) { setToast(error instanceof Error ? error.message : '连接失败'); } };
@@ -1767,9 +1780,35 @@ function IntranetServices({ compact, workspace, attachments, prefill, skills, on
     } finally { modelRequest.finish(runId); }
   };
   const cancelModelRequest = () => { if (modelRequest.cancel()) setToast('已停止等待；当前模型目录保持不变'); };
-  const loadMaterial = () => { const content = buildAiWorkspaceMaterial(materialSource, workspace); if (!content) return setToast('所选本机素材为空'); setRedactionSource(content.slice(0, AI_MAX_CONTENT_LENGTH)); setRedactedContent(''); setConfirmed(false); setAiResult(undefined); setToast(content.length > AI_MAX_CONTENT_LENGTH ? `素材已载入并截取前 ${AI_MAX_CONTENT_LENGTH} 个字符` : '本机素材已载入'); };
-  const previewRedaction = () => { if (!redactionSource.trim()) return setToast('请先填写待处理材料'); if (redactionSource.length > AI_MAX_CONTENT_LENGTH) return setToast(`待处理材料不能超过 ${AI_MAX_CONTENT_LENGTH} 个字符`); setRedactedContent(redactSensitiveContent(redactionSource)); setConfirmed(false); setAiResult(undefined); };
-  const sendAi = async () => { if (!client) return setToast('请先建立内网会话'); if (!redactedContent) return setToast('请先生成并检查脱敏预览'); if (!confirmed) return setToast('请勾选本次发送确认'); try { const response = await client.generate({ redactedContent, redacted: true, confirmed: true, purpose, model: model || undefined, guidance: selectedGuidance?.content }); const answer = extractOpenAiText(response); const changes = buildAiFieldChanges(prefill?.changeContext, redactedContent, answer); setAiResult(response); setConfirmed(false); if (answer) await onSaveHistory(createAiHistoryEntry({ source: 'intranet', purpose, provider: '内部 AI 网关', model: response.audit?.model || model || '服务端默认', skillName: selectedGuidance?.name || '', targetLabel: prefill?.changeContext?.targetLabel || '本机材料', input: redactedContent, answer, changes })); setToast(answer ? '内部 AI 结果已返回并保存到本机历史；原稿未被覆盖' : '内部 AI 结果已返回；原稿未被覆盖'); } catch (error) { setToast(error instanceof Error ? error.message : 'AI 请求失败'); } };
+  const loadMaterial = () => { const content = buildAiWorkspaceMaterial(materialSource, workspace); if (!content) return setToast('所选本机素材为空'); setRedactionSource(content.slice(0, AI_MAX_CONTENT_LENGTH)); setRedactedContent(''); invalidateAiResult(); setToast(content.length > AI_MAX_CONTENT_LENGTH ? `素材已载入并截取前 ${AI_MAX_CONTENT_LENGTH} 个字符` : '本机素材已载入'); };
+  const previewRedaction = () => { if (!redactionSource.trim()) return setToast('请先填写待处理材料'); if (redactionSource.length > AI_MAX_CONTENT_LENGTH) return setToast(`待处理材料不能超过 ${AI_MAX_CONTENT_LENGTH} 个字符`); setRedactedContent(redactSensitiveContent(redactionSource)); invalidateAiResult(); };
+  const sendAi = async () => {
+    if (!client) return setToast('请先建立内网会话');
+    if (!redactedContent) return setToast('请先生成并检查脱敏预览');
+    if (!confirmed) return setToast('请勾选本次发送确认');
+    const requestInput = redactedContent;
+    const requestPurpose = purpose;
+    const requestModel = model;
+    const requestGuidance = selectedGuidance;
+    const requestContext = prefill?.changeContext;
+    setToast('');
+    const { runId, signal } = generationRequest.begin();
+    setConfirmed(false);
+    try {
+      const response = await client.generate({ redactedContent: requestInput, redacted: true, confirmed: true, purpose: requestPurpose, model: requestModel || undefined, guidance: requestGuidance?.content }, signal);
+      if (!generationRequest.isCurrent(runId)) return;
+      const answer = extractOpenAiText(response);
+      const nextChanges = buildAiFieldChanges(requestContext, requestInput, answer);
+      if (answer) await onSaveHistory(createAiHistoryEntry({ source: 'intranet', purpose: requestPurpose, provider: '内部 AI 网关', model: response.audit?.model || requestModel || '服务端默认', skillName: requestGuidance?.name || '', targetLabel: requestContext?.targetLabel || '本机材料', input: requestInput, answer, changes: nextChanges }), () => generationRequest.isCurrent(runId));
+      if (!generationRequest.isCurrent(runId)) return;
+      setAiResult(response);
+      setToast(answer ? '内部 AI 结果已返回并保存到本机历史；原稿未被覆盖' : '内部 AI 结果已返回；原稿未被覆盖');
+    } catch (error) {
+      if (!generationRequest.isCurrent(runId)) return;
+      setToast(error instanceof Error ? error.message : 'AI 请求失败');
+    } finally { generationRequest.finish(runId); }
+  };
+  const cancelGeneration = () => { if (generationRequest.cancel()) setToast('已停止等待；上次成功结果保持不变'); };
   const resultText = extractOpenAiText(aiResult);
   const changes = buildAiFieldChanges(prefill?.changeContext, redactedContent, resultText);
   const connectionForm = <><Field label="内部 API 地址" value={baseUrl} onChange={changeBaseUrl} placeholder="https://intranet.example/api" /><Field label="一次性访问码" type="password" value={accessCode} onChange={setAccessCode} /><div className="button-row"><button className="secondary-button" onClick={() => void connect()}><Server size={16} />建立会话</button>{!compact && <button className="primary-button" disabled={!client} onClick={() => void sync()}><RefreshCw size={16} />同步全部业务数据</button>}</div><p className="service-note">模型服务由内网后台配置；访问码只用于当前会话，不会写入本机历史。</p></>;
@@ -1784,14 +1823,14 @@ function IntranetServices({ compact, workspace, attachments, prefill, skills, on
       {compact && prefill ? <p className="ai-ready-summary"><FileText size={14} />已载入：{prefill.changeContext?.targetLabel || '当前页面材料'}</p> : <div className="material-source-row"><SelectField label="本机素材" value={materialSource} options={aiSourceOptions} onChange={(value) => { setMaterialSource(value); invalidateAiResult(); }} /><button className="secondary-button" onClick={loadMaterial}><FileText size={15} />载入素材</button></div>}
       <TextArea label="待处理材料" value={redactionSource} onChange={(value) => { setRedactionSource(value); setRedactedContent(''); invalidateAiResult(); }} placeholder="粘贴待脱敏材料" />
       <button className="secondary-button" onClick={previewRedaction}><ShieldCheck size={16} />生成脱敏预览</button>
-      {redactedContent && <><TextArea label="脱敏预览（可继续修改）" value={redactedContent} onChange={(value) => { setRedactedContent(value); invalidateAiResult(); }} /><ConfirmationCheck checked={confirmed} onChange={setConfirmed} label="我确认本次材料已脱敏且允许发送到内部模型" /><button className="primary-button" disabled={!client || !confirmed} onClick={() => void sendAi()}><Sparkles size={16} />确认发送到内部 AI</button></>}
+      {redactedContent && <><TextArea label="脱敏预览（可继续修改）" value={redactedContent} onChange={(value) => { setRedactedContent(value); invalidateAiResult(); }} /><ConfirmationCheck checked={confirmed} disabled={generationRequest.loading} onChange={setConfirmed} label="我确认本次材料已脱敏且允许发送到内部模型" /><AiGenerationControl loading={generationRequest.loading} disabled={!client || !confirmed} idleLabel="确认发送到内部 AI" onRequest={() => void sendAi()} onCancel={cancelGeneration} /></>}
       {aiResult !== undefined && <AiResult result={aiResult} text={resultText} changes={changes} setToast={setToast} />}
       <p className="service-note">每次请求仍必须检查脱敏预览并逐次确认；AI 输出只读展示并保存到当前客户端历史，不覆盖原稿。</p>
     </div>
   </section>;
 }
 
-function InternetAiServices({ compact, workspace, publicMode, prefill, skills, onSaveHistory, setToast }: { compact: boolean; workspace: AiWorkspaceData; publicMode: boolean; prefill: AiPrefill | null; skills: AiSkill[]; onSaveHistory: (entry: AiHistoryEntry) => Promise<void>; setToast: (text: string) => void }) {
+function InternetAiServices({ compact, workspace, publicMode, prefill, skills, onSaveHistory, setToast }: { compact: boolean; workspace: AiWorkspaceData; publicMode: boolean; prefill: AiPrefill | null; skills: AiSkill[]; onSaveHistory: (entry: AiHistoryEntry, isCurrent?: () => boolean) => Promise<boolean>; setToast: (text: string) => void }) {
   const defaultPreset = AI_PROVIDER_PRESETS.find((preset) => preset.id === 'deepseek')!;
   const [providerId, setProviderId] = useState(defaultPreset.id);
   const [baseUrl, setBaseUrl] = useState(defaultPreset.baseUrl);
@@ -1810,7 +1849,8 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
   const [redactedContent, setRedactedContent] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [aiResult, setAiResult] = useState<unknown>();
-  const modelRequest = useLatestModelRequest();
+  const modelRequest = useLatestRequest();
+  const generationRequest = useLatestRequest();
   const relayMode = providerId === 'relay' || providerId.startsWith('relay:');
   const selectedRelayProvider = relayProviders.find((provider) => `relay:${provider.id}` === providerId);
   const selectedDirectProvider = AI_PROVIDER_PRESETS.find((preset) => preset.id === providerId) || AI_PROVIDER_PRESETS.at(-1)!;
@@ -1826,9 +1866,10 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
     setRedactedContent('');
     setConfirmed(false);
     setAiResult(undefined);
+    generationRequest.invalidate();
     setToast(!content ? '所选素材为空，可直接粘贴材料' : content.length > AI_MAX_CONTENT_LENGTH ? `素材已载入并截取前 ${AI_MAX_CONTENT_LENGTH} 个字符` : '素材已载入，请生成脱敏预览并逐次确认');
   }, [prefill?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
-  const invalidateAiResult = () => { setConfirmed(false); setAiResult(undefined); };
+  const invalidateAiResult = () => { generationRequest.invalidate(); setConfirmed(false); setAiResult(undefined); };
   const resetModels = () => { modelRequest.invalidate(); setModels([]); setModel(''); invalidateAiResult(); };
   const createClient = () => new DirectAiClient({ baseUrl, apiKey });
   const chooseProvider = (id: string) => {
@@ -1892,25 +1933,42 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
     } finally { modelRequest.finish(runId); }
   };
   const cancelModelRequest = () => { if (modelRequest.cancel()) setToast('已停止等待；当前模型目录保持不变'); };
-  const loadMaterial = () => { const content = buildAiWorkspaceMaterial(materialSource, workspace); if (!content) return setToast('所选本机素材为空'); setRedactionSource(content.slice(0, AI_MAX_CONTENT_LENGTH)); setRedactedContent(''); setConfirmed(false); setAiResult(undefined); setToast(content.length > AI_MAX_CONTENT_LENGTH ? `素材已载入并截取前 ${AI_MAX_CONTENT_LENGTH} 个字符` : '本机素材已载入'); };
-  const previewRedaction = () => { if (!redactionSource.trim()) return setToast('请先填写待处理材料'); if (redactionSource.length > AI_MAX_CONTENT_LENGTH) return setToast(`待处理材料不能超过 ${AI_MAX_CONTENT_LENGTH} 个字符`); setRedactedContent(redactSensitiveContent(redactionSource)); setConfirmed(false); setAiResult(undefined); };
+  const loadMaterial = () => { const content = buildAiWorkspaceMaterial(materialSource, workspace); if (!content) return setToast('所选本机素材为空'); setRedactionSource(content.slice(0, AI_MAX_CONTENT_LENGTH)); setRedactedContent(''); invalidateAiResult(); setToast(content.length > AI_MAX_CONTENT_LENGTH ? `素材已载入并截取前 ${AI_MAX_CONTENT_LENGTH} 个字符` : '本机素材已载入'); };
+  const previewRedaction = () => { if (!redactionSource.trim()) return setToast('请先填写待处理材料'); if (redactionSource.length > AI_MAX_CONTENT_LENGTH) return setToast(`待处理材料不能超过 ${AI_MAX_CONTENT_LENGTH} 个字符`); setRedactedContent(redactSensitiveContent(redactionSource)); invalidateAiResult(); };
   const sendAi = async () => {
     if (!redactedContent) return setToast('请先生成并检查脱敏预览');
     if (!confirmed) return setToast('请勾选本次发送确认');
     if (!model) return setToast('请先获取并选择模型');
+    const requestInput = redactedContent;
+    const requestPurpose = purpose;
+    const requestModel = model;
+    const requestGuidance = selectedGuidance;
+    const requestContext = prefill?.changeContext;
+    const requestProviderLabel = selectedProviderLabel;
+    const requestRelayProvider = selectedRelayProvider;
+    const requestRelayMode = relayMode;
+    setToast('');
+    const { runId, signal } = generationRequest.begin();
+    setConfirmed(false);
     try {
-      const common = { model, redactedContent, redacted: true as const, confirmed: true as const, purpose, ...(selectedGuidance ? { guidance: selectedGuidance.content } : {}) };
-      const result = relayMode
-        ? relayClient && selectedRelayProvider ? await relayClient.generate(selectedRelayProvider.id, common) : undefined
-        : desktopBridge()?.generateAi ? await desktopBridge()!.generateAi({ baseUrl, apiKey, ...common }) : await createClient().generate(common);
+      const common = { model: requestModel, redactedContent: requestInput, redacted: true as const, confirmed: true as const, purpose: requestPurpose, ...(requestGuidance ? { guidance: requestGuidance.content } : {}) };
+      const result = requestRelayMode
+        ? relayClient && requestRelayProvider ? await relayClient.generate(requestRelayProvider.id, common, signal) : undefined
+        : desktopBridge()?.generateAi ? await desktopBridge()!.generateAi({ baseUrl, apiKey, ...common }) : await createClient().generate(common, signal);
+      if (!generationRequest.isCurrent(runId)) return;
       if (result === undefined) return setToast('请重新解锁并选择神秘站点');
       const answer = extractOpenAiText(result);
-      const changes = buildAiFieldChanges(prefill?.changeContext, redactedContent, answer);
-      setAiResult(result); setConfirmed(false);
-      if (answer) await onSaveHistory(createAiHistoryEntry({ source: publicMode ? 'public' : 'internet', purpose, provider: selectedProviderLabel, model, skillName: selectedGuidance?.name || '', targetLabel: prefill?.changeContext?.targetLabel || '本机材料', input: redactedContent, answer, changes }));
+      const nextChanges = buildAiFieldChanges(requestContext, requestInput, answer);
+      if (answer) await onSaveHistory(createAiHistoryEntry({ source: publicMode ? 'public' : 'internet', purpose: requestPurpose, provider: requestProviderLabel, model: requestModel, skillName: requestGuidance?.name || '', targetLabel: requestContext?.targetLabel || '本机材料', input: requestInput, answer, changes: nextChanges }), () => generationRequest.isCurrent(runId));
+      if (!generationRequest.isCurrent(runId)) return;
+      setAiResult(result);
       setToast(answer ? 'AI 结果已返回并保存到本机历史；原稿未被覆盖' : 'AI 结果已返回；原稿未被覆盖');
-    } catch (error) { setToast(error instanceof Error ? error.message : 'AI 请求失败'); }
+    } catch (error) {
+      if (!generationRequest.isCurrent(runId)) return;
+      setToast(error instanceof Error ? error.message : 'AI 请求失败');
+    } finally { generationRequest.finish(runId); }
   };
+  const cancelGeneration = () => { if (generationRequest.cancel()) setToast('已停止等待；上次成功结果保持不变'); };
   const resultText = extractOpenAiText(aiResult);
   const changes = buildAiFieldChanges(prefill?.changeContext, redactedContent, resultText);
   const providerOptions = [
@@ -1938,15 +1996,15 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
       {compact && prefill ? <p className="ai-ready-summary"><FileText size={14} />已载入：{prefill.changeContext?.targetLabel || '当前页面材料'}</p> : <div className="material-source-row"><SelectField label="本机素材" value={materialSource} options={aiSourceOptions} onChange={(value) => { setMaterialSource(value); invalidateAiResult(); }} /><button className="secondary-button" onClick={loadMaterial}><FileText size={15} />载入素材</button></div>}
       <TextArea label="待处理材料" value={redactionSource} onChange={(value) => { setRedactionSource(value); setRedactedContent(''); invalidateAiResult(); }} placeholder="载入本机素材或粘贴自定义材料" />
       <button className="secondary-button" onClick={previewRedaction}><ShieldCheck size={16} />生成脱敏预览</button>
-      {redactedContent && <><TextArea label="脱敏预览（可继续修改）" value={redactedContent} onChange={(value) => { setRedactedContent(value); invalidateAiResult(); }} /><ConfirmationCheck checked={confirmed} onChange={setConfirmed} label="我确认本次材料已脱敏、非涉密且允许发送到所选服务商" /><button className="primary-button" disabled={!confirmed} onClick={() => void sendAi()}><Sparkles size={16} />确认本次 AI 请求</button></>}
+      {redactedContent && <><TextArea label="脱敏预览（可继续修改）" value={redactedContent} onChange={(value) => { setRedactedContent(value); invalidateAiResult(); }} /><ConfirmationCheck checked={confirmed} disabled={generationRequest.loading} onChange={setConfirmed} label="我确认本次材料已脱敏、非涉密且允许发送到所选服务商" /><AiGenerationControl loading={generationRequest.loading} disabled={!confirmed} idleLabel="确认本次 AI 请求" onRequest={() => void sendAi()} onCancel={cancelGeneration} /></>}
       {aiResult !== undefined && <AiResult result={aiResult} text={resultText} changes={changes} setToast={setToast} />}
       <p className="service-note">AI 输出只读展示并保存到当前客户端历史；直连受服务商 CORS 限制，本机中转由当前设备代为访问上游。</p>
     </div>
   </section>;
 }
 
-function ConfirmationCheck({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
-  return <label className="confirmation-check"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /><span>{label}</span></label>;
+function ConfirmationCheck({ checked, onChange, label, disabled = false }: { checked: boolean; onChange: (checked: boolean) => void; label: string; disabled?: boolean }) {
+  return <label className={`confirmation-check ${disabled ? 'disabled' : ''}`}><input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} /><span>{label}</span></label>;
 }
 
 function AiFieldChanges({ changes }: { changes: AiFieldChange[] }) {

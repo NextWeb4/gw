@@ -72,14 +72,15 @@ test('AI compact mode keeps consent controls while history and downloads remain 
   assert.match(app, /HxHwang-Gw-\$\{__APP_VERSION__\}-\$\{edition\}-x86_64\.AppImage/, 'download center must expose versioned Linux x86_64 assets');
 });
 
-test('AI model discovery keeps long catalogs searchable and rejects stale request results', async () => {
+test('AI model discovery and generation share guarded, cancelable request lifecycles', async () => {
   const [app, css, syncClient] = await Promise.all([
     read('apps/web/src/App.tsx'),
     read('apps/web/src/styles.css'),
     read('packages/sync-client/src/index.ts'),
   ]);
 
-  assert.match(app, /function useLatestModelRequest\(\)/, 'model discovery must share one latest-request guard');
+  assert.match(app, /function useLatestRequest\(\)/, 'AI requests must share one latest-request guard');
+  assert.ok((app.match(/const generationRequest = useLatestRequest\(\)/g) || []).length >= 2, 'Internet and intranet generation must each use the shared latest-request guard');
   assert.ok((app.match(/<ModelCatalogField/g) || []).length >= 3, 'Internet, relay and intranet model lists must reuse the searchable catalog field');
   assert.match(app, /aria-label="筛选模型"/, 'large model catalogs must expose a keyboard-accessible filter');
   assert.match(app, /className="model-current-selection"/, 'long selected model IDs must remain readable outside the native select');
@@ -87,6 +88,12 @@ test('AI model discovery keeps long catalogs searchable and rejects stale reques
   assert.match(app, /正在获取模型/, 'model retrieval must expose an explicit busy state');
   assert.match(app, /停止等待/, 'model retrieval must expose an explicit stop-waiting action');
   assert.match(app, /已保留上次模型目录/, 'refresh failures must retain the last successful model catalog');
+  assert.match(app, /function AiGenerationControl/, 'generation must reuse one busy and stop-waiting control');
+  assert.match(app, /正在生成结果/, 'generation must expose an explicit busy state');
+  assert.match(app, /停止等待生成结果/, 'generation must expose an explicit stop-waiting action');
+  assert.match(app, /onSaveHistory\([\s\S]*generationRequest\.isCurrent\(runId\)/, 'history persistence must be guarded by the current generation identity');
+  assert.ok((syncClient.match(/async generate\([^)]*signal\?: AbortSignal\)/g) || []).length >= 2, 'direct and intranet generation must accept caller cancellation');
+  assert.match(syncClient, /async generate\(providerId: string,[\s\S]*signal\?: AbortSignal\)/, 'relay generation must accept caller cancellation');
   assert.match(syncClient, /AbortSignal\.any\(\[signal, timeout\]\)/, 'browser model discovery must combine caller cancellation with the bounded timeout');
   assert.match(css, /\.model-filter-field:focus-within/, 'the model filter must retain a visible keyboard focus state');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.model-filter-field input[^}]*font-size:\s*16px/, 'the narrow model filter must avoid browser zoom and remain readable');
@@ -94,4 +101,5 @@ test('AI model discovery keeps long catalogs searchable and rejects stale reques
   assert.match(css, /\.model-current-selection code[^}]*overflow-wrap:\s*anywhere/, 'long selected model IDs must wrap without widening the page');
   assert.match(css, /\.toast[^}]*pointer-events:\s*none/s, 'transient status messages must not block model controls beneath them');
   assert.match(css, /\.model-request-control[^}]*flex-wrap:\s*wrap/, 'refresh controls must wrap without widening narrow layouts');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.ai-generation-control \.primary-button[^}]*44px/, 'narrow generation controls must keep a 44px touch target');
 });

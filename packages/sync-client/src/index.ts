@@ -177,8 +177,8 @@ export class PrivateSyncClient {
     return this.request<{ conflicts: T[] }>(`v1/sync/${encodeURIComponent(collection)}/push`, { rows });
   }
 
-  async generate(request: AiGenerateRequest) {
-    return this.request<AiGenerateResponse>('v1/ai/generate', request);
+  async generate(request: AiGenerateRequest, signal?: AbortSignal) {
+    return this.request<AiGenerateResponse>('v1/ai/generate', request, timedRequestSignal(signal));
   }
 
   async listModels(signal?: AbortSignal) {
@@ -200,9 +200,9 @@ export class PrivateSyncClient {
     return await response.json() as T;
   }
 
-  private async request<T>(path: string, body: unknown): Promise<T> {
+  private async request<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
     if (!this.sessionToken) throw new Error('同步会话尚未建立');
-    const response = await this.fetcher(new URL(path, this.baseUrl), { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json', 'x-demo-session': this.sessionToken }, body: JSON.stringify(body) });
+    const response = await this.fetcher(new URL(path, this.baseUrl), { method: 'POST', redirect: 'error', signal, headers: { 'content-type': 'application/json', 'x-demo-session': this.sessionToken }, body: JSON.stringify(body) });
     if (!response.ok) throw new Error(`同步请求失败：${response.status}`);
     return await response.json() as T;
   }
@@ -243,7 +243,7 @@ export class DirectAiClient {
     return models;
   }
 
-  async generate(request: AiGenerateRequest & { model: string }) {
+  async generate(request: AiGenerateRequest & { model: string }, signal?: AbortSignal) {
     if (!request.confirmed || !request.redacted || !request.redactedContent.trim()) throw new Error('必须先确认脱敏内容');
     if (request.redactedContent.length > AI_MAX_CONTENT_LENGTH) throw new Error(`已脱敏内容不能超过 ${AI_MAX_CONTENT_LENGTH} 个字符`);
     if (!request.model.trim()) throw new Error('请选择 AI 模型');
@@ -252,6 +252,7 @@ export class DirectAiClient {
     if (request.guidance && request.guidance.length > AI_MAX_GUIDANCE_LENGTH) throw new Error(`润色指引不能超过 ${AI_MAX_GUIDANCE_LENGTH} 个字符`);
     return this.request<unknown>('chat/completions', {
       method: 'POST',
+      signal,
       body: JSON.stringify({ model: request.model.trim(), messages: [{ role: 'system', content: composeAiSystemPrompt(request.purpose, request.guidance) }, { role: 'user', content: request.redactedContent }], temperature: 0.3 })
     });
   }
@@ -304,13 +305,13 @@ export class RelayAiClient {
     return this.request<{ models: string[]; defaultModel: string }>(`v1/relay/providers/${encodeURIComponent(providerId)}/models`, { method: 'GET', authenticated: true, signal });
   }
 
-  async generate(providerId: string, request: AiGenerateRequest & { model: string }) {
+  async generate(providerId: string, request: AiGenerateRequest & { model: string }, signal?: AbortSignal) {
     if (!request.confirmed || !request.redacted || !request.redactedContent.trim()) throw new Error('必须先确认脱敏内容');
     if (request.redactedContent.length > AI_MAX_CONTENT_LENGTH) throw new Error(`已脱敏内容不能超过 ${AI_MAX_CONTENT_LENGTH} 个字符`);
     if (!request.model.trim() || request.model.length > 200) throw new Error('请选择有效的 AI 模型');
     if (!request.purpose.trim() || request.purpose.length > 200) throw new Error('AI 处理用途无效');
     if (request.guidance && request.guidance.length > AI_MAX_GUIDANCE_LENGTH) throw new Error(`润色指引不能超过 ${AI_MAX_GUIDANCE_LENGTH} 个字符`);
-    return this.request<AiGenerateResponse>(`v1/relay/providers/${encodeURIComponent(providerId)}/generate`, { method: 'POST', authenticated: true, body: JSON.stringify(request) });
+    return this.request<AiGenerateResponse>(`v1/relay/providers/${encodeURIComponent(providerId)}/generate`, { method: 'POST', authenticated: true, signal, body: JSON.stringify(request) });
   }
 
   private async request<T>(path: string, options: { method: 'GET' | 'POST'; body?: string; authenticated: boolean; signal?: AbortSignal }): Promise<T> {

@@ -15,7 +15,7 @@
 ![Pages 状态](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![最近提交](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![仓库大小](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![版本](https://img.shields.io/badge/version-0.6.7-0969da?style=flat-square)
+![版本](https://img.shields.io/badge/version-0.6.8-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@
 
 HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联网/内网 Web 构建和互联网/内网 Electron 客户端之间共享同一套领域模型。系统首先把业务数据保存在本地，在构建时隔离不同联网能力，并通过显式适配器提供同步和 AI 请求。
 
-当前发布版本为 `0.6.7`：互联网直连、本机中转和内网模型目录支持显式刷新与停止等待。刷新期间继续使用上次成功目录，短暂失败或取消不会清空当前选择；成功后按服务商原始顺序原子更新，并尽量保留仍存在的当前模型。浏览器请求会主动中止，桌面端迟到结果继续被拒绝。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
+当前发布版本为 `0.6.8`：互联网直连、本机中转、内网和桌面 AI 生成统一使用“仅最新请求有效”的生命周期。提交后显示忙碌态并阻止重复付费请求，用户可停止等待且保留上一条成功结果；浏览器请求接收 `AbortSignal`，桌面 IPC 的迟到结果和失效历史写入会被拒绝。成功、失败、取消或相关输入变化后都必须重新逐次确认。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
 
 公开 Pages 不显示私有同步，但支持完整本机台账、附件、历史 JSON/快照、用户自备 Key 的兼容 AI，以及用户主动解锁的 `127.0.0.1` 本机中转站；页面加载和填写密码不会自动联系中转服务。所有业务数据只进入当前浏览器 IndexedDB。[GitHub Pages](https://nextweb4.github.io/gw/) 仅适合公开、虚构或获准的非敏感材料。
 
@@ -60,7 +60,7 @@ HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联�
 - NSIS 安装包需要 Windows；AppImage/DEB 打包和最终 Linux 兼容性检查需要 Linux。
 - Web 构建需要 Chromium 类浏览器。
 
-仓库版本为 `0.6.7`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
+仓库版本为 `0.6.8`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
 
 ## 安装与运行
 

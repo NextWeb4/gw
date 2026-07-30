@@ -69,6 +69,108 @@ test('does not contact an AI provider until model retrieval and sends only confi
   expect(requests[2]?.url).toBe(`${origin}/provider/v1/chat/completions`);
 });
 
+test('prevents duplicate generation and keeps the last successful result when the user stops waiting', async ({ page }) => {
+  test.setTimeout(45_000);
+  let generationRequests = 0;
+  const delayedResponseMs = 5_000;
+  await page.route('**/generation-provider/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/generation-provider/v1/models') return route.fulfill({ json: { data: [{ id: 'generation-model' }] } });
+    if (path === '/generation-provider/v1/chat/completions') {
+      generationRequests += 1;
+      if (generationRequests === 1) return route.fulfill({ json: { choices: [{ message: { content: '上一条成功结果' } }] } });
+      if (generationRequests === 4) return route.fulfill({ status: 503, json: { error: 'temporary_failure' } });
+      await new Promise((resolve) => setTimeout(resolve, delayedResponseMs));
+      try { await route.fulfill({ json: { choices: [{ message: { content: `迟到结果 ${generationRequests}` } }] } }); } catch { /* Browser request was actively aborted. */ }
+      return;
+    }
+    return route.abort();
+  });
+
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'AI 助手' }).click();
+  const origin = new URL(page.url()).origin;
+  await page.getByLabel('请求地址').fill(`${origin}/generation-provider/v1`);
+  await page.getByRole('button', { name: '获取 AI 模型' }).click();
+  await page.getByLabel('待处理材料').fill('联系人：张三，手机13812345678');
+  await page.getByRole('button', { name: '生成脱敏预览' }).click();
+  const confirmation = page.getByLabel('我确认本次材料已脱敏、非涉密且允许发送到所选服务商');
+  await confirmation.check();
+  await page.getByRole('button', { name: '确认本次 AI 请求' }).click();
+  await expect(page.locator('.ai-readable-result')).toHaveText('上一条成功结果');
+  await expect(page.locator('.ai-history-row')).toHaveCount(1);
+  await expect(confirmation).not.toBeChecked();
+
+  await confirmation.check();
+  await page.getByRole('button', { name: '确认本次 AI 请求' }).click();
+  const busyButton = page.getByRole('button', { name: '正在生成结果' });
+  await expect(busyButton).toBeDisabled();
+  await expect(confirmation).toBeDisabled();
+  await busyButton.evaluate((button: HTMLButtonElement) => button.click());
+  await expect.poll(() => generationRequests).toBe(2);
+  await expect(page.getByRole('button', { name: '停止等待生成结果' })).toBeVisible();
+  await page.getByRole('button', { name: '停止等待生成结果' }).click();
+  await expect(page.getByText('已停止等待；上次成功结果保持不变')).toBeVisible();
+  await expect(confirmation).toBeEnabled();
+  await page.waitForTimeout(delayedResponseMs + 150);
+  await expect(page.locator('.ai-readable-result')).toHaveText('上一条成功结果');
+  await expect(page.locator('.ai-history-row')).toHaveCount(1);
+  await expect(confirmation).not.toBeChecked();
+
+  await confirmation.check();
+  await page.getByRole('button', { name: '确认本次 AI 请求' }).click();
+  await expect(page.getByRole('button', { name: '正在生成结果' })).toBeDisabled();
+  await page.getByRole('button', { name: '生成脱敏预览' }).click();
+  await expect(page.getByRole('button', { name: '正在生成结果' })).toHaveCount(0);
+  await page.waitForTimeout(delayedResponseMs + 150);
+  await expect.poll(() => generationRequests).toBe(3);
+  await expect(page.getByText(/迟到结果/)).toHaveCount(0);
+  await expect(page.locator('.ai-history-row')).toHaveCount(1);
+  await expect(confirmation).not.toBeChecked();
+
+  await page.getByLabel('处理用途').selectOption('任务总结');
+  await confirmation.check();
+  await page.getByRole('button', { name: '确认本次 AI 请求' }).click();
+  await expect(page.getByText(/AI 服务请求失败：503/)).toBeVisible();
+  await expect.poll(() => generationRequests).toBe(4);
+  await expect(page.locator('.ai-history-row')).toHaveCount(1);
+  await expect(confirmation).not.toBeChecked();
+});
+
+test('ignores a late desktop IPC generation result after the user stops waiting', async ({ page }) => {
+  test.setTimeout(45_000);
+  const delayedResponseMs = 5_000;
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'hxhwang', {
+      configurable: true,
+      value: {
+        printPdf: async () => true,
+        listAiModels: async () => ['desktop-late-model'],
+        generateAi: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 5_000));
+          return { choices: [{ message: { content: '不应写入的桌面迟到结果' } }] };
+        }
+      }
+    });
+  });
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'AI 助手' }).click();
+  await page.getByRole('button', { name: '获取 AI 模型' }).click();
+  await page.getByLabel('待处理材料').fill('已确认的桌面材料');
+  await page.getByRole('button', { name: '生成脱敏预览' }).click();
+  const confirmation = page.getByLabel('我确认本次材料已脱敏、非涉密且允许发送到所选服务商');
+  await confirmation.check();
+  await page.getByRole('button', { name: '确认本次 AI 请求' }).click();
+  await expect(page.getByRole('button', { name: '正在生成结果' })).toBeDisabled();
+  await page.getByRole('button', { name: '停止等待生成结果' }).click();
+  await page.waitForTimeout(delayedResponseMs + 150);
+  await expect(page.getByText('不应写入的桌面迟到结果')).toHaveCount(0);
+  await expect(page.locator('.ai-history-row')).toHaveCount(0);
+  await expect(confirmation).not.toBeChecked();
+});
+
 test('filters a large model catalog and ignores a late response from an obsolete endpoint', async ({ page }) => {
   const longModelId = 'fresh-model-14-with-a-very-long-identifier-for-mobile-layout';
   let slowResponseCompleted = false;

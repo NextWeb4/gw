@@ -86,3 +86,41 @@ test('retrieves internal models and sends only explicitly confirmed redacted con
   const aiRequest = requests.find((request) => request.url.endsWith('/v1/ai/generate'));
   expect(aiRequest?.body).toEqual({ redactedContent: '联系人：[姓名]，手机[手机号]，邮箱[邮箱]', redacted: true, confirmed: true, purpose: '提纲生成', model: 'qwen3:4b' });
 });
+
+test('stops internal generation without accepting a late result or duplicate history', async ({ page }) => {
+  let generationRequests = 0;
+  await page.route('**/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/v1/demo/session') return route.fulfill({ json: { token: 'session-token', expiresIn: 3600 } });
+    if (path === '/v1/ai/models') return route.fulfill({ json: { models: ['qwen3:4b'], defaultModel: 'qwen3:4b' } });
+    if (path === '/v1/ai/generate') {
+      generationRequests += 1;
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      try { await route.fulfill({ json: { result: { choices: [{ message: { content: '不应写入的内部迟到结果' } }] }, audit: { purpose: '提纲生成', provider: 'localhost', model: 'qwen3:4b', contentHash: 'hash', createdAt: 'now' } } }); } catch { /* Browser request was actively aborted. */ }
+      return;
+    }
+    return route.abort();
+  });
+
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'AI 助手' }).click();
+  await page.getByLabel('内部 API 地址').fill(new URL(page.url()).origin);
+  await page.getByLabel('一次性访问码').fill('long-access-code');
+  await page.getByRole('button', { name: '建立会话' }).click();
+  await page.getByRole('button', { name: '获取内部模型' }).click();
+  await page.getByLabel('待处理材料').fill('联系人：张三，手机13812345678');
+  await page.getByRole('button', { name: '生成脱敏预览' }).click();
+  const confirmation = page.getByLabel('我确认本次材料已脱敏且允许发送到内部模型');
+  await confirmation.check();
+  await page.getByRole('button', { name: '确认发送到内部 AI' }).click();
+  await expect(page.getByRole('button', { name: '正在生成结果' })).toBeDisabled();
+  await expect(confirmation).toBeDisabled();
+  await page.getByRole('button', { name: '停止等待生成结果' }).click();
+  await expect(confirmation).toBeEnabled();
+  await expect.poll(() => generationRequests).toBe(1);
+  await page.waitForTimeout(550);
+  await expect(page.getByText('不应写入的内部迟到结果')).toHaveCount(0);
+  await expect(page.locator('.ai-history-row')).toHaveCount(0);
+  await expect(confirmation).not.toBeChecked();
+});

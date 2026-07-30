@@ -1,6 +1,6 @@
 # 开源方案审计
 
-审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7 补充审计：2026-07-30。公开客户端为本地优先演示模式；服务端仅私有部署。
+审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30。公开客户端为本地优先演示模式；服务端仅私有部署。
 
 | 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与项目契合度 / 可能冲突 | 是否采用 / 采用方式 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,6 +24,27 @@
 | Node 24 `fetch`、`crypto`、`node:test` | [Node.js](https://nodejs.org/api/) / MIT | HTTPS 抓取、哈希和策略测试 | 标准运行时内置，不增加供应链或安装体积 | 重定向与体积限制需显式实现 | 随 Node 24 维护 | 只在内容同步脚本和 CI 中使用，不进入浏览器联网路径 | 采用，封装允许清单、逐跳重定向和 2 MB 上限 |
 | Got 15.1.0 | [官方仓库](https://github.com/sindresorhus/got) / MIT | HTTP 重试、钩子、重定向 | HTTP 能力成熟 | 当前仅抓取少量权威来源，引入运行依赖收益不足 | 活跃；npm 元数据 2026-07-02 更新 | 会扩大供应链，不能替代本项目域名策略 | 不采用 |
 | simple-git 3.36.0 | [官方仓库](https://github.com/steveukx/git-js) / MIT | Git 命令封装 | API 易用 | Actions 仅需 add/commit/push 三步 | 活跃；npm 元数据 2026-04-12 更新 | 增加无必要依赖；runner 已提供 Git | 不采用，工作流直接调用 Git |
+
+## v0.6.8 AI 生成取消、竞态与历史原子性方案审计
+
+第一性原理分析：一次生成的输入是不变快照，输出只能由仍处于当前代次的同一请求提交；否则重复点击会产生多个付费请求，旧响应会覆盖新状态，并可能重复保存历史。当前项目缺少的是局部请求身份、浏览器取消信号、明确忙碌/停止反馈和历史写入守卫，不缺少聊天 SDK、缓存层、流式协议或后台任务系统。
+
+| 方案名称 | 来源 | 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与当前项目的契合度 | 可能冲突点 | 是否采用 | 采用方式 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Web `AbortController`、`AbortSignal.any`、`AbortSignal.timeout` | [MDN AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) / Web 标准 | Web 标准文档 | 调用方取消、组合 60 秒超时、向 Fetch 传播取消 | 零依赖；与当前原生 Fetch、PNA、禁止重定向和 2 MB 流式限制完全兼容 | 不能直接中止已经通过 Electron `ipcRenderer.invoke` 发出的主进程调用 | 当前浏览器与 Node/Electron 运行时原生支持 | 高 | 必须保留请求代次，不能把“能 abort”误当成“迟到状态一定安全” | 采用 | 三类浏览器生成客户端接收调用方 signal，并与既有超时组合；桌面继续使用代次拒绝迟到结果 |
+| Vercel AI SDK `ebd31b80` | [官方仓库](https://github.com/vercel/ai/tree/ebd31b80879a556e42469b3537ac122e40c869d0/packages/ai/src/generate-text) | Apache-2.0 | `abortSignal`、多级 timeout 合并、流式 `onAbort` 生命周期 | 取消和超时语义完整，许可证宽松，测试与文档成熟 | 会引入完整模型抽象、流式协议、重试与 provider 层；替换现有兼容请求会扩大协议和包体 | 2026-07-30 主分支更新 | 设计参考高，依赖契合度低 | 与现有确定性 OpenAI 兼容请求、显式联网和最小依赖边界重叠 | 只借鉴设计 | 借鉴“调用方 signal 与超时分离后合并”的生命周期，不引入 SDK |
+| LobeChat `abortableRequest` `f29cc947` | [官方仓库](https://github.com/lobehub/lobe-chat/blob/f29cc947f3d378315a546af23884dd3c50d45096/src/services/utils/abortableRequest.ts) | LobeHub Community License | 同 key 新请求取消旧请求、手动取消、仅当前 controller 完成清理 | 请求身份和 finally 清理边界清楚，直接覆盖迟到请求竞态 | 全局 key manager 超过本项目两个局部 AI 面板需求；自定义许可证不适合复制实现 | 2026-07-30 主分支快照 | 生命周期参考高，源码复用低 | 不能复制受限实现；全局管理器会扩大模块职责 | 只借鉴设计 | 独立实现局部 React hook，以递增代次和 controller identity 保护模型与生成请求 |
+| LibreChat `useAbortCleanup` / StopButton `f7bc50ae` | [官方仓库](https://github.com/danny-avila/LibreChat/tree/f7bc50ae5b752e50fab7f97ee00531ca1264ea05/client/src) | MIT | 显式停止按钮、捕获提交身份、异步中止返回后只清理仍相同的提交 | 直接说明“中止响应晚于下一提交”这一竞态，并用身份守卫避免误清理新请求 | 依赖 Recoil、SSE、服务端中止和多会话提交状态，远超本项目单次生成 | 2026-07-28 主分支更新 | 原理契合度高，架构复用低 | 引入其状态层会与当前本地单页 AI 工作流冲突 | 只借鉴设计 | 借鉴异步清理前再次核对当前请求身份和显式停止反馈，不复制组件 |
+| Open WebUI `stopResponse` `01f4282f` | [官方仓库](https://github.com/open-webui/open-webui/blob/01f4282f1ffe0d6212f58d3afbeae21fffd0c4be/src/lib/components/chat/Chat.svelte) | Open WebUI 自定义许可证 | 停止当前生成、AbortController、队列切换和可见 Stop 控件 | 停止入口明确，生成中状态可感知 | Svelte、流式消息树、任务队列和服务端取消均超出需求；自定义许可证限制复制 | 2026-07-27 主分支更新 | 交互参考中高，代码复用低 | 不得复制组件、文案、样式或队列逻辑 | 只借鉴设计 | 仅借鉴“生成按钮切换为忙碌态并提供独立停止操作” |
+
+采用结果：
+
+- 直接复用：标准运行时的 `AbortController`、`AbortSignal.any` 和 `AbortSignal.timeout`，继续复用当前原生 Fetch、2 MB 有界读取、禁止重定向和回环 PNA 标记。
+- 只借鉴设计：Vercel AI SDK 的 signal/timeout 合并，LobeChat 与 LibreChat 的请求身份守卫，Open WebUI 的显式停止反馈。
+- 不采用：聊天 SDK、TanStack Query/SWR 缓存、流式消息树、服务端任务队列、自动重试和后台刷新；这些能力会增加自动联网、协议、包体与状态复杂度，却不能更小地解决当前竞态。
+- 适配范围：只修改 `packages/sync-client` 生成方法、`apps/web` 的共享请求 hook/生成控件及回归测试；保留现有服务端协议、Electron IPC 载荷、脱敏、逐次确认和本机历史 schema。
+- 许可证风险：无新增依赖；Apache-2.0 与 MIT 项目未复制代码，自定义许可证项目只作设计参考。
+- 回滚方式：移除生成 signal 参数、生成请求 hook/控件和对应测试即可；不涉及数据迁移、服务端回滚或秘密轮换。
 
 ## v0.6.7 模型刷新、取消与状态保留方案审计
 

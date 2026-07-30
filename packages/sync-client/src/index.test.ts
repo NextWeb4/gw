@@ -63,6 +63,21 @@ describe('private sync client', () => {
     expect(body).toEqual({ redactedContent: '联系人：[姓名]', redacted: true, confirmed: true, purpose: '起草提纲' });
   });
 
+  it('lets callers cancel intranet generation through an AbortSignal', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ token: 'session-token', expiresIn: 3600 }), { status: 200 }))
+      .mockImplementationOnce(async (_input, init) => new Promise<Response>((resolve, reject) => {
+        const timer = setTimeout(() => resolve(new Response(JSON.stringify({ result: { choices: [] } }), { status: 200 })), 80);
+        init?.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(init.signal?.reason); }, { once: true });
+      }));
+    const client = new PrivateSyncClient({ baseUrl: 'http://127.0.0.1:8787', fetcher });
+    await client.createSession('long-access-code');
+    const controller = new AbortController();
+    const request = client.generate({ redactedContent: '联系人：[姓名]', redacted: true, confirmed: true, purpose: '起草提纲' }, controller.signal);
+    controller.abort();
+    await expect(request).rejects.toThrow(/取消|aborted/i);
+  });
+
   it('uploads and downloads attachments only through an authenticated session', async () => {
     const attachment = { id: 'att-1', name: 'evidence.txt', mimeType: 'text/plain', size: 3, dataBase64: 'YWJj', sha256: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad', createdAt: 'now' };
     const fetcher = vi.fn<typeof fetch>()
@@ -119,6 +134,18 @@ describe('private sync client', () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
+  it('lets callers cancel direct generation through an AbortSignal', async () => {
+    const fetcher = vi.fn<typeof fetch>(async (_input, init) => new Promise<Response>((resolve, reject) => {
+      const timer = setTimeout(() => resolve(new Response(JSON.stringify({ choices: [] }), { status: 200 })), 80);
+      init?.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(init.signal?.reason); }, { once: true });
+    }));
+    const client = new DirectAiClient({ baseUrl: 'https://provider.example/v1', fetcher });
+    const controller = new AbortController();
+    const request = client.generate({ model: 'model-a', redactedContent: '已脱敏内容', redacted: true, confirmed: true, purpose: '润色' }, controller.signal);
+    controller.abort();
+    await expect(request).rejects.toThrow(/取消|aborted/i);
+  });
+
   it('turns browser transport failures into an actionable CORS diagnostic', async () => {
     const fetcher = vi.fn<typeof fetch>(async () => { throw new TypeError('Failed to fetch'); });
     const client = new DirectAiClient({ baseUrl: 'https://relay.example/v1', apiKey: 'memory-only', fetcher });
@@ -163,6 +190,21 @@ describe('private sync client', () => {
     const request = client.listModels('mystery-01', controller.signal);
     controller.abort();
     await expect(request).rejects.toThrow(/取消/);
+  });
+
+  it('lets callers cancel relay generation through an AbortSignal', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ token: 'relay-token', expiresIn: 3600 }), { status: 200 }))
+      .mockImplementationOnce(async (_input, init) => new Promise<Response>((resolve, reject) => {
+        const timer = setTimeout(() => resolve(new Response(JSON.stringify({ result: { choices: [] } }), { status: 200 })), 80);
+        init?.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(init.signal?.reason); }, { once: true });
+      }));
+    const client = new RelayAiClient({ baseUrl: 'http://127.0.0.1:8787', fetcher });
+    await client.createSession('session-password');
+    const controller = new AbortController();
+    const request = client.generate('mystery-01', { model: 'relay-model', redactedContent: '已脱敏材料', redacted: true, confirmed: true, purpose: '润色' }, controller.signal);
+    controller.abort();
+    await expect(request).rejects.toThrow(/取消|aborted/i);
   });
 
   it('explains how to recover when Chrome denies loopback network permission', async () => {
