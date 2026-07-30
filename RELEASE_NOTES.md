@@ -10,6 +10,7 @@
 - 开源审计比较 Web AbortController、LobeChat、Open WebUI、TanStack Query、SWR 与 Axios。只借鉴取消生命周期和成功前保留旧状态，不复制自定义许可证项目代码，也不引入新的数据请求依赖。
 - 工作区版本升至 `0.6.7`，私有服务端保持 `0.2.3`；未新增依赖、数据库 schema、协议字段、CSP 放宽或服务端路由。
 - 2026-07-30 本机回归已通过：lint、格式检查、90 项单元/契约测试、主 E2E 57 项通过/7 项条件跳过、互联网 E2E 5 项、内网 E2E 2 项和生产构建。1440×900 与 390×844 浏览器检查的页面宽度分别保持 1440 和 390；移动端刷新与停止按钮均为 44px 高，刷新中 15 项目录、长模型 ID 和筛选词保持可用，停止后迟到结果未覆盖当前状态。真实第三方模型上游未在本机验证。
+- [Pages run 30546950074](https://github.com/NextWeb4/gw/actions/runs/30546950074) 与 [desktop run 30547010378](https://github.com/NextWeb4/gw/actions/runs/30547010378) 均已成功。线上入口 bundle 中 `0.6.7` 命中 10 次，`0.6.6` 与 `0.3.1` 均为 0 次；[v0.6.7 Release](https://github.com/NextWeb4/gw/releases/tag/v0.6.7) 包含 12 个安装包和 `SHA256SUMS.txt`，13 个下载地址均返回 HTTP 200，校验文件含 12 条有效且文件名唯一的记录。
 
 ## v0.6.6
 
