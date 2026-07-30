@@ -1215,6 +1215,34 @@ function ReusableField({ label, value, suggestions, onChange, onRemember }: { la
 }
 function TextArea({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) { return <label className="field"><span>{label}</span><textarea value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} /></label>; }
 function SelectField({ label, value, options, onChange }: { label: string; value: string; options: Array<string | { value: string; label: string }>; onChange: (value: string) => void }) { return <label className="field"><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => { const normalized = typeof option === 'string' ? { value: option, label: option } : option; return <option value={normalized.value} key={normalized.value}>{normalized.label}</option>; })}</select></label>; }
+function useLatestModelRequest() {
+  const runIdRef = useRef(0);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => () => { runIdRef.current += 1; }, []);
+  const invalidate = () => { runIdRef.current += 1; setLoading(false); };
+  const begin = () => { const runId = ++runIdRef.current; setLoading(true); return runId; };
+  const isCurrent = (runId: number) => runId === runIdRef.current;
+  const finish = (runId: number) => { if (isCurrent(runId)) setLoading(false); };
+  return { loading, invalidate, begin, isCurrent, finish };
+}
+function ModelCatalogField({ label, value, models, onChange }: { label: string; value: string; models: string[]; onChange: (value: string) => void }) {
+  const [query, setQuery] = useState('');
+  useEffect(() => setQuery(''), [models]);
+  const keyword = query.trim().toLowerCase();
+  const matches = keyword ? models.filter((item) => item.toLowerCase().includes(keyword)) : models;
+  const selectedOutsideFilter = Boolean(value && !matches.includes(value));
+  const options: Array<string | { value: string; label: string }> = [
+    ...(selectedOutsideFilter ? [{ value, label: `当前 · ${value}` }] : []),
+    ...matches
+  ];
+  return <div className="model-catalog-field">
+    <div className="model-catalog-heading"><span>MODEL CATALOG</span><strong>{models.length} 个模型</strong></div>
+    {models.length > 8 && <div className="model-filter-field"><Search size={14} /><input aria-label="筛选模型" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="输入模型 ID 关键词" />{query && <button type="button" className="icon-button" aria-label="清除模型筛选" onClick={() => setQuery('')}><X size={13} /></button>}</div>}
+    <SelectField label={label} value={value} options={options} onChange={onChange} />
+    {value.length > 36 && <small className="model-current-selection"><span>当前模型</span><code>{value}</code></small>}
+    {models.length > 8 && <small className={`model-filter-status ${matches.length ? '' : 'empty'}`}>{matches.length ? `匹配 ${matches.length} / ${models.length}` : '没有匹配项；当前模型仍保留，可清除筛选后重新选择'}</small>}
+  </div>;
+}
 function AttachmentField({ ids, attachments, onAttach, onRemove }: { ids: string[]; attachments: Attachment[]; onAttach: (files: FileList) => void; onRemove: (id: string) => void }) { const selected = ids.map((id) => attachments.find((attachment) => attachment.id === id)).filter((attachment): attachment is Attachment => Boolean(attachment)); return <div className="attachment-field"><div className="attachment-heading"><span>附件</span><small>单个文件不超过 8 MB，仅保存在本机</small></div>{selected.length > 0 && <div className="attachment-list">{selected.map((attachment) => <div className="attachment-row" key={attachment.id}><FileText size={14} /><span>{attachment.name}</span><small>{formatBytes(attachment.size)}</small><button type="button" className="icon-button" title={`下载附件 ${attachment.name}`} disabled={attachment.data === undefined} onClick={() => downloadStoredAttachment(attachment)}><ArrowDownToLine size={14} /></button><button type="button" className="icon-button danger-icon" title={`解除关联 ${attachment.name}`} onClick={() => onRemove(attachment.id)}><X size={14} /></button></div>)}</div>}<label className="attachment-picker"><Upload size={15} /><span>选择附件</span><input type="file" multiple onChange={(event) => { if (event.target.files?.length) onAttach(event.target.files); event.currentTarget.value = ''; }} /></label></div>; }
 function AttachmentHint({ count }: { count: number }) { return <div className="attachment-hint"><ShieldCheck size={15} /><span>{`本机附件库 ${count} 项；打开任务或文件编辑器可继续添加。`}</span></div>; }
 function bytesToBase64(bytes: Uint8Array) { let binary = ''; for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000)); return btoa(binary); }
@@ -1690,6 +1718,7 @@ function IntranetServices({ compact, workspace, attachments, prefill, skills, on
   const [skillId, setSkillId] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [aiResult, setAiResult] = useState<unknown>();
+  const modelRequest = useLatestModelRequest();
   const effectiveGuidanceId = resolveGuidance(skillId, skills)?.id || '';
   const selectedGuidance = resolveGuidance(effectiveGuidanceId, skills);
   useEffect(() => {
@@ -1705,10 +1734,23 @@ function IntranetServices({ compact, workspace, attachments, prefill, skills, on
     // 仅在收到新的 AI 助手请求（nonce 变化）时载入素材
   }, [prefill?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   const invalidateAiResult = () => { setConfirmed(false); setAiResult(undefined); };
-  const changeBaseUrl = (value: string) => { setBaseUrl(value); setClient(null); setModels([]); setModel(''); invalidateAiResult(); };
-  const connect = async () => { try { const next = new PrivateSyncClient({ baseUrl }); await next.createSession(accessCode); setClient(next); setModels([]); setModel(''); invalidateAiResult(); setAccessCode(''); setToast('内网会话已建立，访问码未保存'); } catch (error) { setClient(null); setModels([]); setModel(''); invalidateAiResult(); setToast(error instanceof Error ? error.message : '连接失败'); } };
+  const resetModels = () => { modelRequest.invalidate(); setModels([]); setModel(''); invalidateAiResult(); };
+  const changeBaseUrl = (value: string) => { setBaseUrl(value); setClient(null); resetModels(); };
+  const connect = async () => { resetModels(); setClient(null); try { const next = new PrivateSyncClient({ baseUrl }); await next.createSession(accessCode); setClient(next); setAccessCode(''); setToast('内网会话已建立，访问码未保存'); } catch (error) { setToast(error instanceof Error ? error.message : '连接失败'); } };
   const sync = async () => { if (!client) return setToast('请先建立内网会话'); try { const result = await syncPrivateWorkspace(client, { tasks: workspace.tasks, meetings: workspace.meetings, documents: workspace.documents, researches: workspace.researches, seals: workspace.seals, materials: workspace.materials, drafts: [workspace.draft], weeklyReports: workspace.weeklyReports, attachments }); await onReload(); setToast(`同步完成：拉取 ${result.pulled}，推送 ${result.pushed}，冲突 ${result.conflicts}，附件上传 ${result.attachmentsUploaded}`); } catch (error) { setToast(error instanceof Error ? error.message : '同步失败'); } };
-  const loadModels = async () => { if (!client) return setToast('请先建立内网会话'); invalidateAiResult(); try { const result = await client.listModels(); setModels(result.models); setModel(result.defaultModel || result.models[0] || ''); setToast(`已获取 ${result.models.length} 个内部模型`); } catch (error) { setModels([]); setModel(''); setToast(error instanceof Error ? error.message : '获取模型失败'); } };
+  const loadModels = async () => {
+    if (!client) return setToast('请先建立内网会话');
+    const runId = modelRequest.begin();
+    setModels([]); setModel(''); invalidateAiResult();
+    try {
+      const result = await client.listModels();
+      if (!modelRequest.isCurrent(runId)) return;
+      setModels(result.models); setModel(result.defaultModel || result.models[0] || ''); setToast(`已获取 ${result.models.length} 个内部模型`);
+    } catch (error) {
+      if (!modelRequest.isCurrent(runId)) return;
+      setModels([]); setModel(''); setToast(error instanceof Error ? error.message : '获取模型失败');
+    } finally { modelRequest.finish(runId); }
+  };
   const loadMaterial = () => { const content = buildAiWorkspaceMaterial(materialSource, workspace); if (!content) return setToast('所选本机素材为空'); setRedactionSource(content.slice(0, AI_MAX_CONTENT_LENGTH)); setRedactedContent(''); setConfirmed(false); setAiResult(undefined); setToast(content.length > AI_MAX_CONTENT_LENGTH ? `素材已载入并截取前 ${AI_MAX_CONTENT_LENGTH} 个字符` : '本机素材已载入'); };
   const previewRedaction = () => { if (!redactionSource.trim()) return setToast('请先填写待处理材料'); if (redactionSource.length > AI_MAX_CONTENT_LENGTH) return setToast(`待处理材料不能超过 ${AI_MAX_CONTENT_LENGTH} 个字符`); setRedactedContent(redactSensitiveContent(redactionSource)); setConfirmed(false); setAiResult(undefined); };
   const sendAi = async () => { if (!client) return setToast('请先建立内网会话'); if (!redactedContent) return setToast('请先生成并检查脱敏预览'); if (!confirmed) return setToast('请勾选本次发送确认'); try { const response = await client.generate({ redactedContent, redacted: true, confirmed: true, purpose, model: model || undefined, guidance: selectedGuidance?.content }); const answer = extractOpenAiText(response); const changes = buildAiFieldChanges(prefill?.changeContext, redactedContent, answer); setAiResult(response); setConfirmed(false); if (answer) await onSaveHistory(createAiHistoryEntry({ source: 'intranet', purpose, provider: '内部 AI 网关', model: response.audit?.model || model || '服务端默认', skillName: selectedGuidance?.name || '', targetLabel: prefill?.changeContext?.targetLabel || '本机材料', input: redactedContent, answer, changes })); setToast(answer ? '内部 AI 结果已返回并保存到本机历史；原稿未被覆盖' : '内部 AI 结果已返回；原稿未被覆盖'); } catch (error) { setToast(error instanceof Error ? error.message : 'AI 请求失败'); } };
@@ -1719,7 +1761,7 @@ function IntranetServices({ compact, workspace, attachments, prefill, skills, on
     <details className={`panel ai-advanced-config ${compact ? '' : 'full-ai-connection'}`} open={!client}><summary>{compact ? <><span><Server size={15} />内部连接</span><strong>{client ? '已连接，后台模型配置已接管' : '首次使用需要建立会话'}</strong></> : <><span className="ai-connection-title"><span className="eyebrow">内部服务</span><strong className="ai-connection-heading" role="heading" aria-level={2}>同步连接</strong></span><span className={`status-pill ${client ? 'done' : 'pending'}`}>{client ? '已连接' : '未连接'}</span></>}</summary><div>{connectionForm}</div></details>
     <div className="panel service-panel ai-workbench"><div className="panel-heading"><div><span className="eyebrow">内部 AI</span><h2>{compact ? '本次协作' : '总结与润色'}</h2></div>{compact && client && <span className="status-pill done">后台已配置</span>}</div>
       {!compact && <AiWorkflowProgress connectionReady={Boolean(client)} materialReady={Boolean(redactionSource.trim())} redactionReady={Boolean(redactedContent)} resultReady={aiResult !== undefined} />}
-      {!models.length ? <button className="secondary-button" disabled={!client} onClick={() => void loadModels()}><Bot size={16} />获取内部模型</button> : compact ? <p className="ai-ready-summary"><Bot size={14} />{model || '服务端默认模型'}</p> : <SelectField label="内部模型" value={model} options={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}
+      {!models.length ? <button className="secondary-button" disabled={!client || modelRequest.loading} onClick={() => void loadModels()}><Bot size={16} />{modelRequest.loading ? '正在获取模型' : '获取内部模型'}</button> : compact ? <p className="ai-ready-summary"><Bot size={14} />{model || '服务端默认模型'}</p> : <ModelCatalogField label="内部模型" value={model} models={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}
       <div className="ai-control-grid"><SelectField label="处理用途" value={purpose} options={aiPurposeOptions} onChange={(value) => { setPurpose(value); invalidateAiResult(); }} /><SelectField label="润色指引" value={effectiveGuidanceId} options={guidanceOptions(skills)} onChange={(value) => { setSkillId(value); invalidateAiResult(); }} /></div>
       {selectedGuidance && <p className="skill-attach-note">将附加「{selectedGuidance.name}」（{selectedGuidance.content.length} 字）作为系统写作指引。</p>}
       {compact && prefill ? <p className="ai-ready-summary"><FileText size={14} />已载入：{prefill.changeContext?.targetLabel || '当前页面材料'}</p> : <div className="material-source-row"><SelectField label="本机素材" value={materialSource} options={aiSourceOptions} onChange={(value) => { setMaterialSource(value); invalidateAiResult(); }} /><button className="secondary-button" onClick={loadMaterial}><FileText size={15} />载入素材</button></div>}
@@ -1751,6 +1793,7 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
   const [redactedContent, setRedactedContent] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [aiResult, setAiResult] = useState<unknown>();
+  const modelRequest = useLatestModelRequest();
   const relayMode = providerId === 'relay' || providerId.startsWith('relay:');
   const selectedRelayProvider = relayProviders.find((provider) => `relay:${provider.id}` === providerId);
   const selectedDirectProvider = AI_PROVIDER_PRESETS.find((preset) => preset.id === providerId) || AI_PROVIDER_PRESETS.at(-1)!;
@@ -1769,7 +1812,7 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
     setToast(!content ? '所选素材为空，可直接粘贴材料' : content.length > AI_MAX_CONTENT_LENGTH ? `素材已载入并截取前 ${AI_MAX_CONTENT_LENGTH} 个字符` : '素材已载入，请生成脱敏预览并逐次确认');
   }, [prefill?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   const invalidateAiResult = () => { setConfirmed(false); setAiResult(undefined); };
-  const resetModels = () => { setModels([]); setModel(''); invalidateAiResult(); };
+  const resetModels = () => { modelRequest.invalidate(); setModels([]); setModel(''); invalidateAiResult(); };
   const createClient = () => new DirectAiClient({ baseUrl, apiKey });
   const chooseProvider = (id: string) => {
     const provider = AI_PROVIDER_PRESETS.find((preset) => preset.id === id);
@@ -1806,18 +1849,25 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
     catch (error) { setToast(error instanceof Error ? error.message : '站点刷新失败'); }
   };
   const loadModels = async () => {
-    resetModels();
+    if (relayMode && (!relayClient || !selectedRelayProvider)) return setToast('请先解锁并选择已启用的神秘站点');
+    if (!relayMode && !baseUrl.trim()) return setToast('请填写兼容 API 请求地址');
+    const runId = modelRequest.begin();
+    setModels([]); setModel(''); invalidateAiResult();
     try {
       if (relayMode) {
-        if (!relayClient || !selectedRelayProvider) return setToast('请先解锁并选择已启用的神秘站点');
+        if (!relayClient || !selectedRelayProvider) return;
         const result = await relayClient.listModels(selectedRelayProvider.id);
+        if (!modelRequest.isCurrent(runId)) return;
         setModels(result.models); setModel(result.defaultModel || result.models[0] || ''); setToast(`已从${selectedRelayProvider.label}获取 ${result.models.length} 个模型`);
       } else {
-        if (!baseUrl.trim()) return setToast('请填写兼容 API 请求地址');
         const list = desktopBridge()?.listAiModels ? await desktopBridge()!.listAiModels(baseUrl, apiKey) : await createClient().listModels();
+        if (!modelRequest.isCurrent(runId)) return;
         setModels(list); setModel(list[0] || ''); setToast(`已获取 ${list.length} 个可用模型`);
       }
-    } catch (error) { setModels([]); setModel(''); setToast(error instanceof Error ? error.message : '获取模型失败'); }
+    } catch (error) {
+      if (!modelRequest.isCurrent(runId)) return;
+      setModels([]); setModel(''); setToast(error instanceof Error ? error.message : '获取模型失败');
+    } finally { modelRequest.finish(runId); }
   };
   const loadMaterial = () => { const content = buildAiWorkspaceMaterial(materialSource, workspace); if (!content) return setToast('所选本机素材为空'); setRedactionSource(content.slice(0, AI_MAX_CONTENT_LENGTH)); setRedactedContent(''); setConfirmed(false); setAiResult(undefined); setToast(content.length > AI_MAX_CONTENT_LENGTH ? `素材已载入并截取前 ${AI_MAX_CONTENT_LENGTH} 个字符` : '本机素材已载入'); };
   const previewRedaction = () => { if (!redactionSource.trim()) return setToast('请先填写待处理材料'); if (redactionSource.length > AI_MAX_CONTENT_LENGTH) return setToast(`待处理材料不能超过 ${AI_MAX_CONTENT_LENGTH} 个字符`); setRedactedContent(redactSensitiveContent(redactionSource)); setConfirmed(false); setAiResult(undefined); };
@@ -1851,9 +1901,9 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
     <p className="provider-note">{relayClient ? `已解锁 ${relayProviders.length} 个站点 · revision ${relayRevision || '—'}` : '密码、会话和站点目录只保留在当前页面内存；真实地址与 API Key 不会从后端返回。'}</p>
     <p className="service-note">可先在本机管理页点击“测试已保存配置”检查模型列表，再回到这里刷新站点；诊断详情不会进入 Pages。</p>
     {!relayClient && <p className="service-note">公开 Pages 首次连接时，Chrome 会询问是否允许“本地网络访问”，请选择“允许”；若曾拒绝，请在地址栏的网站设置中重新开启后刷新页面。</p>}
-    {selectedRelayProvider && <><p className="ai-ready-summary"><Server size={14} />当前站点：{selectedRelayProvider.label}</p><button className="secondary-button" onClick={() => void loadModels()}><Bot size={16} />获取中转站模型</button>{models.length > 0 && <SelectField label="选择模型" value={model} options={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}</>}
+    {selectedRelayProvider && <><p className="ai-ready-summary"><Server size={14} />当前站点：{selectedRelayProvider.label}</p><button className="secondary-button" disabled={modelRequest.loading} onClick={() => void loadModels()}><Bot size={16} />{modelRequest.loading ? '正在获取模型' : '获取中转站模型'}</button>{models.length > 0 && <ModelCatalogField label="选择模型" value={model} models={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}</>}
   </div>;
-  const directForm = <><Field label="请求地址" value={baseUrl} onChange={changeBaseUrl} placeholder="https://api.example.com/v1" /><Field label="API Key（仅当前会话）" type="password" value={apiKey} onChange={(value) => { setApiKey(value); invalidateAiResult(); }} /><button className="secondary-button" onClick={() => void loadModels()}><Bot size={16} />获取 AI 模型</button>{models.length > 0 && <SelectField label="选择模型" value={model} options={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}<p className="provider-note">{selectedDirectProvider.note}{selectedDirectProvider.officialDocs && <> · <a href={selectedDirectProvider.officialDocs} target="_blank" rel="noreferrer">官方文档</a></>}</p><p className="service-note"><KeyRound size={13} /> API Key 只在当前会话使用，不写入本机历史、IndexedDB、日志或快照。</p></>;
+  const directForm = <><Field label="请求地址" value={baseUrl} onChange={changeBaseUrl} placeholder="https://api.example.com/v1" /><Field label="API Key（仅当前会话）" type="password" value={apiKey} onChange={(value) => { setApiKey(value); modelRequest.invalidate(); invalidateAiResult(); }} /><button className="secondary-button" disabled={modelRequest.loading} onClick={() => void loadModels()}><Bot size={16} />{modelRequest.loading ? '正在获取模型' : '获取 AI 模型'}</button>{models.length > 0 && <ModelCatalogField label="选择模型" value={model} models={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}<p className="provider-note">{selectedDirectProvider.note}{selectedDirectProvider.officialDocs && <> · <a href={selectedDirectProvider.officialDocs} target="_blank" rel="noreferrer">官方文档</a></>}</p><p className="service-note"><KeyRound size={13} /> API Key 只在当前会话使用，不写入本机历史、IndexedDB、日志或快照。</p></>;
   const configForm = <><SelectField label="服务商预设" value={providerId} options={providerOptions} onChange={chooseProvider} />{relayMode ? relayForm : directForm}</>;
   return <section className={`desktop-services internet-services ${compact ? 'compact-ai-services' : ''}`} id="ai-workflow">
     <details className={`panel ai-advanced-config ${compact ? '' : 'full-ai-connection'}`} open={!model}><summary>{compact ? <><span><Globe2 size={15} />模型连接</span><strong>{model ? `${selectedProviderLabel} · ${model}` : '首次使用需要配置或解锁模型'}</strong></> : <><span className="ai-connection-title"><span className="eyebrow">{publicMode ? '公开 Pages · 用户自备 Key / 本机中转' : '互联网版'}</span><strong className="ai-connection-heading" role="heading" aria-level={2}>兼容 API 配置</strong></span><span className={`status-pill ${model ? 'done' : 'pending'}`}>{model ? '模型已就绪' : '待配置'}</span></>}</summary><div>{configForm}</div></details>

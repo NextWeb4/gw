@@ -69,6 +69,50 @@ test('does not contact an AI provider until model retrieval and sends only confi
   expect(requests[2]?.url).toBe(`${origin}/provider/v1/chat/completions`);
 });
 
+test('filters a large model catalog and ignores a late response from an obsolete endpoint', async ({ page }) => {
+  const longModelId = 'fresh-model-14-with-a-very-long-identifier-for-mobile-layout';
+  let slowResponseCompleted = false;
+  await page.route('**/slow-provider/v1/models', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    slowResponseCompleted = true;
+    await route.fulfill({ json: { data: [{ id: 'stale-model' }] } });
+  });
+  await page.route('**/fast-provider/v1/models', async (route) => {
+    await route.fulfill({ json: { data: Array.from({ length: 15 }, (_, index) => ({ id: index === 14 ? longModelId : `fresh-model-${String(index).padStart(2, '0')}` })) } });
+  });
+
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'AI 助手' }).click();
+  const origin = new URL(page.url()).origin;
+  const modelButton = page.getByRole('button', { name: '获取 AI 模型' });
+
+  await page.getByLabel('请求地址').fill(`${origin}/slow-provider/v1`);
+  await modelButton.click();
+  await expect(page.getByRole('button', { name: '正在获取模型' })).toBeDisabled();
+
+  await page.getByLabel('请求地址').fill(`${origin}/fast-provider/v1`);
+  await page.getByRole('button', { name: '获取 AI 模型' }).click();
+  await expect(page.getByLabel('选择模型')).toHaveValue('fresh-model-00');
+  await page.locator('details.full-ai-connection').locator('summary').click();
+  await expect(page.getByText('15 个模型')).toBeVisible();
+
+  await page.getByLabel('筛选模型').fill('14');
+  await expect(page.getByLabel('选择模型').locator('option')).toContainText(['当前 · fresh-model-00', longModelId]);
+  await page.getByLabel('选择模型').selectOption(longModelId);
+  await expect(page.locator('.model-current-selection code')).toHaveText(longModelId);
+  await expect.poll(() => page.evaluate(() => document.body.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByLabel('筛选模型').fill('no-such-model');
+  await expect(page.getByText('没有匹配项；当前模型仍保留，可清除筛选后重新选择')).toBeVisible();
+  await expect(page.getByLabel('选择模型').locator('option')).toHaveText([`当前 · ${longModelId}`]);
+  await expect(page.getByLabel('选择模型')).toHaveValue(longModelId);
+  await page.getByRole('button', { name: '清除模型筛选' }).click();
+  await expect(page.getByLabel('选择模型').locator('option')).toHaveCount(15);
+  await expect(page.getByText('匹配 15 / 15')).toBeVisible();
+  await expect.poll(() => slowResponseCompleted).toBe(true);
+  await expect(page.getByLabel('选择模型')).toHaveValue(longModelId);
+});
+
 test('uses the restricted desktop bridge for Internet-edition AI', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, 'hxhwang', {

@@ -1,6 +1,6 @@
 # 开源方案审计
 
-审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27。公开客户端为本地优先演示模式；服务端仅私有部署。
+审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6 补充审计：2026-07-30。公开客户端为本地优先演示模式；服务端仅私有部署。
 
 | 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与项目契合度 / 可能冲突 | 是否采用 / 采用方式 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,6 +24,26 @@
 | Node 24 `fetch`、`crypto`、`node:test` | [Node.js](https://nodejs.org/api/) / MIT | HTTPS 抓取、哈希和策略测试 | 标准运行时内置，不增加供应链或安装体积 | 重定向与体积限制需显式实现 | 随 Node 24 维护 | 只在内容同步脚本和 CI 中使用，不进入浏览器联网路径 | 采用，封装允许清单、逐跳重定向和 2 MB 上限 |
 | Got 15.1.0 | [官方仓库](https://github.com/sindresorhus/got) / MIT | HTTP 重试、钩子、重定向 | HTTP 能力成熟 | 当前仅抓取少量权威来源，引入运行依赖收益不足 | 活跃；npm 元数据 2026-07-02 更新 | 会扩大供应链，不能替代本项目域名策略 | 不采用 |
 | simple-git 3.36.0 | [官方仓库](https://github.com/steveukx/git-js) / MIT | Git 命令封装 | API 易用 | Actions 仅需 add/commit/push 三步 | 活跃；npm 元数据 2026-04-12 更新 | 增加无必要依赖；runner 已提供 Git | 不采用，工作流直接调用 Git |
+
+## v0.6.6 模型目录筛选与异步竞态方案审计
+
+问题本质：模型发现是用户显式触发的异步操作。当前实现没有给请求绑定配置代次，若用户在慢请求返回前切换服务商、地址、会话或本机站点，旧响应仍可能覆盖新配置的模型状态；同时部分兼容服务会返回几十至数百个模型，原生长下拉缺少快速筛选。必须保持“不自动联网、上游顺序不被 UI 重排、会话秘密不持久化”三个既有边界。
+
+| 方案名称 | 来源 | 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与当前项目的契合度 | 可能冲突点 | 是否采用 | 采用方式 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Open WebUI ModelSelector `01f4282f` | [官方仓库](https://github.com/open-webui/open-webui/tree/01f4282f1ffe0d6212f58d3afbeae21fffd0c4be/src/lib/components/chat/ModelSelector) | Open WebUI 自定义许可证 | 模型搜索、标签/连接类型筛选、置顶和多模型选择 | 大目录操作成熟，搜索入口与模型状态集中 | Svelte 架构和复杂模型元数据远超本项目；品牌条款限制复制 | 2026-07-27 主分支更新 | 交互参考高，源码复用低 | 不得复制代码、文案、样式、品牌或模型元数据；多选会改变生成协议 | 只借鉴设计 | 借鉴“显式搜索 + 当前选择保留”，不引入标签、置顶、多选或其代码 |
+| LobeChat ModelSwitchPanel `a5769c22` | [官方仓库](https://github.com/lobehub/lobe-chat/tree/a5769c22b6a80945c671130e42cde45a2e84fe61/src/features/ModelSwitchPanel) | LobeHub Community License | 搜索关键词、按模型/服务商分组、短视口面板约束 | 对长模型目录和窄视口均有明确状态 | 依赖 Lobe UI、全局 store、价格与 provider 元数据 | 2026-07-28 `main` 更新 | 搜索与视口思路契合，架构复用低 | 商业衍生需额外许可；不能复制组件或引入其 provider 数据 | 只借鉴设计 | 借鉴搜索状态与窄视口可读性，不复制代码或分组数据 |
+| react-select 5.10.2 `4b694807` | [官方仓库](https://github.com/JedWatson/react-select/tree/4b6948078684bee394e09dd8e7cdc2d7f89e0fad) / [npm](https://www.npmjs.com/package/react-select) | MIT | 可搜索、异步、可创建和多选 Select | 成熟、TypeScript、功能完整 | npm 解包约 725 KB、9 个依赖；需要重做现有暗色样式与原生 select E2E | 2026-07-16 更新 | 中 | 会形成第二套选择器语义并扩大运行包，收益不足 | 不采用 | 继续使用原生 input/select；未来需要虚拟化或多选再审计 |
+| Headless UI React 2.2.10 `eea57cf4` | [官方仓库](https://github.com/tailwindlabs/headlessui/tree/eea57cf46fd6767ed1059012f7073b88eb159fba) / [npm](https://www.npmjs.com/package/@headlessui/react) | MIT | 无样式可访问 Combobox | 键盘与焦点语义成熟，可完全自定义 | npm 解包约 1.0 MB、5 个依赖；本项目目前没有 Headless UI 组件体系 | 2026-04-13 更新 | 中 | 为单个筛选器引入新组件基础设施，复杂度超过收益 | 不采用 | 保留原生输入和选择器的可访问名称、焦点环与键盘行为 |
+| TanStack Query 5.101.4 `9d24c455` | [官方仓库](https://github.com/TanStack/query/tree/9d24c455453b965511472a8251d68e2ae02c96e0) / [npm](https://www.npmjs.com/package/@tanstack/react-query) | MIT | query key、取消、缓存、去重和请求状态 | 能系统处理异步服务状态 | 会增加缓存与自动刷新语义；npm 解包约 859 KB | 2026-07-29 更新 | 低 | 与模型发现必须显式点击、不得后台联网的边界冲突 | 不采用 | 不新增服务状态层，只用请求代次拒绝迟到结果 |
+| SWR 2.4.2 `6e68cdce` | [官方仓库](https://github.com/vercel/swr/tree/6e68cdce11ba222e08b609b004967053fd8ea602) / [npm](https://www.npmjs.com/package/swr) | MIT | 缓存、重新验证、请求去重 | API 小，适合普通远端资源 | 默认心智是可缓存与重新验证；npm 解包约 311 KB | 2026-07-27 更新 | 低 | 模型目录不能在页面加载或配置变化时自动刷新 | 不采用 | 保持每次模型发现由按钮显式触发 |
+| 现有 React `useRef`/`useState` + 原生 input/select + Lucide | 当前锁定依赖 | React MIT、Lucide ISC、Web 标准 | 请求代次、忙碌态、模型计数、关键词筛选和当前选择保留 | 零新增依赖；不改变协议、持久化、CSP 或联网触发点；可复用现有 E2E | 需要项目自行维护少量状态和样式 | 当前持续维护 | 高 | 必须在地址/服务商/会话变化时失效旧请求，并保留键盘名称 | 采用 | `useLatestModelRequest` 统一拒绝迟到结果；`ModelCatalogField` 仅在模型超过 8 个时显示筛选器 |
+
+- 直接复用：React 会话状态、现有 `DirectAiClient`/`PrivateSyncClient`/`RelayAiClient`、原生 select、Lucide、暗色“动态档案 / 墨迹信号”设计系统和显式模型按钮。
+- 只借鉴：Open WebUI 与 LobeChat 的模型搜索、当前选择保留和窄视口信息密度；未复制其源代码、文案、样式、服务商数据或品牌。
+- 不采用：模型置顶、多选、价格/能力标签、后台刷新、缓存、自动重试、react-select、Headless UI、TanStack Query 与 SWR；这些能力会引入无需求依赖或改变当前单模型/显式联网边界。
+- 适配范围：只修改 `apps/web` 的请求状态和模型目录展示，补互联网竞态 E2E 与 UI 契约；不改同步客户端协议、服务端路由、数据库 schema、API Key 生命周期或模型返回顺序。
+- 回滚：删除请求代次 hook、模型筛选组件和对应 CSS 即可恢复原下拉；业务数据与 AI 历史无需迁移。
 
 ## v0.4.1 常用项与当前页 AI 方案审计
 

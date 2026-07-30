@@ -71,3 +71,22 @@ test('AI compact mode keeps consent controls while history and downloads remain 
   assert.match(app, /HxHwang-Gw-\$\{__APP_VERSION__\}-\$\{edition\}-arm64-setup\.exe/, 'download center must expose versioned Windows ARM64 assets');
   assert.match(app, /HxHwang-Gw-\$\{__APP_VERSION__\}-\$\{edition\}-x86_64\.AppImage/, 'download center must expose versioned Linux x86_64 assets');
 });
+
+test('AI model discovery keeps long catalogs searchable and rejects stale request results', async () => {
+  const [app, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(app, /function useLatestModelRequest\(\)/, 'model discovery must share one latest-request guard');
+  assert.ok((app.match(/<ModelCatalogField/g) || []).length >= 3, 'Internet, relay and intranet model lists must reuse the searchable catalog field');
+  assert.match(app, /aria-label="筛选模型"/, 'large model catalogs must expose a keyboard-accessible filter');
+  assert.match(app, /className="model-current-selection"/, 'long selected model IDs must remain readable outside the native select');
+  assert.match(app, /modelRequest\.isCurrent\(runId\)/, 'late responses must be checked against the current request generation');
+  assert.match(app, /正在获取模型/, 'model retrieval must expose an explicit busy state');
+  assert.match(css, /\.model-filter-field:focus-within/, 'the model filter must retain a visible keyboard focus state');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.model-filter-field input[^}]*font-size:\s*16px/, 'the narrow model filter must avoid browser zoom and remain readable');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.model-filter-field \.icon-button[^}]*44px/, 'the narrow model filter clear action must keep a 44px touch target');
+  assert.match(css, /\.model-current-selection code[^}]*overflow-wrap:\s*anywhere/, 'long selected model IDs must wrap without widening the page');
+  assert.match(css, /\.toast[^}]*pointer-events:\s*none/s, 'transient status messages must not block model controls beneath them');
+});
