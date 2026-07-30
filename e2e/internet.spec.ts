@@ -38,7 +38,7 @@ test('does not contact an AI provider until model retrieval and sends only confi
   await page.getByLabel('请求地址').fill(`${origin}/provider/v1`);
   await page.getByLabel('API Key（仅当前会话）').fill('memory-only-key');
   await page.getByRole('button', { name: '获取 AI 模型' }).click();
-  await expect(page.getByLabel('选择模型')).toHaveValue('model-a');
+  await expect(page.getByLabel('选择模型')).toHaveValue('model-b');
   await expect.poll(() => connectionDetails.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(false);
   expect(requests).toHaveLength(1);
   expect(requests[0]).toMatchObject({ method: 'GET', authorization: 'Bearer memory-only-key' });
@@ -57,7 +57,7 @@ test('does not contact an AI provider until model retrieval and sends only confi
   await expect(page.getByRole('button', { name: '确认本次 AI 请求' })).toBeDisabled();
   expect(requests).toHaveLength(1);
   await page.getByRole('button', { name: '获取 AI 模型' }).click();
-  await expect(page.getByLabel('选择模型')).toHaveValue('model-a');
+  await expect(page.getByLabel('选择模型')).toHaveValue('model-b');
   await connectionDetails.locator('summary').click();
   await page.getByLabel('API Key（仅当前会话）').fill('rotated-memory-only-key');
   await expect(confirmation).not.toBeChecked();
@@ -65,7 +65,7 @@ test('does not contact an AI provider until model retrieval and sends only confi
   await page.getByRole('button', { name: '确认本次 AI 请求' }).click();
   await expect(page.locator('.ai-readable-result')).toHaveText('互联网模型结果');
   expect(requests).toHaveLength(3);
-  expect(requests[2]).toMatchObject({ method: 'POST', authorization: 'Bearer rotated-memory-only-key', body: { model: 'model-a' } });
+  expect(requests[2]).toMatchObject({ method: 'POST', authorization: 'Bearer rotated-memory-only-key', body: { model: 'model-b' } });
   expect(requests[2]?.url).toBe(`${origin}/provider/v1/chat/completions`);
 });
 
@@ -111,6 +111,50 @@ test('filters a large model catalog and ignores a late response from an obsolete
   await expect(page.getByText('匹配 15 / 15')).toBeVisible();
   await expect.poll(() => slowResponseCompleted).toBe(true);
   await expect(page.getByLabel('选择模型')).toHaveValue(longModelId);
+});
+
+test('refreshes models without dropping the last good catalog and lets the user stop waiting', async ({ page }) => {
+  let requestCount = 0;
+  await page.route('**/refresh-provider/v1/models', async (route) => {
+    requestCount += 1;
+    if (requestCount === 1) return route.fulfill({ json: { data: [{ id: 'provider-model-b' }, { id: 'provider-model-a' }, { id: 'provider-model-c' }] } });
+    if (requestCount === 2) {
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      try { await route.fulfill({ json: { data: [{ id: 'obsolete-after-cancel' }] } }); } catch { /* Browser request was actively aborted. */ }
+      return;
+    }
+    if (requestCount === 3) return route.fulfill({ json: { data: [{ id: 'provider-model-new' }, { id: 'provider-model-b' }, { id: 'provider-model-a' }] } });
+    return route.fulfill({ status: 503, json: { error: 'temporary_failure' } });
+  });
+
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'AI 助手' }).click();
+  const origin = new URL(page.url()).origin;
+  await page.getByLabel('请求地址').fill(`${origin}/refresh-provider/v1`);
+  await page.getByRole('button', { name: '获取 AI 模型' }).click();
+  await expect(page.getByLabel('选择模型')).toHaveValue('provider-model-b');
+  await page.locator('details.full-ai-connection').locator('summary').click();
+  await expect(page.getByLabel('选择模型').locator('option')).toHaveText(['provider-model-b', 'provider-model-a', 'provider-model-c']);
+
+  await page.getByRole('button', { name: '刷新 AI 模型' }).click();
+  await expect(page.getByRole('button', { name: '正在刷新模型' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '停止等待' })).toBeVisible();
+  await expect(page.getByLabel('选择模型')).toHaveValue('provider-model-b');
+  await expect(page.getByLabel('选择模型').locator('option')).toHaveText(['provider-model-b', 'provider-model-a', 'provider-model-c']);
+  await page.getByRole('button', { name: '停止等待' }).click();
+  await expect(page.getByText('已停止等待；当前模型目录保持不变')).toBeVisible();
+  await page.waitForTimeout(550);
+  await expect(page.getByLabel('选择模型')).toHaveValue('provider-model-b');
+
+  await page.getByRole('button', { name: '刷新 AI 模型' }).click();
+  await expect(page.getByLabel('选择模型')).toHaveValue('provider-model-b');
+  await expect(page.getByLabel('选择模型').locator('option')).toHaveText(['provider-model-new', 'provider-model-b', 'provider-model-a']);
+
+  await page.getByRole('button', { name: '刷新 AI 模型' }).click();
+  await expect(page.getByText(/AI 服务请求失败：503.*已保留上次模型目录/)).toBeVisible();
+  await expect(page.getByLabel('选择模型')).toHaveValue('provider-model-b');
+  await expect(page.getByLabel('选择模型').locator('option')).toHaveText(['provider-model-new', 'provider-model-b', 'provider-model-a']);
 });
 
 test('uses the restricted desktop bridge for Internet-edition AI', async ({ page }) => {

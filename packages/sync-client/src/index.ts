@@ -52,11 +52,17 @@ export function extractOpenAiText(payload: unknown): string {
 }
 
 function transportFailure(label: string, error: unknown) {
-  if (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name)) return new Error(`${label}请求超时，请检查服务状态和网络连接`);
+  if (error instanceof Error && error.name === 'AbortError') return new Error(`${label}请求已取消`);
+  if (error instanceof Error && error.name === 'TimeoutError') return new Error(`${label}请求超时，请检查服务状态和网络连接`);
   const cause = `${label}无法访问。浏览器可能因 CORS、本地网络访问权限、证书或地址错误阻止请求；`;
   return new Error(label === '本机中转站'
     ? `${cause}请确认本机中转服务已启动并允许当前网页来源。`
     : `${cause}请检查服务商地址和证书；若服务商不允许浏览器直连，请改用本机中转。`);
+}
+
+function timedRequestSignal(signal?: AbortSignal) {
+  const timeout = AbortSignal.timeout(60_000);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
 function loopbackRequestInit(url: URL, init: RequestInit): LocalNetworkRequestInit {
@@ -175,8 +181,8 @@ export class PrivateSyncClient {
     return this.request<AiGenerateResponse>('v1/ai/generate', request);
   }
 
-  async listModels() {
-    return this.get<{ models: string[]; defaultModel: string }>('v1/ai/models');
+  async listModels(signal?: AbortSignal) {
+    return this.get<{ models: string[]; defaultModel: string }>('v1/ai/models', timedRequestSignal(signal));
   }
 
   async putAttachment(attachment: AttachmentTransfer) {
@@ -187,9 +193,9 @@ export class PrivateSyncClient {
     return this.get<Required<AttachmentTransfer>>(`v1/attachments/${encodeURIComponent(id)}`);
   }
 
-  private async get<T>(path: string): Promise<T> {
+  private async get<T>(path: string, signal?: AbortSignal): Promise<T> {
     if (!this.sessionToken) throw new Error('同步会话尚未建立');
-    const response = await this.fetcher(new URL(path, this.baseUrl), { redirect: 'error', headers: { 'x-demo-session': this.sessionToken } });
+    const response = await this.fetcher(new URL(path, this.baseUrl), { redirect: 'error', signal, headers: { 'x-demo-session': this.sessionToken } });
     if (!response.ok) throw new Error(`同步请求失败：${response.status}`);
     return await response.json() as T;
   }
@@ -217,15 +223,24 @@ export class DirectAiClient {
     if (this.apiKey.length > 1000) throw new Error('AI API Key 长度超限');
   }
 
-  async listModels() {
-    const payload = await this.request<{ data?: unknown; models?: unknown }>('models', { method: 'GET' });
+  async listModels(signal?: AbortSignal) {
+    const payload = await this.request<{ data?: unknown; models?: unknown }>('models', { method: 'GET', signal });
     const rows = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.models) ? payload.models : [];
-    return [...new Set(rows.map((item) => {
+    const models: string[] = [];
+    const seen = new Set<string>();
+    for (const item of rows) {
+      const id = (() => {
       if (typeof item === 'string') return item.trim();
       if (item && typeof item === 'object' && typeof (item as { id?: unknown }).id === 'string') return (item as { id: string }).id.trim();
       if (item && typeof item === 'object' && typeof (item as { name?: unknown }).name === 'string') return (item as { name: string }).name.trim();
       return '';
-    }).filter((id) => id.length > 0 && id.length <= 200))].sort();
+      })();
+      const key = id.toLowerCase();
+      if (!id || id.length > 200 || seen.has(key)) continue;
+      seen.add(key);
+      models.push(id);
+    }
+    return models;
   }
 
   async generate(request: AiGenerateRequest & { model: string }) {
@@ -241,7 +256,7 @@ export class DirectAiClient {
     });
   }
 
-  private async request<T>(resource: 'models' | 'chat/completions', init: { method: 'GET' | 'POST'; body?: string }): Promise<T> {
+  private async request<T>(resource: 'models' | 'chat/completions', init: { method: 'GET' | 'POST'; body?: string; signal?: AbortSignal }): Promise<T> {
     let response: Response;
     const url = resolveOpenAiEndpoint(this.baseUrl, resource);
     try {
@@ -249,7 +264,7 @@ export class DirectAiClient {
         method: init.method,
         body: init.body,
         redirect: 'error',
-        signal: AbortSignal.timeout(60_000),
+        signal: timedRequestSignal(init.signal),
         headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}) }
       }));
     } catch (error) { throw transportFailure('AI 服务', error); }
@@ -285,8 +300,8 @@ export class RelayAiClient {
     return this.request<RelayProviderDirectory>('v1/relay/providers', { method: 'GET', authenticated: true });
   }
 
-  async listModels(providerId: string) {
-    return this.request<{ models: string[]; defaultModel: string }>(`v1/relay/providers/${encodeURIComponent(providerId)}/models`, { method: 'GET', authenticated: true });
+  async listModels(providerId: string, signal?: AbortSignal) {
+    return this.request<{ models: string[]; defaultModel: string }>(`v1/relay/providers/${encodeURIComponent(providerId)}/models`, { method: 'GET', authenticated: true, signal });
   }
 
   async generate(providerId: string, request: AiGenerateRequest & { model: string }) {
@@ -298,7 +313,7 @@ export class RelayAiClient {
     return this.request<AiGenerateResponse>(`v1/relay/providers/${encodeURIComponent(providerId)}/generate`, { method: 'POST', authenticated: true, body: JSON.stringify(request) });
   }
 
-  private async request<T>(path: string, options: { method: 'GET' | 'POST'; body?: string; authenticated: boolean }): Promise<T> {
+  private async request<T>(path: string, options: { method: 'GET' | 'POST'; body?: string; authenticated: boolean; signal?: AbortSignal }): Promise<T> {
     if (options.authenticated && !this.sessionToken) throw new Error('请先输入密码解锁本机中转站');
     let response: Response;
     const url = new URL(path, this.baseUrl);
@@ -307,7 +322,7 @@ export class RelayAiClient {
         method: options.method,
         body: options.body,
         redirect: 'error',
-        signal: AbortSignal.timeout(60_000),
+        signal: timedRequestSignal(options.signal),
         headers: { ...(options.body ? { 'content-type': 'application/json' } : {}), ...(this.sessionToken ? { 'x-relay-session': this.sessionToken } : {}) }
       }));
     } catch (error) { throw await relayTransportFailure(error); }

@@ -314,6 +314,15 @@ h1, h2, p { margin-top: 0; }
 .ai-result-card .text-button:hover { background: var(--acid-soft); }
 .ai-control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .model-catalog-field { position: relative; margin: 13px 0; padding: 13px; overflow: hidden; background: linear-gradient(145deg, rgba(216,255,63,.055), rgba(255,255,255,.018) 58%); border: 1px solid rgba(216,255,63,.18); border-radius: 12px; }
+.model-request-control { min-width: 0; margin: 12px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.model-request-control .secondary-button { min-width: 142px; }
+.model-request-control .model-request-stop { min-height: 36px; padding: 0 10px; color: #d8a483; border: 1px solid rgba(216,164,131,.22); border-radius: 999px; }
+.model-request-control .model-request-stop:hover { color: #ffd3b8; background: rgba(216,164,131,.08); }
+.model-request-control > small { flex: 1 1 190px; color: var(--muted); font-size: 8px; line-height: 1.55; }
+.model-request-control.compact { margin-top: 0; }
+.model-request-control.compact .secondary-button { min-width: 0; min-height: 36px; padding: 0 11px; }
+.model-request-spinner { animation: model-request-spin .9s linear infinite; }
+@keyframes model-request-spin { to { transform: rotate(360deg); } }
 .model-catalog-field::before { content: ""; position: absolute; inset: 0 0 auto; height: 1px; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(216,255,63,.7), transparent); opacity: .7; }
 .model-catalog-heading { margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .model-catalog-heading span { color: var(--muted); font: 600 8px/1 var(--display); letter-spacing: .18em; }
@@ -646,6 +655,8 @@ h1, h2, p { margin-top: 0; }
   .ai-history-list { max-height: 280px; border-right: 0; border-bottom: 1px solid var(--line); }
   .ai-history-detail { max-height: none; }
   .ai-control-grid, .ai-change-columns { grid-template-columns: 1fr; }
+  .model-request-control .secondary-button, .model-request-control .model-request-stop { min-height: 44px; }
+  .model-request-control > small { flex-basis: 100%; font-size: 9px; }
   .model-filter-field { padding-left: 12px; }
   .model-filter-field input { padding: 12px 0; font-size: 16px; }
   .model-filter-field .icon-button { width: 44px; min-width: 44px; height: 44px; }

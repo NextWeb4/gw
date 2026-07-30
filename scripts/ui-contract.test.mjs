@@ -73,9 +73,10 @@ test('AI compact mode keeps consent controls while history and downloads remain 
 });
 
 test('AI model discovery keeps long catalogs searchable and rejects stale request results', async () => {
-  const [app, css] = await Promise.all([
+  const [app, css, syncClient] = await Promise.all([
     read('apps/web/src/App.tsx'),
     read('apps/web/src/styles.css'),
+    read('packages/sync-client/src/index.ts'),
   ]);
 
   assert.match(app, /function useLatestModelRequest\(\)/, 'model discovery must share one latest-request guard');
@@ -84,9 +85,13 @@ test('AI model discovery keeps long catalogs searchable and rejects stale reques
   assert.match(app, /className="model-current-selection"/, 'long selected model IDs must remain readable outside the native select');
   assert.match(app, /modelRequest\.isCurrent\(runId\)/, 'late responses must be checked against the current request generation');
   assert.match(app, /正在获取模型/, 'model retrieval must expose an explicit busy state');
+  assert.match(app, /停止等待/, 'model retrieval must expose an explicit stop-waiting action');
+  assert.match(app, /已保留上次模型目录/, 'refresh failures must retain the last successful model catalog');
+  assert.match(syncClient, /AbortSignal\.any\(\[signal, timeout\]\)/, 'browser model discovery must combine caller cancellation with the bounded timeout');
   assert.match(css, /\.model-filter-field:focus-within/, 'the model filter must retain a visible keyboard focus state');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.model-filter-field input[^}]*font-size:\s*16px/, 'the narrow model filter must avoid browser zoom and remain readable');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.model-filter-field \.icon-button[^}]*44px/, 'the narrow model filter clear action must keep a 44px touch target');
   assert.match(css, /\.model-current-selection code[^}]*overflow-wrap:\s*anywhere/, 'long selected model IDs must wrap without widening the page');
   assert.match(css, /\.toast[^}]*pointer-events:\s*none/s, 'transient status messages must not block model controls beneath them');
+  assert.match(css, /\.model-request-control[^}]*flex-wrap:\s*wrap/, 'refresh controls must wrap without widening narrow layouts');
 });

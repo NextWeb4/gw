@@ -74,12 +74,16 @@ async function requestJson(payload, resource, init) {
 export async function requestAiModels(payload) {
   const response = await requestJson(payload, 'models', { method: 'GET' });
   const rows = Array.isArray(response.data) ? response.data : Array.isArray(response.models) ? response.models : [];
-  return [...new Set(rows.map((item) => {
-    if (typeof item === 'string') return item.trim();
-    if (typeof item?.id === 'string') return item.id.trim();
-    if (typeof item?.name === 'string') return item.name.trim();
-    return '';
-  }).filter((id) => id.length > 0 && id.length <= 200))].sort();
+  const models = [];
+  const seen = new Set();
+  for (const item of rows) {
+    const id = typeof item === 'string' ? item.trim() : typeof item?.id === 'string' ? item.id.trim() : typeof item?.name === 'string' ? item.name.trim() : '';
+    const key = id.toLowerCase();
+    if (!id || id.length > 200 || seen.has(key)) continue;
+    seen.add(key);
+    models.push(id);
+  }
+  return models;
 }
 
 export async function requestAiCompletion(payload) {

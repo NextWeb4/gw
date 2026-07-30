@@ -23,11 +23,11 @@ test('lists models and generates only confirmed redacted content', async () => {
   const calls = [];
   globalThis.fetch = async (url, init) => {
     calls.push([url, init]);
-    if (String(url).endsWith('/v1/models')) return new Response(JSON.stringify({ models: ['model-b', { name: 'model-a' }] }), { status: 200 });
+    if (String(url).endsWith('/v1/models')) return new Response(JSON.stringify({ models: ['model-b', { name: 'model-a' }, { id: 'MODEL-B' }] }), { status: 200 });
     return new Response(JSON.stringify({ choices: [{ message: { content: '结果' } }] }), { status: 200 });
   };
   try {
-    assert.deepEqual(await requestAiModels({ baseUrl: 'https://provider.example/api', apiKey: 'memory-only' }), ['model-a', 'model-b']);
+    assert.deepEqual(await requestAiModels({ baseUrl: 'https://provider.example/api', apiKey: 'memory-only' }), ['model-b', 'model-a']);
     await assert.rejects(requestAiCompletion({ baseUrl: 'https://provider.example/api', apiKey: '', model: 'model-a', redactedContent: '原文', confirmed: false, redacted: true, purpose: '公文润色' }), /确认脱敏/);
     await assert.rejects(requestAiCompletion({ baseUrl: 'https://provider.example/api', apiKey: '', model: 'm'.repeat(201), redactedContent: '已脱敏', confirmed: true, redacted: true, purpose: '公文润色' }), /模型标识长度/);
     await assert.rejects(requestAiCompletion({ baseUrl: 'https://provider.example/api', apiKey: '', model: 'model-a', redactedContent: 'x'.repeat(120_001), confirmed: true, redacted: true, purpose: '公文润色' }), /已脱敏内容无效/);

@@ -86,13 +86,28 @@ describe('private sync client', () => {
     expect(fetcher.mock.calls[1]?.[0].toString()).toContain('/v1/ai/models');
   });
 
+  it('lets callers cancel intranet model discovery through an AbortSignal', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ token: 'session-token' }), { status: 200 }))
+      .mockImplementationOnce(async (_input, init) => new Promise<Response>((resolve, reject) => {
+        const timer = setTimeout(() => resolve(new Response(JSON.stringify({ models: ['too-late'], defaultModel: '' }), { status: 200 })), 80);
+        init?.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(init.signal?.reason); }, { once: true });
+      }));
+    const client = new PrivateSyncClient({ baseUrl: 'http://127.0.0.1:8787', fetcher });
+    await client.createSession('long-access-code');
+    const controller = new AbortController();
+    const request = client.listModels(controller.signal);
+    controller.abort();
+    await expect(request).rejects.toThrow(/aborted/i);
+  });
+
   it('supports OpenAI-compatible internet endpoints without following redirects', async () => {
     expect(() => new DirectAiClient({ baseUrl: 'https://provider.example/api', apiKey: 'k'.repeat(1001) })).toThrow(/长度超限/);
     const fetcher = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: 'model-b' }, { id: 'model-a' }] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: '结果' } }] }), { status: 200 }));
     const client = new DirectAiClient({ baseUrl: 'https://provider.example/api', apiKey: 'memory-only', fetcher });
-    await expect(client.listModels()).resolves.toEqual(['model-a', 'model-b']);
+    await expect(client.listModels()).resolves.toEqual(['model-b', 'model-a']);
     await expect(client.generate({ model: 'model-a', redactedContent: '已脱敏内容', redacted: true, confirmed: true, purpose: '润色' })).resolves.toMatchObject({ choices: expect.any(Array) });
     expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ method: 'GET', redirect: 'error' });
     expect(fetcher.mock.calls[1]?.[1]).toMatchObject({ method: 'POST', redirect: 'error' });
@@ -113,7 +128,7 @@ describe('private sync client', () => {
   it('accepts common relay model-list shapes in direct desktop mode', async () => {
     const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ models: ['model-z', { name: 'model-a' }, { id: 'model-b' }] }), { status: 200 }));
     const client = new DirectAiClient({ baseUrl: 'https://relay.example/v1', fetcher });
-    await expect(client.listModels()).resolves.toEqual(['model-a', 'model-b', 'model-z']);
+    await expect(client.listModels()).resolves.toEqual(['model-z', 'model-a', 'model-b']);
   });
 
   it('unlocks a loopback relay, refreshes providers and proxies models and confirmed generation by provider id', async () => {
@@ -133,6 +148,21 @@ describe('private sync client', () => {
     expect(String(fetcher.mock.calls[2]?.[0])).toContain('/v1/relay/providers/mystery-01/models');
     const generatedBody = JSON.parse(String(fetcher.mock.calls[3]?.[1]?.body));
     expect(generatedBody).toMatchObject({ model: 'relay-model', redactedContent: '已脱敏材料', confirmed: true, redacted: true });
+  });
+
+  it('lets callers cancel relay model discovery through an AbortSignal', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ token: 'relay-token', expiresIn: 3600 }), { status: 200 }))
+      .mockImplementationOnce(async (_input, init) => new Promise<Response>((resolve, reject) => {
+        const timer = setTimeout(() => resolve(new Response(JSON.stringify({ models: ['too-late'], defaultModel: '' }), { status: 200 })), 80);
+        init?.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(init.signal?.reason); }, { once: true });
+      }));
+    const client = new RelayAiClient({ baseUrl: 'http://127.0.0.1:8787', fetcher });
+    await client.createSession('session-password');
+    const controller = new AbortController();
+    const request = client.listModels('mystery-01', controller.signal);
+    controller.abort();
+    await expect(request).rejects.toThrow(/取消/);
   });
 
   it('explains how to recover when Chrome denies loopback network permission', async () => {
@@ -190,9 +220,21 @@ describe('private sync client', () => {
   });
 
   it('trims, filters and de-duplicates model identifiers', async () => {
-    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ data: [{ id: ' model-b ' }, { id: 'model-a' }, { id: 'model-a' }, { id: '' }, { id: 'x'.repeat(201) }, { id: 42 }] }), { status: 200 }));
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ data: [{ id: ' model-b ' }, { id: 'model-a' }, { id: 'MODEL-B' }, { id: 'model-a' }, { id: '' }, { id: 'x'.repeat(201) }, { id: 42 }] }), { status: 200 }));
     const client = new DirectAiClient({ baseUrl: 'https://provider.example/v1', fetcher });
-    await expect(client.listModels()).resolves.toEqual(['model-a', 'model-b']);
+    await expect(client.listModels()).resolves.toEqual(['model-b', 'model-a']);
+  });
+
+  it('lets callers cancel direct model discovery through an AbortSignal', async () => {
+    const fetcher = vi.fn<typeof fetch>(async (_input, init) => new Promise<Response>((resolve, reject) => {
+      const timer = setTimeout(() => resolve(new Response(JSON.stringify({ data: [{ id: 'too-late' }] }), { status: 200 })), 80);
+      init?.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(init.signal?.reason); }, { once: true });
+    }));
+    const client = new DirectAiClient({ baseUrl: 'https://provider.example/v1', fetcher });
+    const controller = new AbortController();
+    const request = client.listModels(controller.signal);
+    controller.abort();
+    await expect(request).rejects.toThrow(/取消/);
   });
 
   it('accepts provider base URLs with or without a trailing version segment', () => {

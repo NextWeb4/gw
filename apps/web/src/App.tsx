@@ -1217,18 +1217,21 @@ function TextArea({ label, value, onChange, placeholder }: { label: string; valu
 function SelectField({ label, value, options, onChange }: { label: string; value: string; options: Array<string | { value: string; label: string }>; onChange: (value: string) => void }) { return <label className="field"><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => { const normalized = typeof option === 'string' ? { value: option, label: option } : option; return <option value={normalized.value} key={normalized.value}>{normalized.label}</option>; })}</select></label>; }
 function useLatestModelRequest() {
   const runIdRef = useRef(0);
+  const controllerRef = useRef<AbortController | undefined>(undefined);
   const [loading, setLoading] = useState(false);
-  useEffect(() => () => { runIdRef.current += 1; }, []);
-  const invalidate = () => { runIdRef.current += 1; setLoading(false); };
-  const begin = () => { const runId = ++runIdRef.current; setLoading(true); return runId; };
+  useEffect(() => () => { runIdRef.current += 1; controllerRef.current?.abort(); controllerRef.current = undefined; }, []);
+  const invalidate = () => { runIdRef.current += 1; const controller = controllerRef.current; controllerRef.current = undefined; setLoading(false); controller?.abort(); };
+  const begin = () => { const runId = ++runIdRef.current; controllerRef.current?.abort(); const controller = new AbortController(); controllerRef.current = controller; setLoading(true); return { runId, signal: controller.signal }; };
   const isCurrent = (runId: number) => runId === runIdRef.current;
-  const finish = (runId: number) => { if (isCurrent(runId)) setLoading(false); };
-  return { loading, invalidate, begin, isCurrent, finish };
+  const finish = (runId: number) => { if (isCurrent(runId)) { controllerRef.current = undefined; setLoading(false); } };
+  const cancel = () => { if (!controllerRef.current) return false; invalidate(); return true; };
+  return { loading, invalidate, begin, isCurrent, finish, cancel };
 }
 function ModelCatalogField({ label, value, models, onChange }: { label: string; value: string; models: string[]; onChange: (value: string) => void }) {
   const [query, setQuery] = useState('');
-  useEffect(() => setQuery(''), [models]);
-  const keyword = query.trim().toLowerCase();
+  const searchable = models.length > 8;
+  useEffect(() => { if (!searchable) setQuery(''); }, [searchable]);
+  const keyword = searchable ? query.trim().toLowerCase() : '';
   const matches = keyword ? models.filter((item) => item.toLowerCase().includes(keyword)) : models;
   const selectedOutsideFilter = Boolean(value && !matches.includes(value));
   const options: Array<string | { value: string; label: string }> = [
@@ -1237,10 +1240,18 @@ function ModelCatalogField({ label, value, models, onChange }: { label: string; 
   ];
   return <div className="model-catalog-field">
     <div className="model-catalog-heading"><span>MODEL CATALOG</span><strong>{models.length} 个模型</strong></div>
-    {models.length > 8 && <div className="model-filter-field"><Search size={14} /><input aria-label="筛选模型" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="输入模型 ID 关键词" />{query && <button type="button" className="icon-button" aria-label="清除模型筛选" onClick={() => setQuery('')}><X size={13} /></button>}</div>}
+    {searchable && <div className="model-filter-field"><Search size={14} /><input aria-label="筛选模型" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="输入模型 ID 关键词" />{query && <button type="button" className="icon-button" aria-label="清除模型筛选" onClick={() => setQuery('')}><X size={13} /></button>}</div>}
     <SelectField label={label} value={value} options={options} onChange={onChange} />
     {value.length > 36 && <small className="model-current-selection"><span>当前模型</span><code>{value}</code></small>}
-    {models.length > 8 && <small className={`model-filter-status ${matches.length ? '' : 'empty'}`}>{matches.length ? `匹配 ${matches.length} / ${models.length}` : '没有匹配项；当前模型仍保留，可清除筛选后重新选择'}</small>}
+    {searchable && <small className={`model-filter-status ${matches.length ? '' : 'empty'}`}>{matches.length ? `匹配 ${matches.length} / ${models.length}` : '没有匹配项；当前模型仍保留，可清除筛选后重新选择'}</small>}
+  </div>;
+}
+function ModelRequestControl({ loading, modelCount, initialLabel, refreshLabel, onRequest, onCancel, compact = false, disabled = false }: { loading: boolean; modelCount: number; initialLabel: string; refreshLabel: string; onRequest: () => void; onCancel: () => void; compact?: boolean; disabled?: boolean }) {
+  const activeLabel = modelCount ? '正在刷新模型' : '正在获取模型';
+  return <div className={`model-request-control ${compact ? 'compact' : ''}`}>
+    <button type="button" className="secondary-button" aria-busy={loading} disabled={disabled || loading} onClick={onRequest}>{loading ? <RefreshCw size={16} className="model-request-spinner" /> : <Bot size={16} />}{loading ? activeLabel : modelCount ? refreshLabel : initialLabel}</button>
+    {loading && <button type="button" className="text-button model-request-stop" onClick={onCancel}><X size={14} />停止等待</button>}
+    {loading && modelCount > 0 && <small role="status">当前 {modelCount} 个模型继续可用，成功后再更新</small>}
   </div>;
 }
 function AttachmentField({ ids, attachments, onAttach, onRemove }: { ids: string[]; attachments: Attachment[]; onAttach: (files: FileList) => void; onRemove: (id: string) => void }) { const selected = ids.map((id) => attachments.find((attachment) => attachment.id === id)).filter((attachment): attachment is Attachment => Boolean(attachment)); return <div className="attachment-field"><div className="attachment-heading"><span>附件</span><small>单个文件不超过 8 MB，仅保存在本机</small></div>{selected.length > 0 && <div className="attachment-list">{selected.map((attachment) => <div className="attachment-row" key={attachment.id}><FileText size={14} /><span>{attachment.name}</span><small>{formatBytes(attachment.size)}</small><button type="button" className="icon-button" title={`下载附件 ${attachment.name}`} disabled={attachment.data === undefined} onClick={() => downloadStoredAttachment(attachment)}><ArrowDownToLine size={14} /></button><button type="button" className="icon-button danger-icon" title={`解除关联 ${attachment.name}`} onClick={() => onRemove(attachment.id)}><X size={14} /></button></div>)}</div>}<label className="attachment-picker"><Upload size={15} /><span>选择附件</span><input type="file" multiple onChange={(event) => { if (event.target.files?.length) onAttach(event.target.files); event.currentTarget.value = ''; }} /></label></div>; }
@@ -1740,17 +1751,22 @@ function IntranetServices({ compact, workspace, attachments, prefill, skills, on
   const sync = async () => { if (!client) return setToast('请先建立内网会话'); try { const result = await syncPrivateWorkspace(client, { tasks: workspace.tasks, meetings: workspace.meetings, documents: workspace.documents, researches: workspace.researches, seals: workspace.seals, materials: workspace.materials, drafts: [workspace.draft], weeklyReports: workspace.weeklyReports, attachments }); await onReload(); setToast(`同步完成：拉取 ${result.pulled}，推送 ${result.pushed}，冲突 ${result.conflicts}，附件上传 ${result.attachmentsUploaded}`); } catch (error) { setToast(error instanceof Error ? error.message : '同步失败'); } };
   const loadModels = async () => {
     if (!client) return setToast('请先建立内网会话');
-    const runId = modelRequest.begin();
-    setModels([]); setModel(''); invalidateAiResult();
+    const previousModels = models;
+    const previousModel = model;
+    const { runId, signal } = modelRequest.begin();
+    invalidateAiResult();
     try {
-      const result = await client.listModels();
+      const result = await client.listModels(signal);
       if (!modelRequest.isCurrent(runId)) return;
-      setModels(result.models); setModel(result.defaultModel || result.models[0] || ''); setToast(`已获取 ${result.models.length} 个内部模型`);
+      const nextModel = result.models.includes(previousModel) ? previousModel : result.models.includes(result.defaultModel) ? result.defaultModel : result.models[0] || '';
+      setModels(result.models); setModel(nextModel); setToast(`已获取 ${result.models.length} 个内部模型${previousModel && nextModel === previousModel ? '，当前选择已保留' : ''}`);
     } catch (error) {
       if (!modelRequest.isCurrent(runId)) return;
-      setModels([]); setModel(''); setToast(error instanceof Error ? error.message : '获取模型失败');
+      const message = error instanceof Error ? error.message : '获取模型失败';
+      setToast(`${message}${previousModels.length ? '；已保留上次模型目录' : ''}`);
     } finally { modelRequest.finish(runId); }
   };
+  const cancelModelRequest = () => { if (modelRequest.cancel()) setToast('已停止等待；当前模型目录保持不变'); };
   const loadMaterial = () => { const content = buildAiWorkspaceMaterial(materialSource, workspace); if (!content) return setToast('所选本机素材为空'); setRedactionSource(content.slice(0, AI_MAX_CONTENT_LENGTH)); setRedactedContent(''); setConfirmed(false); setAiResult(undefined); setToast(content.length > AI_MAX_CONTENT_LENGTH ? `素材已载入并截取前 ${AI_MAX_CONTENT_LENGTH} 个字符` : '本机素材已载入'); };
   const previewRedaction = () => { if (!redactionSource.trim()) return setToast('请先填写待处理材料'); if (redactionSource.length > AI_MAX_CONTENT_LENGTH) return setToast(`待处理材料不能超过 ${AI_MAX_CONTENT_LENGTH} 个字符`); setRedactedContent(redactSensitiveContent(redactionSource)); setConfirmed(false); setAiResult(undefined); };
   const sendAi = async () => { if (!client) return setToast('请先建立内网会话'); if (!redactedContent) return setToast('请先生成并检查脱敏预览'); if (!confirmed) return setToast('请勾选本次发送确认'); try { const response = await client.generate({ redactedContent, redacted: true, confirmed: true, purpose, model: model || undefined, guidance: selectedGuidance?.content }); const answer = extractOpenAiText(response); const changes = buildAiFieldChanges(prefill?.changeContext, redactedContent, answer); setAiResult(response); setConfirmed(false); if (answer) await onSaveHistory(createAiHistoryEntry({ source: 'intranet', purpose, provider: '内部 AI 网关', model: response.audit?.model || model || '服务端默认', skillName: selectedGuidance?.name || '', targetLabel: prefill?.changeContext?.targetLabel || '本机材料', input: redactedContent, answer, changes })); setToast(answer ? '内部 AI 结果已返回并保存到本机历史；原稿未被覆盖' : '内部 AI 结果已返回；原稿未被覆盖'); } catch (error) { setToast(error instanceof Error ? error.message : 'AI 请求失败'); } };
@@ -1761,7 +1777,8 @@ function IntranetServices({ compact, workspace, attachments, prefill, skills, on
     <details className={`panel ai-advanced-config ${compact ? '' : 'full-ai-connection'}`} open={!client}><summary>{compact ? <><span><Server size={15} />内部连接</span><strong>{client ? '已连接，后台模型配置已接管' : '首次使用需要建立会话'}</strong></> : <><span className="ai-connection-title"><span className="eyebrow">内部服务</span><strong className="ai-connection-heading" role="heading" aria-level={2}>同步连接</strong></span><span className={`status-pill ${client ? 'done' : 'pending'}`}>{client ? '已连接' : '未连接'}</span></>}</summary><div>{connectionForm}</div></details>
     <div className="panel service-panel ai-workbench"><div className="panel-heading"><div><span className="eyebrow">内部 AI</span><h2>{compact ? '本次协作' : '总结与润色'}</h2></div>{compact && client && <span className="status-pill done">后台已配置</span>}</div>
       {!compact && <AiWorkflowProgress connectionReady={Boolean(client)} materialReady={Boolean(redactionSource.trim())} redactionReady={Boolean(redactedContent)} resultReady={aiResult !== undefined} />}
-      {!models.length ? <button className="secondary-button" disabled={!client || modelRequest.loading} onClick={() => void loadModels()}><Bot size={16} />{modelRequest.loading ? '正在获取模型' : '获取内部模型'}</button> : compact ? <p className="ai-ready-summary"><Bot size={14} />{model || '服务端默认模型'}</p> : <ModelCatalogField label="内部模型" value={model} models={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}
+      <ModelRequestControl compact={compact && models.length > 0} disabled={!client} loading={modelRequest.loading} modelCount={models.length} initialLabel="获取内部模型" refreshLabel="刷新内部模型" onRequest={() => void loadModels()} onCancel={cancelModelRequest} />
+      {models.length > 0 && (compact ? <p className="ai-ready-summary"><Bot size={14} />{model || '服务端默认模型'}</p> : <ModelCatalogField label="内部模型" value={model} models={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />)}
       <div className="ai-control-grid"><SelectField label="处理用途" value={purpose} options={aiPurposeOptions} onChange={(value) => { setPurpose(value); invalidateAiResult(); }} /><SelectField label="润色指引" value={effectiveGuidanceId} options={guidanceOptions(skills)} onChange={(value) => { setSkillId(value); invalidateAiResult(); }} /></div>
       {selectedGuidance && <p className="skill-attach-note">将附加「{selectedGuidance.name}」（{selectedGuidance.content.length} 字）作为系统写作指引。</p>}
       {compact && prefill ? <p className="ai-ready-summary"><FileText size={14} />已载入：{prefill.changeContext?.targetLabel || '当前页面材料'}</p> : <div className="material-source-row"><SelectField label="本机素材" value={materialSource} options={aiSourceOptions} onChange={(value) => { setMaterialSource(value); invalidateAiResult(); }} /><button className="secondary-button" onClick={loadMaterial}><FileText size={15} />载入素材</button></div>}
@@ -1851,24 +1868,30 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
   const loadModels = async () => {
     if (relayMode && (!relayClient || !selectedRelayProvider)) return setToast('请先解锁并选择已启用的神秘站点');
     if (!relayMode && !baseUrl.trim()) return setToast('请填写兼容 API 请求地址');
-    const runId = modelRequest.begin();
-    setModels([]); setModel(''); invalidateAiResult();
+    const previousModels = models;
+    const previousModel = model;
+    const { runId, signal } = modelRequest.begin();
+    invalidateAiResult();
     try {
       if (relayMode) {
         if (!relayClient || !selectedRelayProvider) return;
-        const result = await relayClient.listModels(selectedRelayProvider.id);
+        const result = await relayClient.listModels(selectedRelayProvider.id, signal);
         if (!modelRequest.isCurrent(runId)) return;
-        setModels(result.models); setModel(result.defaultModel || result.models[0] || ''); setToast(`已从${selectedRelayProvider.label}获取 ${result.models.length} 个模型`);
+        const nextModel = result.models.includes(previousModel) ? previousModel : result.models.includes(result.defaultModel) ? result.defaultModel : result.models[0] || '';
+        setModels(result.models); setModel(nextModel); setToast(`已从${selectedRelayProvider.label}获取 ${result.models.length} 个模型${previousModel && nextModel === previousModel ? '，当前选择已保留' : ''}`);
       } else {
-        const list = desktopBridge()?.listAiModels ? await desktopBridge()!.listAiModels(baseUrl, apiKey) : await createClient().listModels();
+        const list = desktopBridge()?.listAiModels ? await desktopBridge()!.listAiModels(baseUrl, apiKey) : await createClient().listModels(signal);
         if (!modelRequest.isCurrent(runId)) return;
-        setModels(list); setModel(list[0] || ''); setToast(`已获取 ${list.length} 个可用模型`);
+        const nextModel = list.includes(previousModel) ? previousModel : list[0] || '';
+        setModels(list); setModel(nextModel); setToast(`已获取 ${list.length} 个可用模型${previousModel && nextModel === previousModel ? '，当前选择已保留' : ''}`);
       }
     } catch (error) {
       if (!modelRequest.isCurrent(runId)) return;
-      setModels([]); setModel(''); setToast(error instanceof Error ? error.message : '获取模型失败');
+      const message = error instanceof Error ? error.message : '获取模型失败';
+      setToast(`${message}${previousModels.length ? '；已保留上次模型目录' : ''}`);
     } finally { modelRequest.finish(runId); }
   };
+  const cancelModelRequest = () => { if (modelRequest.cancel()) setToast('已停止等待；当前模型目录保持不变'); };
   const loadMaterial = () => { const content = buildAiWorkspaceMaterial(materialSource, workspace); if (!content) return setToast('所选本机素材为空'); setRedactionSource(content.slice(0, AI_MAX_CONTENT_LENGTH)); setRedactedContent(''); setConfirmed(false); setAiResult(undefined); setToast(content.length > AI_MAX_CONTENT_LENGTH ? `素材已载入并截取前 ${AI_MAX_CONTENT_LENGTH} 个字符` : '本机素材已载入'); };
   const previewRedaction = () => { if (!redactionSource.trim()) return setToast('请先填写待处理材料'); if (redactionSource.length > AI_MAX_CONTENT_LENGTH) return setToast(`待处理材料不能超过 ${AI_MAX_CONTENT_LENGTH} 个字符`); setRedactedContent(redactSensitiveContent(redactionSource)); setConfirmed(false); setAiResult(undefined); };
   const sendAi = async () => {
@@ -1901,9 +1924,9 @@ function InternetAiServices({ compact, workspace, publicMode, prefill, skills, o
     <p className="provider-note">{relayClient ? `已解锁 ${relayProviders.length} 个站点 · revision ${relayRevision || '—'}` : '密码、会话和站点目录只保留在当前页面内存；真实地址与 API Key 不会从后端返回。'}</p>
     <p className="service-note">可先在本机管理页点击“测试已保存配置”检查模型列表，再回到这里刷新站点；诊断详情不会进入 Pages。</p>
     {!relayClient && <p className="service-note">公开 Pages 首次连接时，Chrome 会询问是否允许“本地网络访问”，请选择“允许”；若曾拒绝，请在地址栏的网站设置中重新开启后刷新页面。</p>}
-    {selectedRelayProvider && <><p className="ai-ready-summary"><Server size={14} />当前站点：{selectedRelayProvider.label}</p><button className="secondary-button" disabled={modelRequest.loading} onClick={() => void loadModels()}><Bot size={16} />{modelRequest.loading ? '正在获取模型' : '获取中转站模型'}</button>{models.length > 0 && <ModelCatalogField label="选择模型" value={model} models={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}</>}
+    {selectedRelayProvider && <><p className="ai-ready-summary"><Server size={14} />当前站点：{selectedRelayProvider.label}</p><ModelRequestControl loading={modelRequest.loading} modelCount={models.length} initialLabel="获取中转站模型" refreshLabel="刷新中转站模型" onRequest={() => void loadModels()} onCancel={cancelModelRequest} />{models.length > 0 && <ModelCatalogField label="选择模型" value={model} models={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}</>}
   </div>;
-  const directForm = <><Field label="请求地址" value={baseUrl} onChange={changeBaseUrl} placeholder="https://api.example.com/v1" /><Field label="API Key（仅当前会话）" type="password" value={apiKey} onChange={(value) => { setApiKey(value); modelRequest.invalidate(); invalidateAiResult(); }} /><button className="secondary-button" disabled={modelRequest.loading} onClick={() => void loadModels()}><Bot size={16} />{modelRequest.loading ? '正在获取模型' : '获取 AI 模型'}</button>{models.length > 0 && <ModelCatalogField label="选择模型" value={model} models={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}<p className="provider-note">{selectedDirectProvider.note}{selectedDirectProvider.officialDocs && <> · <a href={selectedDirectProvider.officialDocs} target="_blank" rel="noreferrer">官方文档</a></>}</p><p className="service-note"><KeyRound size={13} /> API Key 只在当前会话使用，不写入本机历史、IndexedDB、日志或快照。</p></>;
+  const directForm = <><Field label="请求地址" value={baseUrl} onChange={changeBaseUrl} placeholder="https://api.example.com/v1" /><Field label="API Key（仅当前会话）" type="password" value={apiKey} onChange={(value) => { setApiKey(value); modelRequest.invalidate(); invalidateAiResult(); }} /><ModelRequestControl loading={modelRequest.loading} modelCount={models.length} initialLabel="获取 AI 模型" refreshLabel="刷新 AI 模型" onRequest={() => void loadModels()} onCancel={cancelModelRequest} />{models.length > 0 && <ModelCatalogField label="选择模型" value={model} models={models} onChange={(value) => { setModel(value); invalidateAiResult(); }} />}<p className="provider-note">{selectedDirectProvider.note}{selectedDirectProvider.officialDocs && <> · <a href={selectedDirectProvider.officialDocs} target="_blank" rel="noreferrer">官方文档</a></>}</p><p className="service-note"><KeyRound size={13} /> API Key 只在当前会话使用，不写入本机历史、IndexedDB、日志或快照。</p></>;
   const configForm = <><SelectField label="服务商预设" value={providerId} options={providerOptions} onChange={chooseProvider} />{relayMode ? relayForm : directForm}</>;
   return <section className={`desktop-services internet-services ${compact ? 'compact-ai-services' : ''}`} id="ai-workflow">
     <details className={`panel ai-advanced-config ${compact ? '' : 'full-ai-connection'}`} open={!model}><summary>{compact ? <><span><Globe2 size={15} />模型连接</span><strong>{model ? `${selectedProviderLabel} · ${model}` : '首次使用需要配置或解锁模型'}</strong></> : <><span className="ai-connection-title"><span className="eyebrow">{publicMode ? '公开 Pages · 用户自备 Key / 本机中转' : '互联网版'}</span><strong className="ai-connection-heading" role="heading" aria-level={2}>兼容 API 配置</strong></span><span className={`status-pill ${model ? 'done' : 'pending'}`}>{model ? '模型已就绪' : '待配置'}</span></>}</summary><div>{configForm}</div></details>

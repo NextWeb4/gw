@@ -1,6 +1,6 @@
 # 开源方案审计
 
-审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6 补充审计：2026-07-30。公开客户端为本地优先演示模式；服务端仅私有部署。
+审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7 补充审计：2026-07-30。公开客户端为本地优先演示模式；服务端仅私有部署。
 
 | 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与项目契合度 / 可能冲突 | 是否采用 / 采用方式 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,6 +24,26 @@
 | Node 24 `fetch`、`crypto`、`node:test` | [Node.js](https://nodejs.org/api/) / MIT | HTTPS 抓取、哈希和策略测试 | 标准运行时内置，不增加供应链或安装体积 | 重定向与体积限制需显式实现 | 随 Node 24 维护 | 只在内容同步脚本和 CI 中使用，不进入浏览器联网路径 | 采用，封装允许清单、逐跳重定向和 2 MB 上限 |
 | Got 15.1.0 | [官方仓库](https://github.com/sindresorhus/got) / MIT | HTTP 重试、钩子、重定向 | HTTP 能力成熟 | 当前仅抓取少量权威来源，引入运行依赖收益不足 | 活跃；npm 元数据 2026-07-02 更新 | 会扩大供应链，不能替代本项目域名策略 | 不采用 |
 | simple-git 3.36.0 | [官方仓库](https://github.com/steveukx/git-js) / MIT | Git 命令封装 | API 易用 | Actions 仅需 add/commit/push 三步 | 活跃；npm 元数据 2026-04-12 更新 | 增加无必要依赖；runner 已提供 Git | 不采用，工作流直接调用 Git |
+
+## v0.6.7 模型刷新、取消与状态保留方案审计
+
+问题本质：模型目录是用户显式触发的会话状态。刷新操作不应在新结果成功前破坏上次已验证目录；短暂失败不能把仍可用的模型选择清空；停止等待或切换配置后，浏览器应尽早中止请求，桌面 IPC 至少必须拒绝迟到结果。审计同时发现直连 Web 与 Electron 对模型 ID 调用了排序，违反项目“保持上游顺序”的既有规则。
+
+| 方案名称 | 来源 | 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与当前项目的契合度 | 可能冲突点 | 是否采用 | 采用方式 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Web `AbortController` / `AbortSignal.any` | [MDN](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) / Web 标准 | Web 标准文档 | 主动中止 Fetch、组合调用方取消与超时 | 零依赖；能直接接入现有 Fetch；不引入缓存或后台请求 | Electron `ipcRenderer.invoke` 本身不能把同一信号传到主进程 | 浏览器与 Node/Electron 当前运行时均原生支持 | 高 | 必须保留“仅最新请求可提交状态”，不能把取消错误误报成超时 | 采用 | 浏览器直连、Relay、内网模型发现组合调用方 signal 与 60 秒超时；配置变化、重复请求或用户停止等待时 abort |
+| LobeChat `abortableRequest` `f29cc947` | [官方仓库](https://github.com/lobehub/lobe-chat/blob/f29cc947f3d378315a546af23884dd3c50d45096/src/services/utils/abortableRequest.ts) | LobeHub Community License | 按请求 key 取消上一请求、手动取消、完成后清理 controller | 请求代次与 controller 生命周期清楚，并有取消/并发/清理测试 | 自定义许可证限制衍生分发；其全局 manager 超过本项目局部模型请求需求 | 2026-07-30 主分支更新 | 设计参考高，代码复用低 | 不得复制实现；全局 key manager 会扩大职责 | 只借鉴设计 | 借鉴“新请求取消旧请求、仅当前 controller 完成清理”的生命周期，不复制代码 |
+| Open WebUI ModelSelector `01f4282f` | [官方仓库](https://github.com/open-webui/open-webui/tree/01f4282f1ffe0d6212f58d3afbeae21fffd0c4be/src/lib/components/chat/ModelSelector) | Open WebUI 自定义许可证 | 搜索、当前模型定位、可取消模型下载、视口约束 | 长列表和取消反馈成熟，当前选择具有明确视觉锚点 | Svelte、全局 store 与下载队列远超模型目录刷新；品牌条款限制复制 | 2026-07-27 主分支更新 | 交互参考中高，源码复用低 | 不得复制组件、品牌、文案、样式或模型数据 | 只借鉴设计 | 借鉴“操作可取消且当前选择持续可见”，不引入下载、置顶、多选或其代码 |
+| TanStack Query 5.101.4 | [取消文档](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation) / MIT | MIT | AbortSignal、`keepPreviousData`、缓存和请求状态 | 取消与保留旧数据语义完整 | npm 解包约 859 KB；query cache、失效与自动重新获取心智超过当前需求 | 2026-07-29 npm 元数据 | 中 | 与模型发现必须按钮显式触发、不得后台联网的边界冲突 | 不采用 | 仅借鉴“成功前保留旧状态”和 signal 取消语义 |
+| SWR 2.4.2 | [状态理解文档](https://swr.vercel.app/docs/advanced/understanding) / MIT | MIT | `keepPreviousData`、重新验证和缓存 | API 小，保留旧数据体验成熟 | npm 解包约 311 KB、2 个依赖；默认重新验证语义不适合模型目录 | 2026-07-27 npm 元数据 | 中低 | 容易引入页面聚焦/网络恢复时自动刷新 | 不采用 | 不引入 SWR，只在用户显式刷新期间保留当前会话目录 |
+| Axios 1.19.0 | [取消文档](https://axios-http.com/docs/cancellation) / MIT | MIT | AbortController、超时、HTTP 封装 | 取消 API 成熟 | npm 解包约 1.87 MB、4 个依赖；会与现有原生 Fetch 和流式 2 MB 限制形成第二套传输层 | 2026-07-28 npm 元数据 | 低 | 重写 Fetch 边界会增加重定向、PNA 与限流回归面 | 不采用 | 继续使用原生 Fetch 与现有有限读取器 |
+| 现有 React 会话状态 + 原生 Fetch | 当前锁定依赖 | React MIT、Web 标准 | 保留最后成功目录、原子提交、当前选择保持、显式停止等待 | 零新增依赖；不改变协议、持久化、CSP 或联网触发点 | Electron 只能停止 UI 等待并忽略迟到 IPC，不能强制中断主进程 Fetch | 当前持续维护 | 高 | 必须同时覆盖 Web、Relay、内网和桌面顺序解析 | 采用 | 扩展局部请求 hook 和三个客户端的可选 signal；刷新不先清空，失败保留旧目录，成功按上游顺序原子替换 |
+
+- 直接复用：浏览器 `AbortController`、`AbortSignal.any`、现有 60 秒超时、请求代次、原生按钮/select 和当前暗色工业设计系统。
+- 只借鉴：LobeChat 的 controller 生命周期、TanStack Query/SWR 的“成功前保留旧状态”、Open WebUI 的显式取消反馈；未复制任何外部代码、文案、样式或数据。
+- 不采用：全局请求缓存、焦点/网络恢复自动刷新、后台重新验证、Axios、TanStack Query、SWR、模型下载队列、置顶和多选。
+- 适配范围：`packages/sync-client` 的模型发现可选 signal，Electron 模型顺序解析，`apps/web` 的局部刷新控制与 E2E；不改生成协议、AI 历史、服务端路由、数据库 schema、API Key 生命周期或模型目录持久化。
+- 回滚：恢复模型解析的旧返回逻辑并移除局部刷新控件/signal 参数即可；业务数据和 AI 历史无需迁移。
 
 ## v0.6.6 模型目录筛选与异步竞态方案审计
 
