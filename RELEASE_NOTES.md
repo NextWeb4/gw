@@ -9,6 +9,7 @@
 - 开源方案审计比较 Open WebUI、LobeChat、react-select、Headless UI、TanStack Query 与 SWR；只借鉴长目录搜索和当前选择保留，不复制受限项目代码、文案、样式、品牌或模型数据，也不采用缓存、后台刷新、多选或新组件依赖。
 - 工作区版本升至 `0.6.6`，私有服务端维持 `0.2.3`。未新增依赖、数据库 schema、协议字段、CSP 放宽或自动联网行为；回滚只需移除模型请求代次、筛选组件和对应样式。
 - 2026-07-30 本机回归已通过：lint、格式检查、87 项单元/契约测试、主 E2E 57 项通过/7 项条件跳过、互联网 E2E 4 项、内网 E2E 2 项和生产构建。1440×900 与 390×844 真实浏览器检查均无页面级横向溢出；移动端筛选输入为 16px、清除按钮为 44×44px、选择器高度 44px，长模型 ID 可换行查看，提示条不拦截点击。真实第三方模型上游未在本机验证，不作已验证声明。
+- [Pages run 30542197525](https://github.com/NextWeb4/gw/actions/runs/30542197525) 与 [desktop run 30542253012](https://github.com/NextWeb4/gw/actions/runs/30542253012) 均已成功。线上入口 bundle 中 `0.6.6` 命中 10 次，`0.6.5` 与 `0.3.1` 均为 0 次；[v0.6.6 Release](https://github.com/NextWeb4/gw/releases/tag/v0.6.6) 包含 12 个互联网/内网、Windows/Linux、x64/arm64 安装包和 `SHA256SUMS.txt`，13 个下载地址均返回 HTTP 200，校验文件含 12 条有效且文件名唯一的记录。
 
 ## v0.6.5
 
