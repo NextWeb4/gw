@@ -12,6 +12,9 @@
 
 A local-first system for official-document work, task and file tracking, drafting, weekly reports, document export, and controlled private synchronization.
 
+![Pages](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
+![Last commit](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
+![Repository size](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
 ![Version](https://img.shields.io/badge/version-0.6.4-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
@@ -190,6 +193,8 @@ Dependency choices, licenses, rejected alternatives, and rollback boundaries are
 - <https://github.com/NextWeb4>
 
 ## Copyright and Licensing
+
+See [LICENSE](LICENSE). It is a rights and provenance notice, not an open-source license: it grants no permission to use, copy, modify, deploy, or redistribute original project material. Third-party material remains subject to its own rights and terms.
 
 Copyright (c) 2026 HaoXiangHwang. All rights reserved.
 

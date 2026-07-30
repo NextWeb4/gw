@@ -12,6 +12,9 @@
 
 一个本地优先的公文事务、任务与文件跟踪、文稿写作、周报、文档导出和受控私有同步系统。
 
+![Pages 状态](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
+![最近提交](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
+![仓库大小](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
 ![版本](https://img.shields.io/badge/version-0.6.4-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
@@ -190,6 +193,8 @@ UI 组件必须使用 package API，不能直接访问持久化内部实现。�
 - <https://github.com/NextWeb4>
 
 ## 版权与许可证
+
+请参阅 [LICENSE](LICENSE)。该文件是权利与来源声明，并非开源许可证；它不授予使用、复制、修改、部署或再分发项目自有材料的许可。第三方材料仍受其各自权利与条款约束。
 
 Copyright (c) 2026 HaoXiangHwang. All rights reserved.
 

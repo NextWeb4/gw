@@ -37,6 +37,7 @@
 - `pnpm assets:generate` 只在品牌 SVG 发生变化时运行，使用已安装的 Playwright Chromium 生成 Web PNG 和 Electron ICO/PNG；生成后必须重新构建桌面包。
 
 ## 5. 代码风格
+- 根目录 `LICENSE` 是权利与来源声明，并非开源许可证。必须保留不授予许可、第三方材料例外、权利人和准确联系邮箱；未经明确授权不得替换为 SPDX 开源许可证。
 - `pnpm lint` 与 `pnpm format:check` 均执行 TypeScript/Node 语法与类型检查；当前未发现独立的自动 format 命令。
 - 使用 TypeScript 严格模式、函数式 React 组件和显式导出；禁止 `any` 逃避领域数据校验。
 - 界面图标统一使用 `lucide-react`；禁止使用表情符号、Unicode 图形字符或自行绘制的 SVG 冒充功能图标。品牌安装包图标仍以 `assets/brand/app-icon.svg` 为唯一源文件。

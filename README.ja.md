@@ -12,6 +12,9 @@
 
 公文事務、タスクとファイルの追跡、文書作成、週報、文書出力、制御されたプライベート同期のためのローカルファーストシステムです。
 
+![Pages の状態](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
+![最終コミット](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
+![リポジトリサイズ](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
 ![バージョン](https://img.shields.io/badge/version-0.6.4-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
@@ -190,6 +193,8 @@ UI は永続化内部へ直接アクセスせず package API を使用します�
 - <https://github.com/NextWeb4>
 
 ## 著作権とライセンス
+
+[LICENSE](LICENSE) を参照してください。これは権利および由来に関する通知であり、オープンソースライセンスではありません。プロジェクト独自の資料を使用、複製、変更、配備、再配布する許可は付与されません。第三者資料にはそれぞれの権利と条件が適用されます。
 
 Copyright (c) 2026 HaoXiangHwang. All rights reserved.
 
