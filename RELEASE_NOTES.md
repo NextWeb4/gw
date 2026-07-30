@@ -10,6 +10,7 @@
 - 开源审计比较 LiteLLM、New API、Cherry Studio、Open WebUI 与 Portkey Gateway：只借鉴显式健康检查、延迟、模型预览、迟到结果防护和尝试链可观测性；不采用后台轮询、自动模型同步、fallback、负载均衡、缓存或通用代理。AGPL 与自定义许可证项目没有复制代码、文案、组件、预设或数据。
 - 工作区版本升至 `0.6.5`，私有服务端升至 `0.2.3`。未新增依赖、数据库 schema、配置文档版本、客户端秘密字段或自动联网行为；回滚只需移除管理测试路由与同源 UI。
 - 2026-07-30 本机回归已通过：服务端 lint、格式检查、34 项集成测试（另有 2 项 PostgreSQL 条件测试跳过）和构建；客户端 lint、格式检查、86 项单元/契约测试、主 E2E 57 项通过/7 项条件跳过、互联网 E2E 3 项、内网 E2E 2 项和生产构建。真实 PostgreSQL 与真实第三方上游未在本机验证，不作已验证声明。
+- [Pages run 30530132922](https://github.com/NextWeb4/gw/actions/runs/30530132922) 与 [desktop run 30530253737](https://github.com/NextWeb4/gw/actions/runs/30530253737) 均已成功。线上入口 bundle 已核对包含 `0.6.5`，且不含旧版 `0.6.4` 或 `0.3.1`；[v0.6.5 Release](https://github.com/NextWeb4/gw/releases/tag/v0.6.5) 包含 12 个互联网/内网、Windows/Linux、x64/arm64 安装包和 `SHA256SUMS.txt`，校验文件含 12 条有效记录。
 
 ## v0.6.4
 
