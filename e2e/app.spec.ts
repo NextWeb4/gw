@@ -174,6 +174,7 @@ test('creates, persists, edits and deletes an editable task', async ({ page }) =
   const unitList = await page.getByLabel('配合单位名称 1').getAttribute('list');
   expect(unitList).toBeTruthy();
   await expect(page.locator(`#${unitList} option[value="综合协调单位"]`)).toHaveCount(1);
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('未保存修改'); await dialog.accept(); });
   await page.getByTitle('关闭').click();
 
   await page.getByRole('button', { name: '文件收发' }).click();
@@ -217,6 +218,76 @@ test('creates, persists, edits and deletes an editable task', async ({ page }) =
   updatedTaskRow = page.locator('.table-row').filter({ hasText: updatedName });
   await updatedTaskRow.getByTitle('删除任务').click();
   await expect(page.getByText(updatedName, { exact: true })).toHaveCount(0);
+});
+
+test('guards unsaved business drawer changes before closing or unloading', async ({ page }) => {
+  const unsavedName = '尚未保存的抽屉任务';
+  const closeFromBackdrop = async () => {
+    const backdrop = page.locator('.drawer-backdrop');
+    if ((page.viewportSize()?.width ?? 0) > 800) await backdrop.click({ position: { x: 6, y: 6 } });
+    else await backdrop.dispatchEvent('mousedown');
+  };
+  await page.getByRole('button', { name: '任务管理' }).click();
+
+  await page.getByRole('button', { name: '新建任务' }).click();
+  await page.getByTitle('关闭').click();
+  await expect(page.getByRole('dialog', { name: '新建任务' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: '新建任务' }).click();
+  await page.evaluate(() => {
+    const subtle = crypto.subtle;
+    const originalDigest = subtle.digest.bind(subtle);
+    let releaseDigest = () => undefined;
+    const gate = new Promise<void>((resolve) => { releaseDigest = resolve; });
+    (window as Window & { __releaseAttachmentDigest?: () => void }).__releaseAttachmentDigest = releaseDigest;
+    Object.defineProperty(subtle, 'digest', {
+      configurable: true,
+      value: async (...args: Parameters<SubtleCrypto['digest']>) => {
+        await gate;
+        Object.defineProperty(subtle, 'digest', { configurable: true, value: originalDigest });
+        return originalDigest(...args);
+      }
+    });
+  });
+  await page.locator('.attachment-picker input[type="file"]').setInputFiles({ name: '处理中附件.txt', mimeType: 'text/plain', buffer: Buffer.from('pending digest') });
+  await expect(page.getByText('未保存修改')).toBeVisible();
+  await expect(page.getByRole('button', { name: '正在处理附件' })).toBeDisabled();
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('暂存附件'); await dialog.accept(); });
+  await closeFromBackdrop();
+  await expect(page.getByRole('dialog', { name: '新建任务' })).toHaveCount(0);
+  await page.evaluate(() => (window as Window & { __releaseAttachmentDigest?: () => void }).__releaseAttachmentDigest?.());
+  await page.waitForTimeout(100);
+  await expect(page.getByRole('dialog', { name: '新建任务' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: '新建任务' }).click();
+  await expect(page.getByText('处理中附件.txt')).toHaveCount(0);
+  await page.getByLabel('任务名称').fill(unsavedName);
+  await page.locator('.attachment-picker input[type="file"]').setInputFiles({ name: '未保存附件.txt', mimeType: 'text/plain', buffer: Buffer.from('pending attachment') });
+  await expect(page.getByText('未保存修改')).toBeVisible();
+  const beforeUnload = await page.evaluate(() => {
+    const event = new Event('beforeunload', { cancelable: true });
+    return { dispatchResult: window.dispatchEvent(event), defaultPrevented: event.defaultPrevented };
+  });
+  expect(beforeUnload).toEqual({ dispatchResult: false, defaultPrevented: true });
+
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('未保存修改'); await dialog.dismiss(); });
+  await page.getByTitle('关闭').click();
+  await expect(page.getByRole('dialog', { name: '新建任务' })).toBeVisible();
+  await expect(page.getByLabel('任务名称')).toHaveValue(unsavedName);
+
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('未保存修改'); await dialog.dismiss(); });
+  await closeFromBackdrop();
+  await expect(page.getByRole('dialog', { name: '新建任务' })).toBeVisible();
+  await expect(page.getByLabel('任务名称')).toHaveValue(unsavedName);
+
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('暂存附件'); await dialog.accept(); });
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: '新建任务' })).toHaveCount(0);
+  await expect(page.getByText(unsavedName, { exact: true })).toHaveCount(0);
+
+  await page.getByRole('button', { name: '新建任务' }).click();
+  await expect(page.getByText('未保存附件.txt')).toHaveCount(0);
+  await page.getByTitle('关闭').click();
 });
 
 test('creates, searches, edits and deletes a file record', async ({ page }) => {
@@ -367,6 +438,7 @@ test('keeps public Pages business data local while enabling attachments and migr
   await expect(page.locator('.attachment-picker input[type="file"]')).toBeEnabled();
   await page.locator('.attachment-picker input[type="file"]').setInputFiles({ name: '取消编辑附件.txt', mimeType: 'text/plain', buffer: Buffer.from('discard me') });
   await expect(page.getByText('取消编辑附件.txt')).toBeVisible();
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('暂存附件'); await dialog.accept(); });
   await page.getByTitle('关闭').click();
   await page.getByRole('button', { name: '数据迁移' }).click();
   await expect(page.locator('.file-drop input[type="file"]')).toBeEnabled();
@@ -624,6 +696,7 @@ test('saves partner unit groups and appends them without overwriting', async ({ 
   await expect(page.getByRole('status')).toHaveText(/已从分组「端到端协同组」加入 1 个单位，跳过已存在 1 个/);
   await expect(page.getByLabel('配合单位名称 1')).toHaveValue('甲单位');
   await expect(page.getByLabel('配合单位名称 2')).toHaveValue('乙单位');
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('未保存修改'); await dialog.accept(); });
   await page.getByTitle('关闭').click();
 
   await page.reload();
@@ -854,6 +927,7 @@ test('keeps create-mode drawer titles stable after required fields are entered',
     await page.getByRole('button', { name: openButton }).click();
     await page.getByLabel(fieldLabel).fill(value);
     await expect(page.getByRole('heading', { name: expectedTitle, exact: true })).toBeVisible();
+    page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('未保存修改'); await dialog.accept(); });
     await page.getByTitle('关闭').click();
   }
 });

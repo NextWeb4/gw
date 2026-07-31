@@ -255,6 +255,9 @@ h1, h2, p { margin-top: 0; }
 @keyframes slide-in { from { transform: translateX(13%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 .drawer-header { padding: 25px 27px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(20,22,17,.14); }
 .drawer-header h2 { margin: 0; color: #151712; font: 600 28px/1 var(--display); letter-spacing: -.04em; }
+.drawer-title { min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.drawer-unsaved-status { min-height: 25px; padding: 0 9px; display: inline-flex; align-items: center; color: #8f3b22; background: rgba(193,77,43,.08); border: 1px solid rgba(193,77,43,.2); border-radius: 999px; font-size: 9px; font-weight: 700; letter-spacing: .04em; }
+.attachment-save-spinner { animation: model-request-spin .9s linear infinite; }
 .drawer .icon-button { color: #666a62; }.drawer .icon-button:hover { color: #151712; background: rgba(20,22,17,.08); }
 .drawer-body { padding: 25px 27px; overflow: auto; }
 .field { display: grid; gap: 7px; margin-bottom: 16px; }.field > span { color: #6f726b; font-size: 10px; }

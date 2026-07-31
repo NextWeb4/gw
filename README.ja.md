@@ -15,7 +15,7 @@
 ![Pages の状態](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![最終コミット](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![リポジトリサイズ](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![バージョン](https://img.shields.io/badge/version-0.6.8-0969da?style=flat-square)
+![バージョン](https://img.shields.io/badge/version-0.6.9-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@
 
 HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラネット Web ビルド、インターネット/イントラネット Electron クライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、ネットワーク機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
 
-現在のリリースは `0.6.8` です。インターネット直結、ループバック中継、イントラネット、デスクトップの AI 生成は「最新リクエストだけを有効にする」共通ライフサイクルを使用します。送信中は明確な処理状態を表示して重複課金リクエストを防ぎ、待機を停止しても直前の成功結果を保持します。ブラウザー要求には `AbortSignal` を渡し、デスクトップ IPC の遅延結果と無効化後の履歴保存を拒否します。成功・失敗・中止・関連入力変更の後は毎回確認が必要です。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
+現在のリリースは `0.6.9` です。6 種類の業務編集ドロワーは未保存状態を明示し、キャンセル、閉じるボタン、外側クリック、Escape、ブラウザーの再読み込み／終了を同じ保護経路で扱います。変更のないドロワーはそのまま閉じ、変更がある場合だけ確認します。添付ファイルは保存までメモリ内に留まり、破棄確認後に完了した古い読み込みが閉じた編集画面を再表示または変更することもありません。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
 
 公開 Pages はプライベート同期を表示しませんが、ローカル台帳、添付、旧 JSON/スナップショット、ユーザー自身の Key を使う AI、明示的に解除した `127.0.0.1` 中継を利用できます。ページ読込やパスワード入力だけでは中継へ接続しません。業務データは現在のブラウザーの IndexedDB に保存されます。[GitHub Pages](https://nextweb4.github.io/gw/) では公開、架空、または許可済みの非機密資料だけを扱ってください。
 
@@ -60,7 +60,7 @@ HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラ
 - NSIS インストーラーには Windows、AppImage/DEB のパッケージ化と最終 Linux 互換性確認には Linux。
 - Web ビルドには Chromium 系ブラウザー。
 
-リポジトリのバージョンは `0.6.8` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
+リポジトリのバージョンは `0.6.9` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
 
 ## インストールと実行
 

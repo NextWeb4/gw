@@ -15,7 +15,7 @@ A local-first system for official-document work, task and file tracking, draftin
 ![Pages](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![Last commit](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![Repository size](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![Version](https://img.shields.io/badge/version-0.6.8-0969da?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.6.9-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@ A local-first system for official-document work, task and file tracking, draftin
 
 HxHwang Gw is a pnpm monorepo that shares one domain model across a public GitHub Pages demonstration, separate Internet and intranet Web builds, and separate Internet and intranet Electron clients. It stores operational data locally first, separates network capabilities at build time, and provides explicit adapters for synchronization and AI requests.
 
-The current release is `0.6.8`. Internet-direct, loopback-relay, intranet, and desktop AI generation now share one latest-request lifecycle: the submit button exposes a busy state, duplicate paid requests are blocked, and users can stop waiting without losing the last successful result. Browser transports receive an `AbortSignal`; late desktop IPC responses and stale history writes are rejected. Every success, failure, cancellation, or relevant input change requires a fresh per-request confirmation. See [`RELEASE_NOTES.md`](RELEASE_NOTES.md) for details.
+The current release is `0.6.9`. All six business editors now expose a visible unsaved state and use one guarded close path for Cancel, the close icon, backdrop clicks, Escape, and browser unload. Clean drawers still close immediately; dirty drawers require confirmation, staged attachments remain memory-only, and attachment reads that finish after a confirmed discard cannot reopen or mutate a replaced editor. See [`RELEASE_NOTES.md`](RELEASE_NOTES.md) for details.
 
 Public Pages does not expose private synchronization, but it supports local ledgers, attachments, legacy JSON/snapshots, bring-your-own-key AI, and an explicitly unlocked `127.0.0.1` relay. Page load and password entry do not contact the relay automatically. Business data stays in the current browser's IndexedDB. Use [GitHub Pages](https://nextweb4.github.io/gw/) only with public, fictional, or approved non-sensitive material.
 
@@ -60,7 +60,7 @@ All variants remain local-first. Private synchronization begins only after a use
 - Windows for NSIS installers; Linux for AppImage/DEB packaging and final Linux compatibility checks.
 - A Chromium-class browser for the Web builds.
 
-The repository version is `0.6.8`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
+The repository version is `0.6.9`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
 
 ## Install and Run
 

@@ -103,3 +103,22 @@ test('AI model discovery and generation share guarded, cancelable request lifecy
   assert.match(css, /\.model-request-control[^}]*flex-wrap:\s*wrap/, 'refresh controls must wrap without widening narrow layouts');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.ai-generation-control \.primary-button[^}]*44px/, 'narrow generation controls must keep a 44px touch target');
 });
+
+test('business drawers share one unsaved-change guard without persisting staged attachments', async () => {
+  const [app, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(app, /function useUnsavedChangesGuard\(/, 'all business editors must reuse one dirty-state and unload guard');
+  assert.ok((app.match(/useUnsavedChangesGuard\(/g) || []).length >= 7, 'the guard definition and all six business editors must be present');
+  assert.match(app, /window\.addEventListener\('beforeunload'/, 'dirty editors must protect browser refresh and window close');
+  assert.match(app, /event\.key !== 'Escape'/, 'drawers must support Escape through the same guarded close path');
+  assert.match(app, /未保存修改/, 'dirty drawers must expose visible state and confirmation copy');
+  assert.match(app, /clearPendingAttachments\(\); setTaskEditor\(null\)/, 'discarding a guarded task editor must continue clearing staged attachments');
+  assert.match(app, /pendingAttachmentSessionRef\.current \+= 1/, 'discarding an editor must invalidate attachment reads still in flight');
+  assert.match(app, /session !== pendingAttachmentSessionRef\.current/, 'late attachment reads must not update a closed or replaced editor');
+  assert.ok((app.match(/attachmentBusy=\{pendingAttachmentJobs > 0\}/g) || []).length >= 6, 'all six editors must treat attachment processing as unsaved work');
+  assert.ok((app.match(/disabled=\{attachmentBusy\}/g) || []).length >= 6, 'all six save actions must wait until attachment processing finishes');
+  assert.match(css, /\.drawer-unsaved-status/, 'dirty state must have a dedicated drawer status treatment');
+});
