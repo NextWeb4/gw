@@ -12,7 +12,8 @@
 - 失败优先回归先分别证明 `applyTaskTextExtraction` 与 `QuickTaskCapture.tsx` 尚不存在；实现后新增领域单元测试、UI 合约和桌面/移动 E2E，覆盖预览、无匹配继续、原文字保留、即时未保存状态、焦点恢复、快捷键输入保护、模态冲突、原保存按钮、移动触控尺寸和全流程零请求。
 - 本机已通过 lint、格式检查、110 项单元/契约测试、主 E2E 69 项通过/7 项条件跳过、互联网 E2E 7 项、内网 E2E 3 项，以及公开/互联网/内网三类构建。聚焦 E2E 首轮唯一失败是测试在台账搜索框验证 `Shift+A` 不拦截输入后留下了字母 `A`，导致新任务被当前会话筛选隐藏；测试显式清空输入后桌面/移动 2/2 与完整套件重新通过，产品保存链路未修改。
 - Python Playwright 在 1440×900 与 390×844 真实 Chromium 中完成视觉/几何检查：桌面对话框为 710×490px；移动对话框为 370×740px、底边 750px，固定底栏顶边 770px，四类操作均为 44px，两个视口的 `body.scrollWidth` 分别为 1440 和 390。检查过程无控制台错误或外部请求，截图为 `artifacts/quick-capture-v074-1440x900.png` 与 `artifacts/quick-capture-v074-390x844.png`。
-- 八份发布清单均为 `0.7.4`。公开构建含 10 个 source map，互联网/内网构建 source map 为 0；三类构建均命中快速记录功能和当前版本，不命中 `0.7.3`、`0.3.1`、用户给定密码、E2E 秘密标记、私钥或长格式 API Key。Pages、桌面矩阵和 Release 线上结果将在标签发布后补入验证矩阵。
+- 八份发布清单均为 `0.7.4`。公开构建含 10 个 source map，互联网/内网构建 source map 为 0；三类构建均命中快速记录功能和当前版本，不命中 `0.7.3`、`0.3.1`、用户给定密码、E2E 秘密标记、私钥或长格式 API Key。
+- [Pages run 30633056243](https://github.com/NextWeb4/gw/actions/runs/30633056243) 已成功；线上站点返回 HTTP 200，真实 Chromium 显示页脚 `0.7.4`、快速记录入口和确定性预览，对话框为 710×490px，`body.scrollWidth=1440`，无控制台错误或外部请求，截图为 `artifacts/quick-capture-v074-live.png`。[Desktop run 30633059732](https://github.com/NextWeb4/gw/actions/runs/30633059732) 的 verify、4 个 Linux、4 个 Windows、8 个 Debian 10/12 启动门和 release 共 18 项全部成功。[v0.7.4 Release](https://github.com/NextWeb4/gw/releases/tag/v0.7.4) 不是草稿或预发布版本，包含 12 个互联网/内网、Windows/Linux、x64/arm64 安装包和 `SHA256SUMS.txt`；13 个直接地址均返回 HTTP 200，校验文件含 12 条格式有效、文件名唯一且与安装资产完全一致的记录。
 
 ## v0.7.3
 
