@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, defaultCategoryTint, extractTaskFromText,
+  applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, defaultCategoryTint, extractTaskFromText,
   extractWeeklyTemplateFromSample, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, listStatisticsMonths, materialStockKey,
   mergeContactDirectory, mergePartnerGroupMembers, parseWeeklyTemplate, resolveCategoryTint, sampleDocuments, sampleMaterials,
   sampleContactDirectory, sampleMeetings, sampleResearches, sampleSeals, sampleTasks
@@ -147,6 +147,15 @@ describe('domain fixtures', () => {
   it('rejects impossible dates and empty text during extraction', () => {
     expect(extractTaskFromText('', '2026-07-26').recognized).toEqual([]);
     expect(extractTaskFromText('2月30日前完成不可能日期', '2026-07-26').fields.deadline).toBeUndefined();
+  });
+
+  it('applies recognized task fields without mutating the source task or unrelated values', () => {
+    const source = { ...sampleTasks[0], name: '原任务', category: '保留类目', remark: '保留备注' };
+    const extraction = extractTaskFromText('任务：整理基层治理台账\n交办人：综合科\n截止 2026-08-05\n微信通知', '2026-07-26');
+    const applied = applyTaskTextExtraction(source, extraction);
+
+    expect(applied).toMatchObject({ name: '整理基层治理台账', assigner: '综合科', deadline: '2026-08-05', source: '微信', category: '保留类目', remark: '保留备注' });
+    expect(source).toMatchObject({ name: '原任务', assigner: sampleTasks[0].assigner, deadline: sampleTasks[0].deadline });
   });
 
   it('renders weekly reports through custom templates with dynamic ordinals', () => {

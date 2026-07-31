@@ -750,6 +750,18 @@ export function extractTaskFromText(rawText: string, today: string): TaskTextExt
   return { fields, recognized };
 }
 
+export function applyTaskTextExtraction(task: Task, extraction: TaskTextExtraction): Task {
+  const { fields } = extraction;
+  return {
+    ...task,
+    ...(fields.name ? { name: fields.name } : {}),
+    ...(fields.assigner ? { assigner: fields.assigner } : {}),
+    ...(fields.assignDate ? { assignDate: fields.assignDate } : {}),
+    ...(fields.deadline ? { deadline: fields.deadline } : {}),
+    ...(fields.source ? { source: fields.source } : {})
+  };
+}
+
 export const sampleTasks: Task[] = [
   {
     id: 'task_demo_1', name: '推进全省基层治理年度工作总结', category: '重点项目', source: '会议议定', assigner: '林晓岚',

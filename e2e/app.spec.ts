@@ -285,6 +285,95 @@ test('opens local global search from the keyboard and finds navigation and busin
   expect(unexpectedRequests).toEqual([]);
 });
 
+test('captures a task globally with deterministic preview and the original guarded editor', async ({ page }, testInfo) => {
+  const actionRequests: string[] = [];
+  page.on('request', (request) => actionRequests.push(request.url()));
+  const trigger = page.locator('.quick-capture-trigger');
+
+  await expect(trigger).toBeVisible();
+  if (testInfo.project.name === 'mobile') {
+    const triggerBox = await trigger.boundingBox();
+    expect(triggerBox?.width || 0).toBeGreaterThanOrEqual(44);
+    expect(triggerBox?.height || 0).toBeGreaterThanOrEqual(44);
+  }
+
+  await trigger.focus();
+  await trigger.click();
+  let capture = page.getByRole('dialog', { name: '快速记录任务' });
+  await expect(capture).toBeVisible();
+  await expect(capture.getByLabel('快速记录文字')).toBeFocused();
+  await capture.getByLabel('快速记录文字').fill('任务：完成年度物资盘点\n交办人：综合科\n微信通知，截止 2026-08-05');
+  await expect(capture.getByText('完成年度物资盘点', { exact: true })).toBeVisible();
+  await expect(capture.getByText('综合科', { exact: true })).toBeVisible();
+  await expect(capture.getByText('2026-08-05', { exact: true })).toBeVisible();
+  await expect(capture.getByText('微信', { exact: true })).toBeVisible();
+  if (testInfo.project.name === 'mobile') {
+    for (const action of await capture.locator('.quick-capture-action').all()) {
+      const box = await action.boundingBox();
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+    const captureBox = await capture.boundingBox();
+    const navigationBox = await page.locator('.sidebar').boundingBox();
+    expect((captureBox?.y || 0) + (captureBox?.height || 0)).toBeLessThanOrEqual(navigationBox?.y || 0);
+    expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+  await page.keyboard.press('Escape');
+  await expect(capture).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  await page.getByRole('button', { name: '任务管理' }).click();
+  const ledgerSearch = page.getByPlaceholder('搜索任务、类目或交办人');
+  await ledgerSearch.focus();
+  await page.keyboard.press('Shift+A');
+  await expect(page.getByRole('dialog', { name: '快速记录任务' })).toBeHidden();
+  await ledgerSearch.fill('');
+
+  await page.keyboard.press('Control+K');
+  const globalSearch = page.getByRole('dialog', { name: '全局查找' });
+  await expect(globalSearch).toBeVisible();
+  await expect(trigger).toBeDisabled();
+  await page.keyboard.press('Shift+A');
+  await expect(page.getByRole('dialog', { name: '快速记录任务' })).toBeHidden();
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: '工作台' }).click();
+  await page.locator('.hero-action').click();
+  capture = page.getByRole('dialog', { name: '快速记录任务' });
+  await capture.getByLabel('快速记录文字').fill('abc');
+  await expect(capture.getByText('暂未识别出结构化字段')).toBeVisible();
+  await capture.getByRole('button', { name: '继续核对' }).click();
+  let taskEditor = page.getByRole('dialog', { name: '新建任务' });
+  await expect(taskEditor).toBeVisible();
+  await expect(taskEditor.getByLabel('待识别文字')).toHaveValue('abc');
+  await expect(taskEditor.getByLabel('任务名称')).toHaveValue('');
+  await expect(taskEditor.getByText('未保存修改')).toBeVisible();
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('未保存修改'); await dialog.dismiss(); });
+  await taskEditor.getByTitle('关闭').click();
+  await expect(taskEditor).toBeVisible();
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('未保存修改'); await dialog.accept(); });
+  await taskEditor.getByTitle('关闭').click();
+  await expect(taskEditor).toBeHidden();
+
+  await page.keyboard.press('Shift+A');
+  capture = page.getByRole('dialog', { name: '快速记录任务' });
+  const sourceText = '任务：完成年度物资盘点\n交办人：综合科\n微信通知，截止 2026-08-05';
+  await capture.getByLabel('快速记录文字').fill(sourceText);
+  await capture.getByRole('button', { name: '继续核对' }).click();
+  taskEditor = page.getByRole('dialog', { name: '新建任务' });
+  await expect(taskEditor.getByLabel('待识别文字')).toHaveValue(sourceText);
+  await expect(taskEditor.getByLabel('任务名称')).toHaveValue('完成年度物资盘点');
+  await expect(taskEditor.getByLabel('交办人', { exact: true })).toHaveValue('综合科');
+  await expect(taskEditor.getByLabel('截止日期')).toHaveValue('2026-08-05');
+  await expect(taskEditor.getByLabel('任务来源')).toHaveValue('微信');
+  await expect(taskEditor.getByRole('button', { name: '保存任务' })).toBeVisible();
+  await expect(trigger).toBeDisabled();
+  await taskEditor.getByRole('button', { name: '保存任务' }).click();
+  await expect(taskEditor).toBeHidden();
+  await page.getByRole('button', { name: '任务管理' }).click();
+  await expect(page.locator('.table-row').filter({ hasText: '完成年度物资盘点' })).toBeVisible();
+  expect(actionRequests).toEqual([]);
+});
+
 test('lists every desktop edition and architecture with versioned release links', async ({ page }) => {
   await page.getByRole('button', { name: '关于与设置' }).click();
   await expect(page.getByText(`HxHwang Gw · v${appVersion}`)).toBeVisible();
@@ -687,6 +776,7 @@ test('keeps writing and weekly AI work on the current page and returns a result 
   const writingPanel = page.getByRole('dialog', { name: '当前页面 AI 协作面板' });
   await expect(writingPanel).toBeVisible();
   await expect(page.getByRole('button', { name: '打开全局查找' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '快速记录任务' })).toBeDisabled();
   await page.keyboard.press('Control+K');
   await expect(page.getByRole('dialog', { name: '全局查找' })).toBeHidden();
   await expect(writingPanel.getByLabel('处理用途')).toHaveValue('公文润色');

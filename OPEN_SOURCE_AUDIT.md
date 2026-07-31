@@ -1,6 +1,6 @@
 # 开源方案审计
 
-审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3 补充审计：2026-07-31。公开客户端为本地优先演示模式；服务端仅私有部署。
+审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3、v0.7.4 补充审计：2026-07-31。公开客户端为本地优先演示模式；服务端仅私有部署。
 
 | 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与项目契合度 / 可能冲突 | 是否采用 / 采用方式 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,6 +24,28 @@
 | Node 24 `fetch`、`crypto`、`node:test` | [Node.js](https://nodejs.org/api/) / MIT | HTTPS 抓取、哈希和策略测试 | 标准运行时内置，不增加供应链或安装体积 | 重定向与体积限制需显式实现 | 随 Node 24 维护 | 只在内容同步脚本和 CI 中使用，不进入浏览器联网路径 | 采用，封装允许清单、逐跳重定向和 2 MB 上限 |
 | Got 15.1.0 | [官方仓库](https://github.com/sindresorhus/got) / MIT | HTTP 重试、钩子、重定向 | HTTP 能力成熟 | 当前仅抓取少量权威来源，引入运行依赖收益不足 | 活跃；npm 元数据 2026-07-02 更新 | 会扩大供应链，不能替代本项目域名策略 | 不采用 |
 | simple-git 3.36.0 | [官方仓库](https://github.com/steveukx/git-js) / MIT | Git 命令封装 | API 易用 | Actions 仅需 add/commit/push 三步 | 活跃；npm 元数据 2026-04-12 更新 | 增加无必要依赖；runner 已提供 Git | 不采用，工作流直接调用 Git |
+
+## v0.7.4 全局快速记录与确定性任务预填方案审计
+
+问题本质：项目已经有 `extractTaskFromText`，能在本机从微信通知、会议布置、来文或口头记录中识别任务名称、交办人、交办日期、截止日期和来源，但入口藏在任务抽屉的折叠区。当前工作台“新建任务”只导航到任务页，用户还要再次点击“新建任务”并展开识别区；在写作、周报或其他台账中临时收到事项时也必须离开当前页面。这个缺口属于全局捕获、焦点和既有编辑器预填，不需要新任务模型、自动保存、云收件箱、后台服务、AI、持久化草稿或第二套表单。
+
+第一性原理不变量：输入只能是当前会话中的用户文本；识别必须调用既有确定性提取器，字段应用必须由一个共享纯函数完成；快速记录只展示识别预览并把预填草稿交给原 `TaskEditor`，不得直接调用 `putRecord`、`saveTask`、Fetch、IPC、同步或遥测；即使识别无命中，也只能进入原抽屉手工核对；原始文本必须在任务抽屉中可见并从打开时即属于未保存状态；最终只有用户点击“保存任务”才能持久化；取消或保存后原文必须清空；`Shift+A` 只能在非编辑目标且没有全局查找、AI 面板或业务抽屉时触发；顶栏和工作台必须复用同一入口；移动端继续保留固定底栏和 44px 触控边界。
+
+| 方案名称 | 来源 | 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与当前项目的契合度 | 可能冲突点 | 是否采用 | 采用方式 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| React 19 + 原生 `dialog` + 现有任务提取器与 `TaskEditor` | 当前锁定依赖、Web 标准和项目自有代码 | React MIT / Web 标准 / 项目 UNLICENSED | 顶栏与工作台入口、会话文本、实时确定性预览、原生焦点陷阱、原任务抽屉核对和显式保存 | 零新增依赖；复用现有中文识别、数据校验、目录、附件和未保存保护；能在任何模块捕获任务而不离开上下文 | 需要项目维护少量模态互斥、焦点恢复和预填原文状态 | React 19 与目标 Chromium 持续维护；提取器已有单元/E2E | 高 | 快速入口若直接保存或复制字段映射会形成第二套任务链路；原生 dialog 必须避开移动底栏 | 采用 | 新增轻量快速记录组件；共享纯函数应用识别结果；继续打开现有任务抽屉并显式保存 |
+| Super Productivity Add Task Bar `3d41424f` | [官方说明](https://github.com/johannesjo/super-productivity/blob/3d41424fb9726eaed70a696bef3a4909562ca761/docs/wiki/2.03-Add-Tasks.md) / [实现目录](https://github.com/johannesjo/super-productivity/tree/3d41424fb9726eaed70a696bef3a4909562ca761/src/app/features/tasks/add-task-bar) / [MIT](https://github.com/johannesjo/super-productivity/blob/3d41424fb9726eaed70a696bef3a4909562ca761/LICENSE) | MIT | 顶栏加号、`Shift+A`、自动聚焦、短语法解析和属性操作 | 入口高频可达，键盘与鼠标一致；证明“捕获”和完整详情可以分层 | Angular 状态、直接创建、标签/时间/重复/Issue 搜索远超当前模型；其短语法不适合直接复制到中文通知识别 | 2026-07-31 主分支提交；package 18.16.0 | 交互契合高，源码复用低 | 直接 Enter 保存会绕过本项目人工核对、未保存守卫与任务必填校验 | 只借鉴设计 | 借鉴顶栏入口、自动聚焦和 `Shift+A`；不复制代码、短语法、样式或直接保存行为 |
+| Vikunja Quick Add `506dbd7b` | [QuickAddOverlay](https://github.com/go-vikunja/vikunja/blob/506dbd7b0483c626295081fd9dd5beef3df8def7/frontend/src/components/quick-actions/QuickAddOverlay.vue) / [AddTask](https://github.com/go-vikunja/vikunja/blob/506dbd7b0483c626295081fd9dd5beef3df8def7/frontend/src/components/tasks/AddTask.vue) / [Quick Add Magic](https://github.com/go-vikunja/vikunja/tree/506dbd7b0483c626295081fd9dd5beef3df8def7/frontend/src/modules/quickAddMagic) / [AGPL-3.0-or-later](https://github.com/go-vikunja/vikunja/blob/506dbd7b0483c626295081fd9dd5beef3df8def7/LICENSE) | AGPL-3.0-or-later | 独立快速录入覆盖层、自动高度输入、Enter/Escape、日期/标签/优先级等文本解析 | 覆盖层可在当前上下文捕获，解析提示与输入状态分离 | Vue、服务端创建、多任务缩进、标签和项目解析超出当前需求；AGPL 不适合复制 | 2026-07-30 主分支提交 | 交互参考高，源码复用低 | 复制实现会产生 AGPL 风险并引入服务端/多任务语义；直接创建违背显式保存 | 只借鉴设计 | 借鉴独立覆盖层、Escape 和解析预览；不复制源码、语法、文案、样式或数据模型 |
+| Google Tasks / Calendar / Workspace side panel | [Tasks 概览](https://support.google.com/tasks/answer/7675772?hl=en) / [新增与编辑任务](https://support.google.com/tasks/answer/7675838?hl=en&ref_topic=7675628) | Google 服务条款；非开源、无再分发授权 | 从 Calendar、Gmail 和 Workspace 侧栏创建任务，先捕获再补日期、截止时间和详情 | 证明任务捕获应在当前工作上下文可达，不必先跳转到完整任务页 | 云服务、同步、侧栏资产与接口不可复制；部分能力依赖 Workspace | 2026-07-31 官方帮助页可访问 | 概念参考高，运行时契合低 | 不得复制界面、文案、图标、接口数据或引入 Google 联网依赖 | 只借鉴概念 | 借鉴“当前上下文捕获，再补充详情”；不复制任何产品内容或服务能力 |
+
+- 直接复用：现有 `extractTaskFromText`、新增的共享字段应用纯函数、`emptyTask`、原 `TaskEditor`、任务保存校验、目录、附件、未保存守卫、React 状态和 Lucide。
+- 只借鉴设计：Super Productivity 的顶栏入口/自动聚焦/`Shift+A`；Vikunja 的快速覆盖层与解析提示；Google Tasks 的当前 Workspace 上下文捕获。外部项目不复制代码、语法、文案、样式、图标、接口数据或任务模型。
+- 不采用：直接 Enter 自动保存、云收件箱、标签/项目/优先级/重复短语法、多任务缩进、邮件拖拽、后台同步、持久化快速草稿、提醒推送和新运行依赖。
+- 适配与保留：只新增 Web 快速记录组件、共享领域纯函数和少量 App 模态状态；保留十六模块导航、六类 CRUD、任务抽屉、附件会话、快照、同步、AI 和工作台概览。
+- 冲突审计：方案与 React/Vite、目录、构建、数据 schema、同步协议、权限、离线/联网和许可证均无冲突。回收站/撤销删除虽有数据安全价值，但当前硬删除会立即清理无引用附件，私有同步也需要明确 tombstone/恢复语义；本轮强行并入会与附件和同步边界冲突，因此阻塞该方案并留待独立设计。若快速记录需要直接持久化、保存原文、复制 AGPL/Google 内容或放宽模态互斥，则停止集成。
+- 许可证风险：无新增依赖；MIT 项目只作能力与交互审计，AGPL 与 Google 产品只作不可复制的抽象参考。
+- 联网变化：无。打开、输入、识别、预填和取消均只改变当前 React 会话；保存仍使用原本机数据适配层。
+- 回滚方式：移除快速记录组件、入口、快捷键、共享字段应用函数及对应样式/测试即可恢复 v0.7.3；不涉及数据、配置、服务端或安装包迁移。
 
 ## v0.7.3 跨模块今日、近期与未排期工作概览方案审计
 

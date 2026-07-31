@@ -107,6 +107,27 @@ test('work overview stays a local read-only cross-module action board', async ()
   assert.match(styles, /\.dashboard-hero[^}]*min-height:\s*320px/, 'dashboard hero must be compact enough to expose the action board earlier');
 });
 
+test('quick task capture reuses deterministic extraction and the existing guarded editor', async () => {
+  const [app, capture, domain, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/QuickTaskCapture.tsx'),
+    read('packages/domain/src/index.ts'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(domain, /export function applyTaskTextExtraction\(/, 'quick capture and the task drawer must share one field-application function');
+  assert.match(capture, /extractTaskFromText/, 'quick capture preview must use the existing deterministic extractor');
+  assert.match(capture, /\.showModal\(\)/, 'quick capture must use the native modal dialog focus boundary');
+  assert.doesNotMatch(capture, /\bfetch\b|listRecords|IndexedDB|localStorage|Electron|putRecord|removeRecord|ipc/i, 'quick capture must remain session-only and local');
+  assert.match(app, /event\.shiftKey[^\n]+event\.key\.toLowerCase\(\) !== 'a'/, 'the global shortcut must be limited to Shift+A');
+  assert.match(app, /input, textarea, select, \[contenteditable="true"\]/, 'the shortcut must not intercept editable controls');
+  assert.match(app, /<TaskEditor[^>]+initialImportText=\{taskEditorImportText\}/, 'captured source text must continue into the existing task editor');
+  assert.match(app, /applyTaskTextExtraction\(emptyTask\(\), extraction\)/, 'capture must prefill the original task model instead of saving directly');
+  assert.match(app, /useUnsavedChangesGuard\([^\n]+Boolean\(initialImportText\)\)/, 'a prefilled capture must be protected as unsaved from first render');
+  assert.match(css, /\.quick-capture-dialog/, 'the native dialog must have a dedicated responsive treatment');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.quick-capture-action[^}]*min-height:\s*44px/, 'narrow quick-capture actions must keep 44px touch targets');
+});
+
 test('AI compact mode keeps consent controls while history and downloads remain explicit', async () => {
   const [app, css] = await Promise.all([
     read('apps/web/src/App.tsx'),

@@ -8,7 +8,7 @@ import {
   ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Stamp, Upload, UsersRound, WandSparkles, X
 } from 'lucide-react';
 import {
-  buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, DEFAULT_WEEKLY_TEMPLATE, extractTaskFromText,
+  applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, DEFAULT_WEEKLY_TEMPLATE, extractTaskFromText,
   extractWeeklyTemplateFromSample, listStatisticsMonths, mergePartnerGroupMembers, nowIso, parseWeeklyTemplate, resolveCategoryTint,
   weeklySectionSourceLabels,
   type AiFieldChange, type AiGuidancePreset, type AiHistoryEntry, type AiSkill, type ArchiveRecord, type Attachment, type CategoryStyle, type CategoryTint, type Draft, type KnowledgePack, type MaterialRecord, type PartnerGroup,
@@ -35,6 +35,7 @@ import { GlobalSearch, type GlobalSearchGroup, type GlobalSearchItem } from './G
 import { AgendaView } from './AgendaView';
 import type { AgendaKind } from './agenda';
 import { WorkOverview } from './WorkOverview';
+import { QuickTaskCapture } from './QuickTaskCapture';
 
 type Tab = 'dashboard' | 'agenda' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'archive' | 'migration' | 'about';
 type BusinessTab = Extract<Tab, 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials'>;
@@ -143,6 +144,7 @@ function App() {
   const [draft, setDraft] = useState<Draft>({ id: 'draft_main', title: '工作总结', documentType: '工作总结', contentHtml: '', contentText: '', templateId: 'work-summary', version: 1, updatedAt: nowIso() });
   const [ledgerViews, setLedgerViews] = useState(createInitialLedgerViewStates);
   const [taskEditor, setTaskEditor] = useState<Task | null>(null);
+  const [taskEditorImportText, setTaskEditorImportText] = useState('');
   const [meetingEditor, setMeetingEditor] = useState<MeetingRecord | null>(null);
   const [documentEditor, setDocumentEditor] = useState<OfficialDocument | null>(null);
   const [researchEditor, setResearchEditor] = useState<ResearchRecord | null>(null);
@@ -154,6 +156,7 @@ function App() {
   const [aiPrefill, setAiPrefill] = useState<AiPrefill | null>(null);
   const [aiOverlayOpen, setAiOverlayOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const directoryRef = useRef<ContactDirectory>(emptyDirectory());
   const directoryWriteQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingAttachmentsRef = useRef<Attachment[]>([]);
@@ -163,8 +166,12 @@ function App() {
   const businessDetailRef = useRef<HTMLElement>(null);
   const globalSearchTriggerRef = useRef<HTMLButtonElement>(null);
   const globalSearchReturnFocusRef = useRef<HTMLElement | null>(null);
+  const quickCaptureTriggerRef = useRef<HTMLButtonElement>(null);
+  const quickCaptureReturnFocusRef = useRef<HTMLElement | null>(null);
   const isDesktop = Boolean(desktopBridge());
-  const globalSearchBlocked = Boolean(taskEditor || meetingEditor || documentEditor || researchEditor || sealEditor || materialEditor || aiOverlayOpen);
+  const businessEditorOpen = Boolean(taskEditor || meetingEditor || documentEditor || researchEditor || sealEditor || materialEditor);
+  const globalSearchBlocked = Boolean(businessEditorOpen || aiOverlayOpen || quickCaptureOpen);
+  const quickCaptureBlocked = Boolean(businessEditorOpen || aiOverlayOpen || globalSearchOpen);
   const changeGlobalSearchOpen = (open: boolean) => {
     if (open) {
       if (globalSearchBlocked) return;
@@ -174,6 +181,17 @@ function App() {
     }
     setGlobalSearchOpen(false);
     const focusTarget = globalSearchReturnFocusRef.current?.isConnected ? globalSearchReturnFocusRef.current : globalSearchTriggerRef.current;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => focusTarget?.focus()));
+  };
+  const changeQuickCaptureOpen = (open: boolean) => {
+    if (open) {
+      if (quickCaptureBlocked) return;
+      quickCaptureReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : quickCaptureTriggerRef.current;
+      setQuickCaptureOpen(true);
+      return;
+    }
+    setQuickCaptureOpen(false);
+    const focusTarget = quickCaptureReturnFocusRef.current?.isConnected ? quickCaptureReturnFocusRef.current : quickCaptureTriggerRef.current;
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => focusTarget?.focus()));
   };
 
@@ -302,6 +320,18 @@ function App() {
     return () => window.removeEventListener('keydown', toggleGlobalSearch);
   }, [globalSearchBlocked, globalSearchOpen]);
   useEffect(() => { if (globalSearchBlocked) setGlobalSearchOpen(false); }, [globalSearchBlocked]);
+  useEffect(() => {
+    const openQuickCapture = (event: KeyboardEvent) => {
+      if (!event.shiftKey || event.key.toLowerCase() !== 'a') return;
+      if (event.ctrlKey || event.metaKey || event.altKey || event.repeat || quickCaptureBlocked) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"]')) return;
+      event.preventDefault();
+      changeQuickCaptureOpen(true);
+    };
+    window.addEventListener('keydown', openQuickCapture);
+    return () => window.removeEventListener('keydown', openQuickCapture);
+  }, [quickCaptureBlocked]);
 
   const persistDirectory = (people: string[], units: string[]) => {
     const next = mergeContactDirectory(directoryRef.current, people, units);
@@ -332,6 +362,20 @@ function App() {
     setPendingAttachments([]);
     setPendingAttachmentJobs(0);
   };
+  const openTaskEditor = (task: Task, initialImportText = '') => {
+    clearPendingAttachments();
+    setTaskEditorImportText(initialImportText);
+    setTaskEditor(task);
+  };
+  const continueQuickCapture = (sourceText: string) => {
+    const extraction = extractTaskFromText(sourceText, localDateInput(new Date()));
+    setQuickCaptureOpen(false);
+    openTaskEditor(applyTaskTextExtraction(emptyTask(), extraction), sourceText);
+  };
+  const createBlankTaskFromCapture = () => {
+    setQuickCaptureOpen(false);
+    openTaskEditor(emptyTask());
+  };
   const persistEditableRecord = async <T extends Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord,>(kind: Kind, id: string, payload: T) => {
     const previous = await getRecord<T>(id);
     const referenced = new Set(attachmentIdsFromPayload(payload));
@@ -357,7 +401,7 @@ function App() {
     const saved = { ...task, name: task.name.trim(), partnerStatus, stages, updatedAt: nowIso() };
     if (!await persistEditableRecord('task', task.id, saved)) return;
     await persistDirectory([task.assigner], [...partnerStatus.map((partner) => partner.name), ...stages.flatMap((stage) => stage.partnerStatus.map((partner) => partner.name))]);
-    setTaskEditor(null); await reload(); setToast('任务已保存，人员和单位已加入常用项');
+    setTaskEditorImportText(''); setTaskEditor(null); await reload(); setToast('任务已保存，人员和单位已加入常用项');
   };
   const saveMeeting = async (meeting: MeetingRecord) => {
     if (!meeting.subject.trim()) return setToast('请填写会议主题');
@@ -757,8 +801,8 @@ function App() {
     return null;
   })();
   const editBusinessDetail = (detail: BusinessDetail) => {
-    clearPendingAttachments();
-    if (detail.kind === 'task') setTaskEditor(detail.record);
+    if (detail.kind === 'task') openTaskEditor(detail.record);
+    else clearPendingAttachments();
     if (detail.kind === 'meeting') setMeetingEditor(detail.record);
     if (detail.kind === 'document') setDocumentEditor(detail.record);
     if (detail.kind === 'research') setResearchEditor(detail.record);
@@ -791,9 +835,9 @@ function App() {
   };
 
   const renderContent = () => {
-    if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} onNavigate={navigate} onOpenRecord={openBusinessRecord} />;
+    if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} onNavigate={navigate} onOpenRecord={openBusinessRecord} onQuickCapture={() => changeQuickCaptureOpen(true)} />;
     if (tab === 'agenda') return <AgendaView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={openBusinessRecord} />;
-    if (tab === 'tasks') return <TaskView tasks={filteredTasks} totalCount={tasks.length} view={ledgerViews.tasks} filterOptions={taskFilterOptions} onViewChange={(patch) => updateLedgerView('tasks', patch)} onReset={() => resetLedgerView('tasks')} selectedId={selectedTaskId} onSelect={(id) => selectBusinessRecord('tasks', id)} attachments={attachments} categoryTints={categoryTints} onNew={() => { clearPendingAttachments(); setTaskEditor(emptyTask()); }} onEdit={(task) => { clearPendingAttachments(); setTaskEditor(task); }} onDelete={deleteTask} />;
+    if (tab === 'tasks') return <TaskView tasks={filteredTasks} totalCount={tasks.length} view={ledgerViews.tasks} filterOptions={taskFilterOptions} onViewChange={(patch) => updateLedgerView('tasks', patch)} onReset={() => resetLedgerView('tasks')} selectedId={selectedTaskId} onSelect={(id) => selectBusinessRecord('tasks', id)} attachments={attachments} categoryTints={categoryTints} onNew={() => openTaskEditor(emptyTask())} onEdit={(task) => openTaskEditor(task)} onDelete={deleteTask} />;
     if (tab === 'meetings') return <MeetingView meetings={filteredMeetings} totalCount={meetings.length} view={ledgerViews.meetings} filterOptions={meetingFilterOptions} onViewChange={(patch) => updateLedgerView('meetings', patch)} onReset={() => resetLedgerView('meetings')} selectedId={selectedMeetingId} onSelect={(id) => selectBusinessRecord('meetings', id)} onNew={() => { clearPendingAttachments(); setMeetingEditor(emptyMeeting()); }} onEdit={(meeting) => { clearPendingAttachments(); setMeetingEditor(meeting); }} onDelete={deleteMeeting} />;
     if (tab === 'documents') return <DocumentView documents={filteredDocuments} totalCount={documents.length} view={ledgerViews.documents} filterOptions={documentFilterOptions} onViewChange={(patch) => updateLedgerView('documents', patch)} onReset={() => resetLedgerView('documents')} selectedId={selectedDocumentId} onSelect={(id) => selectBusinessRecord('documents', id)} attachments={attachments} onNew={() => { clearPendingAttachments(); setDocumentEditor(emptyDocument()); }} onEdit={(document) => { clearPendingAttachments(); setDocumentEditor(document); }} onDelete={deleteDocument} />;
     if (tab === 'researches') return <ResearchView researches={filteredResearches} totalCount={researches.length} view={ledgerViews.researches} filterOptions={researchFilterOptions} onViewChange={(patch) => updateLedgerView('researches', patch)} onReset={() => resetLedgerView('researches')} selectedId={selectedResearchId} onSelect={(id) => selectBusinessRecord('researches', id)} onNew={() => { clearPendingAttachments(); setResearchEditor(emptyResearch()); }} onEdit={(research) => { clearPendingAttachments(); setResearchEditor(research); }} onDelete={deleteResearch} />;
@@ -827,12 +871,13 @@ function App() {
       <div className="sidebar-bottom"><button aria-label="关于与设置" title={sidebarCollapsed ? '关于与设置' : undefined} className={`nav-button ${tab === 'about' ? 'active' : ''}`} onClick={() => navigate('about')}><span className="nav-index">{String(navItems.length + 1).padStart(2, '0')}</span><Info size={17} /><span>关于与设置</span>{tab === 'about' && <ArrowUpRight size={14} />}</button><div className="sidebar-credit"><span>ORIGIN / LOCAL</span><strong>© HaoXiangHwang</strong><a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a></div></div>
     </aside>
     <main className="main-area" ref={mainAreaRef}>
-      <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="topbar-context"><span>HX / {String(activeNavIndex >= 0 ? activeNavIndex + 1 : navItems.length + 1).padStart(2, '0')}</span><strong>{navItems.find((item) => item.id === tab)?.label ?? '关于与设置'}</strong></div><div className="breadcrumbs">本地优先 <span>/</span> 外发必须逐次确认</div><div className="topbar-actions"><button ref={globalSearchTriggerRef} type="button" className="global-search-trigger" aria-label="打开全局查找" aria-haspopup="dialog" aria-expanded={globalSearchOpen} title={globalSearchBlocked ? '当前有编辑或 AI 面板，暂不可用' : '全局查找（Ctrl 或 Command + K）'} disabled={globalSearchBlocked} onClick={() => changeGlobalSearchOpen(true)}><Search size={16} /><span>全局查找</span><kbd>Ctrl K</kbd></button><span className="connection"><Activity size={15} /><span>{connectionLabel}</span><strong>{connectionDetail}</strong></span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
+      <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="topbar-context"><span>HX / {String(activeNavIndex >= 0 ? activeNavIndex + 1 : navItems.length + 1).padStart(2, '0')}</span><strong>{navItems.find((item) => item.id === tab)?.label ?? '关于与设置'}</strong></div><div className="breadcrumbs">本地优先 <span>/</span> 外发必须逐次确认</div><div className="topbar-actions"><button ref={quickCaptureTriggerRef} type="button" className="global-search-trigger quick-capture-trigger" aria-label="快速记录任务" aria-haspopup="dialog" aria-expanded={quickCaptureOpen} title={quickCaptureBlocked ? '当前有查找、编辑或 AI 面板，暂不可用' : '快速记录任务（Shift + A）'} disabled={quickCaptureBlocked} onClick={() => changeQuickCaptureOpen(true)}><Plus size={16} /><span>快速记录</span><kbd>Shift A</kbd></button><button ref={globalSearchTriggerRef} type="button" className="global-search-trigger" aria-label="打开全局查找" aria-haspopup="dialog" aria-expanded={globalSearchOpen} title={globalSearchBlocked ? '当前有记录、编辑或 AI 面板，暂不可用' : '全局查找（Ctrl 或 Command + K）'} disabled={globalSearchBlocked} onClick={() => changeGlobalSearchOpen(true)}><Search size={16} /><span>全局查找</span><kbd>Ctrl K</kbd></button><span className="connection"><Activity size={15} /><span>{connectionLabel}</span><strong>{connectionDetail}</strong></span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
       <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''}`}><div className="primary-content" ref={primaryContentRef}>{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} compact={aiOverlayOpen} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} history={aiHistory} onSaveHistory={saveAiHistory} onDeleteHistory={deleteAiHistory} onClearHistory={clearAiHistory} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && <BusinessDetailPanel detail={businessDetail} attachments={attachments} panelRef={businessDetailRef} onBackToList={() => scrollToBusinessRegion(primaryContentRef.current)} onEdit={() => editBusinessDetail(businessDetail)} />}</div>
       <footer className="page-footer"><span>HXHWANG GW / {__APP_VERSION__}</span><span>© HaoXiangHwang · <a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a> · <a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer">nextweb4.github.io</a></span></footer>
     </main>
     <GlobalSearch open={globalSearchOpen} groups={globalSearchGroups} onOpenChange={changeGlobalSearchOpen} onSelectItem={selectGlobalSearchItem} />
-    {taskEditor && <TaskEditor task={taskEditor} isNew={!tasks.some((task) => task.id === taskEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} partnerGroups={partnerGroups} onSaveGroup={savePartnerGroup} onDeleteGroup={deletePartnerGroup} onRemember={rememberDirectoryValue} onChange={setTaskEditor} onAttach={(files) => void addAttachments(files, taskEditor.files, (ids) => setTaskEditor({ ...taskEditor, files: ids }))} onSave={() => void saveTask(taskEditor)} onClose={() => { clearPendingAttachments(); setTaskEditor(null); }} setToast={setToast} />}
+    <QuickTaskCapture open={quickCaptureOpen} today={localDateInput(new Date())} onCancel={() => changeQuickCaptureOpen(false)} onCreateBlank={createBlankTaskFromCapture} onContinue={continueQuickCapture} />
+    {taskEditor && <TaskEditor task={taskEditor} initialImportText={taskEditorImportText} isNew={!tasks.some((task) => task.id === taskEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} partnerGroups={partnerGroups} onSaveGroup={savePartnerGroup} onDeleteGroup={deletePartnerGroup} onRemember={rememberDirectoryValue} onChange={setTaskEditor} onAttach={(files) => void addAttachments(files, taskEditor.files, (ids) => setTaskEditor({ ...taskEditor, files: ids }))} onSave={() => void saveTask(taskEditor)} onClose={() => { clearPendingAttachments(); setTaskEditor(null); setTaskEditorImportText(''); }} setToast={setToast} />}
     {meetingEditor && <MeetingEditor meeting={meetingEditor} isNew={!meetings.some((meeting) => meeting.id === meetingEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setMeetingEditor} onAttach={(files) => void addAttachments(files, meetingEditor.files, (ids) => setMeetingEditor({ ...meetingEditor, files: ids }))} onSave={() => void saveMeeting(meetingEditor)} onClose={() => { clearPendingAttachments(); setMeetingEditor(null); }} />}
     {documentEditor && <DocumentEditor document={documentEditor} isNew={!documents.some((document) => document.id === documentEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setDocumentEditor} onAttach={(files) => void addAttachments(files, documentEditor.files, (ids) => setDocumentEditor({ ...documentEditor, files: ids }))} onSave={() => void saveDocument(documentEditor)} onClose={() => { clearPendingAttachments(); setDocumentEditor(null); }} />}
     {researchEditor && <ResearchEditor research={researchEditor} isNew={!researches.some((research) => research.id === researchEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onChange={setResearchEditor} onAttach={(files) => void addAttachments(files, researchEditor.files, (ids) => setResearchEditor({ ...researchEditor, files: ids }))} onSave={() => void saveResearch(researchEditor)} onClose={() => { clearPendingAttachments(); setResearchEditor(null); }} />}
@@ -859,13 +904,13 @@ function PageHeading({ eyebrow, title, detail, action }: { eyebrow: string; titl
   return <div className="page-heading"><div className="heading-copy"><span className="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{detail}</p></div>{action && <div className="heading-action">{action}</div>}<span className="heading-signal" aria-hidden="true">HX</span></div>;
 }
 
-function Dashboard({ tasks, meetings, documents, researches, seals, materials, archives, onNavigate, onOpenRecord }: { tasks: Task[]; meetings: MeetingRecord[]; documents: OfficialDocument[]; researches: ResearchRecord[]; seals: SealRecord[]; materials: MaterialRecord[]; archives: ArchiveRecord[]; onNavigate: (tab: Tab) => void; onOpenRecord: (kind: AgendaKind, id: string) => void }) {
+function Dashboard({ tasks, meetings, documents, researches, seals, materials, archives, onNavigate, onOpenRecord, onQuickCapture }: { tasks: Task[]; meetings: MeetingRecord[]; documents: OfficialDocument[]; researches: ResearchRecord[]; seals: SealRecord[]; materials: MaterialRecord[]; archives: ArchiveRecord[]; onNavigate: (tab: Tab) => void; onOpenRecord: (kind: AgendaKind, id: string) => void; onQuickCapture: () => void }) {
   const active = tasks.filter((task) => task.status !== 'done').length;
   const dueSoon = tasks.filter((task) => task.deadline && task.deadline <= localDateInput(new Date(Date.now() + 7 * 86400000)) && task.status !== 'done').length;
   const operations = meetings.length + researches.length + seals.length + materials.length;
   return <>
     <section className="dashboard-hero">
-      <div className="hero-copy"><span className="eyebrow">今日工作 / LOCAL OPERATIONS</span><h1><span>让事务</span><span className="hero-outline">有迹可循</span></h1><p>把任务、文件与文稿组织成一条可以回看、可以验证、可以继续推进的工作链。</p><button className="primary-button hero-action" onClick={() => onNavigate('tasks')}><Plus size={16} />新建任务<ArrowUpRight size={15} /></button></div>
+      <div className="hero-copy"><span className="eyebrow">今日工作 / LOCAL OPERATIONS</span><h1><span>让事务</span><span className="hero-outline">有迹可循</span></h1><p>把任务、文件与文稿组织成一条可以回看、可以验证、可以继续推进的工作链。</p><button className="primary-button hero-action" onClick={onQuickCapture}><Plus size={16} />快速记录任务<ArrowUpRight size={15} /></button></div>
       <div className="hero-visual" aria-hidden="true"><div className="hero-orbit orbit-a" /><div className="hero-orbit orbit-b" /><div className="hero-orbit orbit-c" /><span className="hero-core"><Orbit size={46} strokeWidth={1} /></span><span className="signal-label signal-one">TASK / {active}</span><span className="signal-label signal-two">DOC / {documents.length}</span><span className="signal-label signal-three">ARCHIVE / {archives.length}</span></div>
       <div className="hero-meta"><span>01 / PRIVATE BY DEFAULT</span><span>02 / DETERMINISTIC RULES</span><span>03 / TRACEABLE RECORDS</span></div>
     </section>
@@ -1167,25 +1212,20 @@ function RowActions({ editTitle, deleteTitle, onEdit, onDelete }: { editTitle: s
 
 const taskStatusOptions = (Object.entries(statusLabels) as Array<[Status, string]>).map(([value, label]) => ({ value, label }));
 
-function TaskEditor({ task, isNew, directory, attachments, attachmentBusy, partnerGroups, onSaveGroup, onDeleteGroup, onRemember, onChange, onAttach, onSave, onClose, setToast }: { task: Task; isNew: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; partnerGroups: PartnerGroup[]; onSaveGroup: (name: string, members: string[]) => Promise<void>; onDeleteGroup: (group: PartnerGroup) => Promise<void>; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (task: Task) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void; setToast: (text: string) => void }) {
+function TaskEditor({ task, isNew, initialImportText, directory, attachments, attachmentBusy, partnerGroups, onSaveGroup, onDeleteGroup, onRemember, onChange, onAttach, onSave, onClose, setToast }: { task: Task; isNew: boolean; initialImportText: string; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; partnerGroups: PartnerGroup[]; onSaveGroup: (name: string, members: string[]) => Promise<void>; onDeleteGroup: (group: PartnerGroup) => Promise<void>; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (task: Task) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void; setToast: (text: string) => void }) {
   const update = <K extends keyof Task,>(key: K, value: Task[K]) => onChange({ ...task, [key]: value });
   const [summaryTemplate, setSummaryTemplate] = useState<WorkSummaryTemplateId>('progress');
-  const [importText, setImportText] = useState('');
-  const closeGuard = useUnsavedChangesGuard({ task, importText, attachmentBusy }, onClose);
+  const [importText, setImportText] = useState(initialImportText);
+  const [smartImportOpen, setSmartImportOpen] = useState(Boolean(initialImportText));
+  const closeGuard = useUnsavedChangesGuard({ task, importText, attachmentBusy }, onClose, Boolean(initialImportText));
   const applySmartImport = () => {
     const result = extractTaskFromText(importText, localDateInput(new Date()));
     if (!result.recognized.length) return setToast('未识别出可填字段，请检查文字或手工填写');
-    const next: Task = { ...task };
-    if (result.fields.name) next.name = result.fields.name;
-    if (result.fields.assigner) next.assigner = result.fields.assigner;
-    if (result.fields.assignDate) next.assignDate = result.fields.assignDate;
-    if (result.fields.deadline) next.deadline = result.fields.deadline;
-    if (result.fields.source) next.source = result.fields.source;
-    onChange(next);
+    onChange(applyTaskTextExtraction(task, result));
     setToast(`已按本机规则填入：${result.recognized.join('、')}，请人工核对`);
   };
   return <Drawer title={isNew ? '新建任务' : '编辑任务'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
-    <details className="smart-import">
+    <details className="smart-import" open={smartImportOpen} onToggle={(event) => setSmartImportOpen(event.currentTarget.open)}>
       <summary><WandSparkles size={14} />智能识别填单（粘贴通知文字）</summary>
       <textarea aria-label="待识别文字" value={importText} placeholder={'例如：2026-07-21 张主任要求：整理台账，7月28日前完成'} onChange={(event) => setImportText(event.target.value)} />
       <div className="smart-import-actions"><small>纯本机规则识别日期、交办人、来源，不联网；识别结果会覆盖对应字段，请核对后再保存。</small><button type="button" className="secondary-button" onClick={applySmartImport}><WandSparkles size={14} />识别并填入</button></div>
@@ -1333,9 +1373,9 @@ function LegacyPayloadView({ payload }: { payload?: Record<string, unknown> }) {
   return <details className="legacy-payload"><summary>查看迁移原始字段</summary><pre>{JSON.stringify(payload, null, 2)}</pre></details>;
 }
 
-function useUnsavedChangesGuard(value: unknown, onDiscard: () => void) {
+function useUnsavedChangesGuard(value: unknown, onDiscard: () => void, forceDirty = false) {
   const initialSnapshotRef = useRef(JSON.stringify(value));
-  const dirty = initialSnapshotRef.current !== JSON.stringify(value);
+  const dirty = forceDirty || initialSnapshotRef.current !== JSON.stringify(value);
   useEffect(() => {
     if (!dirty) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
