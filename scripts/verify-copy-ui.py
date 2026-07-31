@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from urllib.parse import urlparse
 
 from playwright.sync_api import Page, sync_playwright
 
 
-BASE_URL = "http://127.0.0.1:5173"
+BASE_URL = os.environ.get("HXHWANG_VERIFY_URL", "http://127.0.0.1:5173")
 OUTPUT_DIR = Path("test-results")
 
 
@@ -87,6 +88,7 @@ def inspect_copy_flow(page: Page, *, mobile: bool, screenshot_name: str, save_co
 
 def main() -> None:
     results: list[dict[str, object]] = []
+    screenshot_scope = "live" if urlparse(BASE_URL).hostname not in {"127.0.0.1", "localhost"} else "local"
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         desktop_context = browser.new_context(viewport={"width": 1440, "height": 900})
@@ -94,7 +96,7 @@ def main() -> None:
             inspect_copy_flow(
                 desktop_context.new_page(),
                 mobile=False,
-                screenshot_name="copy-record-desktop-1440x900.png",
+                screenshot_name=f"copy-record-{screenshot_scope}-desktop-1440x900.png",
                 save_copy=True,
             )
         )
@@ -109,7 +111,7 @@ def main() -> None:
             inspect_copy_flow(
                 mobile_context.new_page(),
                 mobile=True,
-                screenshot_name="copy-record-mobile-390x844.png",
+                screenshot_name=f"copy-record-{screenshot_scope}-mobile-390x844.png",
                 save_copy=False,
             )
         )

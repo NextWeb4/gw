@@ -10,6 +10,7 @@
 - 开源方案审计比较 Vikunja TaskDuplicate（AGPL-3.0-or-later）、Web `structuredClone`、lodash.clonedeep 4.5.0（MIT）和 rfdc 1.4.1（MIT）。最终不新增依赖：只借鉴逐字段白名单、新身份和完成状态重置，不复制外部源码、接口、文案、样式、关系模型或附件实现。
 - 本版不新增数据库 schema、私有服务端路由、同步协议、附件格式、持久化配置、API Key 行为或自动联网。复制草稿只有点击原保存按钮后才进入本机 IndexedDB，之后也只会在用户主动执行既有私有同步时传输。
 - 本机验证已通过：`pnpm lint`、`pnpm format:check`、`pnpm test`（123 项）、主 E2E（80 条中 73 通过、7 条条件跳过）、互联网 E2E（7/7）、内网 E2E（3/3）、公开/互联网/内网 Web 构建，以及 1440×900/390×844 Python Playwright。真实浏览器验证覆盖桌面复制保存、移动复制取消、移动 44px 触控、零外联、零控制台错误和无横向溢出；截图为 `test-results/copy-record-desktop-1440x900.png` 与 `test-results/copy-record-mobile-390x844.png`。
+- [Pages run 30648940120](https://github.com/NextWeb4/gw/actions/runs/30648940120) 与 [Desktop run 30649026582](https://github.com/NextWeb4/gw/actions/runs/30649026582) 均成功。[线上站点](https://nextweb4.github.io/gw/) 返回 HTTP 200，bundle 中 `0.7.6` 命中 10 次，`0.7.5`/`0.7.4`/`0.3.1` 为 0，并包含复制入口和未保存说明；线上真实 Chromium 完成桌面复制保存与移动复制取消，无错误、外联或横向溢出。[Release v0.7.6](https://github.com/NextWeb4/gw/releases/tag/v0.7.6) 的 12 个安装包和 `SHA256SUMS.txt` 共 13 个地址均 HTTP 200 且非空，12 条校验记录格式有效、文件名唯一并完整覆盖安装资产。
 
 ## v0.7.5
 
