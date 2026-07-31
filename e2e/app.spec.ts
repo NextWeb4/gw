@@ -57,7 +57,7 @@ test('collapses the desktop navigation and keeps record details linked to the ex
   await expect(detailPanel.getByRole('button', { name: '返回记录列表' })).toBeHidden();
   await detailPanel.getByRole('button', { name: '编辑此记录' }).click();
   await expect(page.getByRole('dialog', { name: '编辑任务' })).toBeVisible();
-  await page.getByTitle('关闭').click();
+  await page.getByRole('dialog', { name: '编辑任务' }).getByRole('button', { name: '关闭' }).click();
 
   await page.getByRole('button', { name: '展开左侧导航' }).click();
   await expect(page.locator('.shell')).not.toHaveClass(/sidebar-collapsed/);
@@ -89,6 +89,73 @@ test('moves narrow-screen record selection to the detail and provides a return p
     const viewport = element.closest('.main-area')!.getBoundingClientRect();
     return rect.bottom > viewport.top && rect.top < viewport.bottom;
   })).toBe(true);
+});
+
+test('opens local global search from the keyboard and finds navigation and business records', async ({ page }, testInfo) => {
+  const unexpectedRequests: string[] = [];
+  const pageOrigin = new URL(page.url()).origin;
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (!['data:', 'blob:'].includes(url.protocol) && url.origin !== pageOrigin) unexpectedRequests.push(request.url());
+  });
+
+  const trigger = page.getByRole('button', { name: '打开全局查找' });
+  await expect(trigger).toBeVisible();
+  if (testInfo.project.name === 'mobile') {
+    const box = await trigger.boundingBox();
+    expect(box?.width || 0).toBeGreaterThanOrEqual(44);
+    expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+  }
+
+  await trigger.focus();
+  await page.keyboard.press('Control+K');
+  let dialog = page.getByRole('dialog', { name: '全局查找' });
+  await expect(dialog).toBeVisible();
+  let searchInput = dialog.getByRole('combobox', { name: '全局查找' });
+  await searchInput.fill('公文写作');
+  await expect(dialog.getByText('导航模块', { exact: true })).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('heading', { level: 1, name: '公文写作' })).toBeVisible();
+
+  await trigger.click();
+  dialog = page.getByRole('dialog', { name: '全局查找' });
+  searchInput = dialog.getByRole('combobox', { name: '全局查找' });
+  await searchInput.fill('整理省政府办公厅来文并建立关联');
+  await expect(dialog.getByText('任务记录')).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('.business-detail-panel').getByRole('heading', { level: 2 })).toContainText('整理省政府办公厅来文并建立关联');
+
+  await trigger.click();
+  dialog = page.getByRole('dialog', { name: '全局查找' });
+  searchInput = dialog.getByRole('combobox', { name: '全局查找' });
+  await searchInput.fill('完全不存在的导航与业务记录');
+  await expect(dialog.getByText('没有找到匹配项')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  await page.getByRole('button', { name: '任务管理' }).click();
+  await page.getByRole('button', { name: '新建任务' }).click();
+  const taskDialog = page.getByRole('dialog', { name: '新建任务' });
+  await expect(taskDialog).toBeVisible();
+  await expect(trigger).toBeDisabled();
+  await page.keyboard.press('Control+K');
+  await expect(page.getByRole('dialog', { name: '全局查找' })).toBeHidden();
+  await taskDialog.getByLabel('任务名称').fill('全局查找索引边界任务');
+  await taskDialog.getByLabel('备注').fill('SEARCH_SECRET_MARKER 不应进入全局查找');
+  await taskDialog.getByRole('button', { name: '保存任务' }).click();
+  await expect(taskDialog).toBeHidden();
+
+  await trigger.click();
+  dialog = page.getByRole('dialog', { name: '全局查找' });
+  searchInput = dialog.getByRole('combobox', { name: '全局查找' });
+  await searchInput.fill('SEARCH_SECRET_MARKER');
+  await expect(dialog.getByText('没有找到匹配项')).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  expect(unexpectedRequests).toEqual([]);
 });
 
 test('lists every desktop edition and architecture with versioned release links', async ({ page }) => {
@@ -492,6 +559,9 @@ test('keeps writing and weekly AI work on the current page and returns a result 
   await expect(page.locator('.shell')).toHaveAttribute('data-tab', 'writing');
   const writingPanel = page.getByRole('dialog', { name: '当前页面 AI 协作面板' });
   await expect(writingPanel).toBeVisible();
+  await expect(page.getByRole('button', { name: '打开全局查找' })).toBeDisabled();
+  await page.keyboard.press('Control+K');
+  await expect(page.getByRole('dialog', { name: '全局查找' })).toBeHidden();
   await expect(writingPanel.getByLabel('处理用途')).toHaveValue('公文润色');
   await expect(writingPanel.getByText('已载入：当前公文草稿')).toBeVisible();
   await expect(writingPanel.getByLabel('待处理材料')).toHaveValue(/AI 助手入口验证文稿/);

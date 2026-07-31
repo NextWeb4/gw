@@ -1,6 +1,6 @@
 {
   "name": "@hxhwang/web",
-  "version": "0.6.9",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "author": {
@@ -32,6 +32,7 @@
     "@tiptap/extension-placeholder": "^2.11.7",
     "@tiptap/react": "^2.11.7",
     "@tiptap/starter-kit": "^2.11.7",
+    "cmdk": "1.1.1",
     "lucide-react": "^0.468.0",
     "mammoth": "1.12.0",
     "react": "^19.1.0",

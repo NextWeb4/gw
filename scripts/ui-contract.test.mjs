@@ -122,3 +122,23 @@ test('business drawers share one unsaved-change guard without persisting staged 
   assert.ok((app.match(/disabled=\{attachmentBusy\}/g) || []).length >= 6, 'all six save actions must wait until attachment processing finishes');
   assert.match(css, /\.drawer-unsaved-status/, 'dirty state must have a dedicated drawer status treatment');
 });
+
+test('global search stays local-only and reuses accessible navigation paths', async () => {
+  const [app, globalSearch, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/GlobalSearch.tsx'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(globalSearch, /from 'cmdk'/, 'the command palette must reuse the audited accessible cmdk primitive');
+  assert.match(globalSearch, /<Command\.Dialog[^>]*label="全局查找"/, 'cmdk must give the dialog and its combobox a stable accessible label');
+  assert.match(globalSearch, /<Command\.Input/, 'the palette must use cmdk input semantics rather than a custom keyboard field');
+  assert.match(globalSearch, /<Command\.Group heading=\{group\.label\}/, 'navigation and each business ledger must remain visibly grouped');
+  assert.doesNotMatch(globalSearch, /\bfetch\b|listRecords|IndexedDB|localStorage|Electron|apiKey|password|session/i, 'the palette component must not read data, network state or secrets directly');
+  assert.match(app, /event\.key\.toLowerCase\(\) !== 'k'/, 'the palette shortcut must be limited to the K key');
+  assert.match(app, /!event\.metaKey && !event\.ctrlKey/, 'the palette shortcut must support Ctrl and Command without intercepting plain typing');
+  assert.match(app, /globalSearchBlocked/, 'editors and the AI overlay must block command-palette modal stacking');
+  assert.match(app, /navigate\(businessTab\);\s*selectBusinessRecord\(businessTab, id\)/, 'record results must reuse the existing navigation and record-selection paths');
+  assert.match(css, /\.global-search-trigger/, 'the topbar must provide a styled visible global-search trigger');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.global-search-trigger[^}]*44px/, 'the narrow global-search trigger must retain a 44px touch target');
+});

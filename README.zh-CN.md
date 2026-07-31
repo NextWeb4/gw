@@ -15,7 +15,7 @@
 ![Pages 状态](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![最近提交](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![仓库大小](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![版本](https://img.shields.io/badge/version-0.6.9-0969da?style=flat-square)
+![版本](https://img.shields.io/badge/version-0.7.0-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@
 
 HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联网/内网 Web 构建和互联网/内网 Electron 客户端之间共享同一套领域模型。系统首先把业务数据保存在本地，在构建时隔离不同联网能力，并通过显式适配器提供同步和 AI 请求。
 
-当前发布版本为 `0.6.9`：六类业务编辑抽屉统一显示“未保存修改”，取消、关闭按钮、点击外侧、Escape 和浏览器刷新/关闭都使用同一保护路径。干净抽屉仍可直接关闭；有修改时必须明确确认，暂存附件继续只存在内存中，已确认放弃后才完成的附件读取也不能重新打开或改写已关闭的编辑器。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
+当前发布版本为 `0.7.0`：顶栏新增本机全局查找，点击入口或按 `Ctrl/Cmd+K` 可在十五个导航模块和六类已加载业务记录之间快速定位。结果按模块分组，支持键盘筛选、上下键、Enter、Escape 与焦点恢复；选择业务记录仍进入原台账和原只读详情。查找过程不联网、不持久化搜索词，也不索引 API Key、访问码、中转密码、未脱敏 AI 原文或附件正文。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
 
 公开 Pages 不显示私有同步，但支持完整本机台账、附件、历史 JSON/快照、用户自备 Key 的兼容 AI，以及用户主动解锁的 `127.0.0.1` 本机中转站；页面加载和填写密码不会自动联系中转服务。所有业务数据只进入当前浏览器 IndexedDB。[GitHub Pages](https://nextweb4.github.io/gw/) 仅适合公开、虚构或获准的非敏感材料。
 
@@ -33,7 +33,7 @@ HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联�
 
 | 领域 | 已实现内容 |
 | --- | --- |
-| 事务管理 | 任务、会议、文件、外出、用章、物资六类可编辑台账，独立维护常用人员/单位目录，并支持阶段、小结、附件和搜索 |
+| 事务管理 | 任务、会议、文件、外出、用章、物资六类可编辑台账，独立维护常用人员/单位目录，并支持阶段、小结、附件、模块内搜索和本机全局查找 |
 | 写作 | 富文本起草、经清洗的 DOCX/HTML/TXT 导入、本机自定义格式、确定性周报、可编辑版本和历史档案 |
 | 文档 | DOCX 与 PDF 共用的 A4 导出引擎；Web 使用浏览器打印，桌面端使用 Electron 打印 |
 | 迁移 | 兼容两份历史原型导出结构和拖拽 JSON/快照；当共同版本标识无法可靠辨别来源时给出警告 |
@@ -60,7 +60,7 @@ HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联�
 - NSIS 安装包需要 Windows；AppImage/DEB 打包和最终 Linux 兼容性检查需要 Linux。
 - Web 构建需要 Chromium 类浏览器。
 
-仓库版本为 `0.6.9`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
+仓库版本为 `0.7.0`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
 
 ## 安装与运行
 

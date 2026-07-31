@@ -30,6 +30,7 @@ import knowledgePack from '../../../content/generated/knowledge-pack.json';
 import guidancePresetData from '../../../content/generated/ai-guidance-presets.json';
 import { importWritingDocument } from './document-import';
 import { syncPrivateWorkspace } from './private-services';
+import { GlobalSearch, type GlobalSearchGroup, type GlobalSearchItem } from './GlobalSearch';
 
 type Tab = 'dashboard' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'archive' | 'migration' | 'about';
 type BusinessTab = Extract<Tab, 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials'>;
@@ -68,6 +69,8 @@ const navItems: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> 
   { id: 'archive', label: '历史档案', icon: Archive },
   { id: 'migration', label: '数据迁移', icon: RefreshCw }
 ];
+const aboutNavItem: { id: Tab; label: string; icon: typeof LayoutDashboard } = { id: 'about', label: '关于与设置', icon: Info };
+const globalNavItems = [...navItems, aboutNavItem];
 
 const emptyTask = (): Task => ({
   id: createId('task'), name: '', category: '日常工作', source: '其他', assigner: '', assignDate: localDateInput(new Date()),
@@ -145,6 +148,7 @@ function App() {
   const setToast = (text: string) => setToastState((prev) => ({ text, key: prev.key + 1 }));
   const [aiPrefill, setAiPrefill] = useState<AiPrefill | null>(null);
   const [aiOverlayOpen, setAiOverlayOpen] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const directoryRef = useRef<ContactDirectory>(emptyDirectory());
   const directoryWriteQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingAttachmentsRef = useRef<Attachment[]>([]);
@@ -152,7 +156,21 @@ function App() {
   const mainAreaRef = useRef<HTMLElement>(null);
   const primaryContentRef = useRef<HTMLDivElement>(null);
   const businessDetailRef = useRef<HTMLElement>(null);
+  const globalSearchTriggerRef = useRef<HTMLButtonElement>(null);
+  const globalSearchReturnFocusRef = useRef<HTMLElement | null>(null);
   const isDesktop = Boolean(desktopBridge());
+  const globalSearchBlocked = Boolean(taskEditor || meetingEditor || documentEditor || researchEditor || sealEditor || materialEditor || aiOverlayOpen);
+  const changeGlobalSearchOpen = (open: boolean) => {
+    if (open) {
+      if (globalSearchBlocked) return;
+      globalSearchReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : globalSearchTriggerRef.current;
+      setGlobalSearchOpen(true);
+      return;
+    }
+    setGlobalSearchOpen(false);
+    const focusTarget = globalSearchReturnFocusRef.current?.isConnected ? globalSearchReturnFocusRef.current : globalSearchTriggerRef.current;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => focusTarget?.focus()));
+  };
 
   const reload = async () => {
     if (__SEED_DEMO_DATA__) await seedDemoData();
@@ -202,6 +220,75 @@ function App() {
   const filteredResearches = useMemo(() => researches.filter((research) => `${research.subject} ${research.direction} ${research.participants} ${research.location} ${research.summary}`.toLowerCase().includes(search.toLowerCase())), [researches, search]);
   const filteredSeals = useMemo(() => seals.filter((seal) => `${seal.userName} ${seal.approver} ${seal.docName} ${seal.docType}`.toLowerCase().includes(search.toLowerCase())), [seals, search]);
   const filteredMaterials = useMemo(() => materials.filter((material) => `${material.materialName} ${material.spec} ${material.handler} ${material.fromUnit}`.toLowerCase().includes(search.toLowerCase())), [materials, search]);
+  const globalSearchGroups = useMemo<Array<GlobalSearchGroup<Tab>>>(() => [
+    {
+      id: 'navigation', label: '导航模块', items: globalNavItems.map((item, index) => ({
+        id: `navigation:${item.id}`, kind: 'navigation', tab: item.id, title: item.label,
+        description: `HX / ${String(index + 1).padStart(2, '0')} · 打开导航模块`,
+        searchValue: `导航 ${item.label} ${item.id} ${index + 1}`, keywords: [item.label, item.id], icon: item.icon
+      }))
+    },
+    {
+      id: 'tasks', label: '任务记录', items: tasks.map((task) => ({
+        id: `task:${task.id}`, kind: 'record', tab: 'tasks', recordId: task.id, title: task.name || '未命名任务',
+        description: `任务管理 · ${task.category || '未分类'} · ${task.assigner || '未指定交办人'}`,
+        searchValue: `任务 ${task.name} ${task.category} ${task.assigner} ${task.id}`, keywords: [task.category, task.assigner], icon: ClipboardList
+      }))
+    },
+    {
+      id: 'meetings', label: '会议记录', items: meetings.map((meeting) => ({
+        id: `meeting:${meeting.id}`, kind: 'record', tab: 'meetings', recordId: meeting.id, title: meeting.subject || '未命名会议',
+        description: `会议管理 · ${meeting.location || meeting.sendTo || '未填写地点或对象'}`,
+        searchValue: `会议 ${meeting.subject} ${meeting.sendTo} ${meeting.receiver} ${meeting.location} ${meeting.id}`,
+        keywords: [meeting.sendTo, meeting.receiver, meeting.location], icon: CalendarDays
+      }))
+    },
+    {
+      id: 'documents', label: '文件记录', items: documents.map((document) => ({
+        id: `document:${document.id}`, kind: 'record', tab: 'documents', recordId: document.id, title: document.title || '未命名文件',
+        description: `文件收发 · ${document.code || '无文号'} · ${document.fromUnit || '未填写来源单位'}`,
+        searchValue: `文件 ${document.title} ${document.code} ${document.fromUnit} ${document.id}`,
+        keywords: [document.code, document.fromUnit], icon: FileText
+      }))
+    },
+    {
+      id: 'researches', label: '外出记录', items: researches.map((research) => ({
+        id: `research:${research.id}`, kind: 'record', tab: 'researches', recordId: research.id, title: research.subject || '未命名外出活动',
+        description: `外出活动 · ${research.direction || '未分类'} · ${research.location || '未填写地点'}`,
+        searchValue: `外出 ${research.subject} ${research.direction} ${research.participants} ${research.location} ${research.summary} ${research.id}`,
+        keywords: [research.direction, research.participants, research.location, research.summary], icon: MapPin
+      }))
+    },
+    {
+      id: 'seals', label: '用章记录', items: seals.map((seal) => ({
+        id: `seal:${seal.id}`, kind: 'record', tab: 'seals', recordId: seal.id, title: seal.docName || '未命名用章文件',
+        description: `用章管理 · ${seal.docType || '未分类'} · ${seal.userName || '未填写用章人'}`,
+        searchValue: `用章 ${seal.docName} ${seal.userName} ${seal.approver} ${seal.docType} ${seal.id}`,
+        keywords: [seal.userName, seal.approver, seal.docType], icon: Stamp
+      }))
+    },
+    {
+      id: 'materials', label: '物资记录', items: materials.map((material) => ({
+        id: `material:${material.id}`, kind: 'record', tab: 'materials', recordId: material.id, title: material.materialName || '未命名物资',
+        description: `物资收发 · ${material.spec || '未填写规格'} · ${material.handler || '未填写经手人'}`,
+        searchValue: `物资 ${material.materialName} ${material.spec} ${material.handler} ${material.fromUnit} ${material.id}`,
+        keywords: [material.spec, material.handler, material.fromUnit], icon: Package
+      }))
+    }
+  ], [tasks, meetings, documents, researches, seals, materials]);
+
+  useEffect(() => {
+    const toggleGlobalSearch = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'k') return;
+      if (!event.metaKey && !event.ctrlKey) return;
+      if (event.altKey || globalSearchBlocked) return;
+      event.preventDefault();
+      changeGlobalSearchOpen(!globalSearchOpen);
+    };
+    window.addEventListener('keydown', toggleGlobalSearch);
+    return () => window.removeEventListener('keydown', toggleGlobalSearch);
+  }, [globalSearchBlocked, globalSearchOpen]);
+  useEffect(() => { if (globalSearchBlocked) setGlobalSearchOpen(false); }, [globalSearchBlocked]);
 
   const persistDirectory = (people: string[], units: string[]) => {
     const next = mergeContactDirectory(directoryRef.current, people, units);
@@ -677,6 +764,16 @@ function App() {
     if (!window.matchMedia('(max-width: 1279px)').matches) return;
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => scrollToBusinessRegion(businessDetailRef.current)));
   };
+  const selectGlobalSearchItem = (item: GlobalSearchItem<Tab>) => {
+    if (item.kind === 'record' && item.recordId) {
+      const businessTab = item.tab as BusinessTab;
+      const id = item.recordId;
+      navigate(businessTab);
+      selectBusinessRecord(businessTab, id);
+      return;
+    }
+    navigate(item.tab);
+  };
 
   const renderContent = () => {
     if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} onNavigate={navigate} />;
@@ -714,10 +811,11 @@ function App() {
       <div className="sidebar-bottom"><button aria-label="关于与设置" title={sidebarCollapsed ? '关于与设置' : undefined} className={`nav-button ${tab === 'about' ? 'active' : ''}`} onClick={() => navigate('about')}><span className="nav-index">{String(navItems.length + 1).padStart(2, '0')}</span><Info size={17} /><span>关于与设置</span>{tab === 'about' && <ArrowUpRight size={14} />}</button><div className="sidebar-credit"><span>ORIGIN / LOCAL</span><strong>© HaoXiangHwang</strong><a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a></div></div>
     </aside>
     <main className="main-area" ref={mainAreaRef}>
-      <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="topbar-context"><span>HX / {String(activeNavIndex >= 0 ? activeNavIndex + 1 : navItems.length + 1).padStart(2, '0')}</span><strong>{navItems.find((item) => item.id === tab)?.label ?? '关于与设置'}</strong></div><div className="breadcrumbs">本地优先 <span>/</span> 外发必须逐次确认</div><div className="topbar-actions"><span className="connection"><Activity size={15} /><span>{connectionLabel}</span><strong>{connectionDetail}</strong></span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
+      <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="topbar-context"><span>HX / {String(activeNavIndex >= 0 ? activeNavIndex + 1 : navItems.length + 1).padStart(2, '0')}</span><strong>{navItems.find((item) => item.id === tab)?.label ?? '关于与设置'}</strong></div><div className="breadcrumbs">本地优先 <span>/</span> 外发必须逐次确认</div><div className="topbar-actions"><button ref={globalSearchTriggerRef} type="button" className="global-search-trigger" aria-label="打开全局查找" aria-haspopup="dialog" aria-expanded={globalSearchOpen} title={globalSearchBlocked ? '当前有编辑或 AI 面板，暂不可用' : '全局查找（Ctrl 或 Command + K）'} disabled={globalSearchBlocked} onClick={() => changeGlobalSearchOpen(true)}><Search size={16} /><span>全局查找</span><kbd>Ctrl K</kbd></button><span className="connection"><Activity size={15} /><span>{connectionLabel}</span><strong>{connectionDetail}</strong></span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
       <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''}`}><div className="primary-content" ref={primaryContentRef}>{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} compact={aiOverlayOpen} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} history={aiHistory} onSaveHistory={saveAiHistory} onDeleteHistory={deleteAiHistory} onClearHistory={clearAiHistory} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && <BusinessDetailPanel detail={businessDetail} attachments={attachments} panelRef={businessDetailRef} onBackToList={() => scrollToBusinessRegion(primaryContentRef.current)} onEdit={() => editBusinessDetail(businessDetail)} />}</div>
       <footer className="page-footer"><span>HXHWANG GW / {__APP_VERSION__}</span><span>© HaoXiangHwang · <a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a> · <a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer">nextweb4.github.io</a></span></footer>
     </main>
+    <GlobalSearch open={globalSearchOpen} groups={globalSearchGroups} onOpenChange={changeGlobalSearchOpen} onSelectItem={selectGlobalSearchItem} />
     {taskEditor && <TaskEditor task={taskEditor} isNew={!tasks.some((task) => task.id === taskEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} partnerGroups={partnerGroups} onSaveGroup={savePartnerGroup} onDeleteGroup={deletePartnerGroup} onRemember={rememberDirectoryValue} onChange={setTaskEditor} onAttach={(files) => void addAttachments(files, taskEditor.files, (ids) => setTaskEditor({ ...taskEditor, files: ids }))} onSave={() => void saveTask(taskEditor)} onClose={() => { clearPendingAttachments(); setTaskEditor(null); }} setToast={setToast} />}
     {meetingEditor && <MeetingEditor meeting={meetingEditor} isNew={!meetings.some((meeting) => meeting.id === meetingEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setMeetingEditor} onAttach={(files) => void addAttachments(files, meetingEditor.files, (ids) => setMeetingEditor({ ...meetingEditor, files: ids }))} onSave={() => void saveMeeting(meetingEditor)} onClose={() => { clearPendingAttachments(); setMeetingEditor(null); }} />}
     {documentEditor && <DocumentEditor document={documentEditor} isNew={!documents.some((document) => document.id === documentEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setDocumentEditor} onAttach={(files) => void addAttachments(files, documentEditor.files, (ids) => setDocumentEditor({ ...documentEditor, files: ids }))} onSave={() => void saveDocument(documentEditor)} onClose={() => { clearPendingAttachments(); setDocumentEditor(null); }} />}
