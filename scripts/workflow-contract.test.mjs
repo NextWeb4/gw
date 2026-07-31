@@ -140,7 +140,7 @@ test('Chinese user manual matches the current workspace and every navigation mod
   const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
   const help = await readFile(path.join(root, 'docs', 'HELP.md'), 'utf8');
   const numberedSections = [...help.matchAll(/^## (\d+)\. /gm)].map((match) => Number(match[1]));
-  assert.deepEqual(numberedSections, Array.from({ length: 25 }, (_, index) => index + 1), 'manual must keep 25 ordered top-level sections');
+  assert.deepEqual(numberedSections, Array.from({ length: 26 }, (_, index) => index + 1), 'manual must keep 26 ordered top-level sections');
   assert.match(help, new RegExp(`版本：v${manifest.version.replaceAll('.', '\\.')}(?:\\s|$)`));
   assert.match(help, /https:\/\/nextweb4\.github\.io\/gw\//);
   assert.match(help, /https:\/\/github\.com\/NextWeb4\/gw\/releases\/latest/);
@@ -158,6 +158,7 @@ test('Chinese user manual matches the current workspace and every navigation mod
     '周报生成',
     '统计分析',
     'AI 助手',
+    '回收站',
     '历史档案',
     '数据迁移',
     '关于与设置',
@@ -181,6 +182,7 @@ test('Chinese user manual matches the current workspace and every navigation mod
     '保存自定义格式',
     '重新汇总',
     '复制为新记录',
+    '永久删除',
     '导出快照',
     '同步业务数据',
     '获取 AI 模型',
@@ -193,6 +195,7 @@ test('Chinese user manual matches the current workspace and every navigation mod
     '日期规则',
     '常用人员和单位',
     '任务附件',
+    '最小同步墓碑',
     '恢复是合并/更新操作',
     '典型业务流程',
     '常见问题与排查',
@@ -201,7 +204,7 @@ test('Chinese user manual matches the current workspace and every navigation mod
   ]) {
     assert.match(help, new RegExp(topic), `detailed manual must explain ${topic}`);
   }
-  assert.match(help, /当前十六个导航模块/);
+  assert.match(help, /当前十七个导航模块/);
   assert.match(help, /任务[\s\S]*`deadline`[\s\S]*会议[\s\S]*`meetingTime`[\s\S]*文件[\s\S]*`docDate`[\s\S]*外出[\s\S]*`researchTime`[\s\S]*用章[\s\S]*`sealTime`[\s\S]*物资[\s\S]*`handlerTime`/, 'manual must explain the fixed agenda date mapping');
   assert.match(help, /42 个日期格/, 'manual must explain the stable six-week month grid');
   assert.match(help, /日历不联网、不提醒、不订阅外部日历，也不支持拖拽改期/, 'manual must state the agenda network and write boundaries');
@@ -217,8 +220,10 @@ test('Chinese user manual matches the current workspace and every navigation mod
   assert.match(help, /当前同步范围：[\s\S]*会议；[\s\S]*外出活动；[\s\S]*用章；[\s\S]*物资；/);
   assert.match(help, /API Key 不写入 IndexedDB、快照、URL、配置文件或应用日志/);
   assert.match(help, /新选择的附件在保存前只暂存于编辑会话/);
-  assert.match(help, /删除任务、会议、文件、外出、用章、物资和周报前会显示确认框/);
-  assert.match(help, /同步只上传六类同步业务记录实际引用的附件/);
+  assert.match(help, /任务、会议、文件、外出、用章和物资点击删除后先请求确认/);
+  assert.match(help, /软删除不会清理附件/);
+  assert.match(help, /永久删除.*`id`.*`updatedAt`.*`deletedAt`.*`purgedAt`/s);
+  assert.match(help, /同步先按 `updatedAt` 选出有效 master，再上传这些有效记录实际引用的附件/);
   assert.doesNotMatch(help, /删除立即执行/);
   assert.doesNotMatch(help, /删除确认和逐条撤销/);
 

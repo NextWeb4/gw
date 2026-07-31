@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attachmentIdsFromPayload, LOCAL_SCHEMA_VERSION, parseLocalSnapshot, shouldRefreshDemoRecord } from './index.js';
+import { attachmentIdsFromPayload, LOCAL_SCHEMA_VERSION, parseLocalSnapshot, snapshotPayloadForRecord, shouldRefreshDemoRecord } from './index.js';
 
 describe('local snapshot validation', () => {
   it('uses an explicit schema migration version for editable legacy business modules', () => {
@@ -53,5 +53,29 @@ describe('local snapshot validation', () => {
       stages: [{ partnerStatus: [{ files: ['attachment_stage'] }] }],
       legacyPayload: { files: ['attachment_legacy_only'] }
     })).toEqual(['attachment_main', 'attachment_partner', 'attachment_stage']);
+  });
+
+  it('removes permanently deleted business content from exported and imported snapshots', () => {
+    const unsafePurgedPayload = {
+      id: 'task-purged',
+      name: '不应保留的任务正文',
+      files: ['attachment-purged'],
+      updatedAt: '2026-07-31T10:00:00.000Z',
+      deletedAt: '2026-07-31T09:00:00.000Z',
+      purgedAt: '2026-07-31T10:00:00.000Z'
+    };
+
+    expect(snapshotPayloadForRecord('task', unsafePurgedPayload)).toEqual({
+      id: 'task-purged',
+      updatedAt: '2026-07-31T10:00:00.000Z',
+      deletedAt: '2026-07-31T09:00:00.000Z',
+      purgedAt: '2026-07-31T10:00:00.000Z'
+    });
+    const parsed = parseLocalSnapshot({
+      format: 'hxhwang-gw-local-v1',
+      records: [{ id: 'task-purged', kind: 'task', payload: unsafePurgedPayload, updatedAt: unsafePurgedPayload.updatedAt }]
+    });
+    expect(parsed.records[0].payload).toEqual(snapshotPayloadForRecord('task', unsafePurgedPayload));
+    expect(attachmentIdsFromPayload(parsed.records[0].payload)).toEqual([]);
   });
 });

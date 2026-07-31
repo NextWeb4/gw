@@ -24,6 +24,7 @@ describe('ledger view derivation', () => {
       { ...sampleTasks[0], id: 'task-late', name: '治理复盘', deadline: '2026-08-12', status: 'progress' },
       { ...sampleTasks[1], id: 'task-early', name: '治理台账', deadline: '2026-08-02', status: 'progress' },
       { ...sampleTasks[1], id: 'task-done', name: '治理归档', deadline: '2026-08-01', status: 'done' },
+      { ...sampleTasks[1], id: 'task-deleted', name: '治理已删除', category: '删除类目', deadline: '2026-08-01', status: 'progress', deletedAt: '2026-07-31T08:00:00.000Z' },
     ];
     const originalOrder = tasks.map((task) => task.id);
 
@@ -36,6 +37,7 @@ describe('ledger view derivation', () => {
     expect(visible.map((task) => task.id)).toEqual(['task-early', 'task-late']);
     expect(tasks.map((task) => task.id)).toEqual(originalOrder);
     expect(visible).not.toBe(tasks);
+    expect(getLedgerFilterOptions('tasks', tasks).map((option) => option.value)).not.toContain('category:删除类目');
   });
 
   it('keeps blank dates after real dates and preserves source order for ties', () => {

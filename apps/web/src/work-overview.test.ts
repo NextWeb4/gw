@@ -13,6 +13,8 @@ describe('local work overview derivation', () => {
         { ...sampleTasks[0], id: 'task-done', deadline: '2026-07-26', status: 'done' },
         { ...sampleTasks[0], id: 'task-unscheduled', deadline: '', status: 'pending' },
         { ...sampleTasks[0], id: 'task-invalid', deadline: '2026-02-30', status: 'pending' },
+        { ...sampleTasks[0], id: 'task-deleted', deadline: '2026-07-26', status: 'pending', deletedAt: '2026-07-31T08:00:00.000Z' },
+        { ...sampleTasks[0], id: 'task-deleted-unscheduled', deadline: '', status: 'pending', deletedAt: '2026-07-31T08:00:00.000Z' },
       ],
       meetings: [
         { ...sampleMeetings[0], id: 'meeting-today', meetingTime: '2026-07-26T09:00' },
@@ -32,6 +34,7 @@ describe('local work overview derivation', () => {
     expect(overview.today.some((item) => item.recordId === 'meeting-past')).toBe(false);
     expect(overview.today.some((item) => item.recordId === 'task-done')).toBe(false);
     expect(overview.upcoming.some((item) => item.recordId === 'task-outside')).toBe(false);
+    expect([...overview.today, ...overview.upcoming, ...overview.unscheduled].some((item) => item.recordId.startsWith('task-deleted'))).toBe(false);
   });
 
   it('keeps same-day ordering deterministic and does not mutate source records', () => {

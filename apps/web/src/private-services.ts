@@ -1,14 +1,15 @@
-import type { Attachment, Draft, MaterialRecord, MeetingRecord, OfficialDocument, ResearchRecord, SealRecord, Task, WeeklyReport } from '@hxhwang/domain';
-import { attachmentIdsFromPayload, putRecord } from '@hxhwang/local-data';
+import type { Attachment, Draft, MaterialRecord, MeetingRecord, OfficialDocument, PurgedBusinessRecord, ResearchRecord, SealRecord, Task, WeeklyReport } from '@hxhwang/domain';
+import { isPurgedBusinessRecord } from '@hxhwang/domain';
+import { attachmentIdsFromPayload, getRecord, putRecord, removeAttachmentsIfUnreferenced } from '@hxhwang/local-data';
 import type { AttachmentTransfer, PrivateSyncClient, PullResponse, SyncRecord } from '@hxhwang/sync-client';
 
 interface WorkspaceData {
-  tasks: Task[];
-  meetings: MeetingRecord[];
-  documents: OfficialDocument[];
-  researches: ResearchRecord[];
-  seals: SealRecord[];
-  materials: MaterialRecord[];
+  tasks: Array<Task | PurgedBusinessRecord>;
+  meetings: Array<MeetingRecord | PurgedBusinessRecord>;
+  documents: Array<OfficialDocument | PurgedBusinessRecord>;
+  researches: Array<ResearchRecord | PurgedBusinessRecord>;
+  seals: Array<SealRecord | PurgedBusinessRecord>;
+  materials: Array<MaterialRecord | PurgedBusinessRecord>;
   drafts: Draft[];
   weeklyReports: WeeklyReport[];
   attachments: Attachment[];
@@ -25,7 +26,23 @@ export interface WorkspaceSyncResult {
 
 type SyncedKind = 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material' | 'draft' | 'weekly' | 'attachment';
 type RecordWriter = (kind: SyncedKind, id: string, payload: object) => Promise<void>;
-const persistRecord: RecordWriter = (kind, id, payload) => putRecord(kind, id, payload as Record<string, unknown>);
+interface PulledRecordPersistence {
+  writeRecord: RecordWriter;
+  readRecord: (id: string) => Promise<object | undefined>;
+  cleanupAttachments: (candidateIds: string[]) => Promise<string[]>;
+}
+const rawPersistRecord: RecordWriter = (kind, id, payload) => putRecord(kind, id, payload as Record<string, unknown>);
+
+export async function persistPulledRecord(kind: SyncedKind, id: string, payload: object, overrides: Partial<PulledRecordPersistence> = {}) {
+  const writeRecord = overrides.writeRecord || rawPersistRecord;
+  const readRecord = overrides.readRecord || ((recordId: string) => getRecord<Record<string, unknown>>(recordId));
+  const cleanupAttachments = overrides.cleanupAttachments || removeAttachmentsIfUnreferenced;
+  const previous = isPurgedBusinessRecord(payload) ? await readRecord(id) : undefined;
+  await writeRecord(kind, id, payload);
+  if (previous && isPurgedBusinessRecord(payload)) await cleanupAttachments(attachmentIdsFromPayload(previous));
+}
+
+const persistRecord: RecordWriter = (kind, id, payload) => persistPulledRecord(kind, id, payload);
 
 async function pullAll<T extends SyncRecord>(client: PrivateSyncClient, collection: string) {
   const documents: T[] = [];
@@ -49,12 +66,14 @@ async function syncCollection<T extends { id: string; updatedAt: string }>(
   const remoteDocuments = await pullAll<T & SyncRecord>(client, collection);
   const localById = new Map(localDocuments.map((document) => [document.id, document]));
   const remoteById = new Map(remoteDocuments.map((document) => [document.id, document]));
+  const effectiveById = new Map<string, T & SyncRecord>(localDocuments.map((document) => [document.id, document as T & SyncRecord]));
   let pulled = 0;
 
   for (const remote of remoteDocuments) {
     const local = localById.get(remote.id);
     if (!local || remote.updatedAt >= local.updatedAt) {
       await writeRecord(kind, remote.id, remote);
+      effectiveById.set(remote.id, remote);
       pulled++;
     }
   }
@@ -65,8 +84,11 @@ async function syncCollection<T extends { id: string; updatedAt: string }>(
     return [{ newDocumentState: local as T & SyncRecord, assumedMasterState: remote || null }];
   });
   const pushed = rows.length ? await client.push<T & SyncRecord>(collection, rows) : { conflicts: [] };
-  for (const master of pushed.conflicts) await writeRecord(kind, master.id, master);
-  return { pulled, pushed: rows.length - pushed.conflicts.length, conflicts: pushed.conflicts.length, remoteDocuments };
+  for (const master of pushed.conflicts) {
+    await writeRecord(kind, master.id, master);
+    effectiveById.set(master.id, master);
+  }
+  return { pulled, pushed: rows.length - pushed.conflicts.length, conflicts: pushed.conflicts.length, effectiveDocuments: [...effectiveById.values()] };
 }
 
 const toTransfer = (attachment: Attachment): AttachmentTransfer | undefined => attachment.data !== undefined && attachment.sha256 ? {
@@ -102,12 +124,12 @@ export async function syncPrivateWorkspace(client: PrivateSyncClient, data: Work
 
   const referencedIds = new Set<string>();
   const synchronizedRecords = [
-    ...data.tasks, ...taskSync.remoteDocuments,
-    ...data.meetings, ...meetingSync.remoteDocuments,
-    ...data.documents, ...documentSync.remoteDocuments,
-    ...data.researches, ...researchSync.remoteDocuments,
-    ...data.seals, ...sealSync.remoteDocuments,
-    ...data.materials, ...materialSync.remoteDocuments
+    ...taskSync.effectiveDocuments,
+    ...meetingSync.effectiveDocuments,
+    ...documentSync.effectiveDocuments,
+    ...researchSync.effectiveDocuments,
+    ...sealSync.effectiveDocuments,
+    ...materialSync.effectiveDocuments
   ];
   for (const record of synchronizedRecords) {
     for (const id of attachmentIdsFromPayload(record)) referencedIds.add(id);

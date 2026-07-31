@@ -1,5 +1,7 @@
 import {
+  isActiveBusinessRecord,
   statusLabels,
+  type BusinessRecordLifecycle,
   type MaterialRecord,
   type MeetingRecord,
   type OfficialDocument,
@@ -101,8 +103,9 @@ function uniqueOptions(values: readonly string[], prefix: string): LedgerViewOpt
 }
 
 export function getLedgerFilterOptions<K extends LedgerKind>(kind: K, records: readonly LedgerRecordMap[K][]): LedgerViewOption[] {
+  const activeRecords = records.filter(isActiveBusinessRecord);
   if (kind === 'tasks') {
-    const tasks = records as readonly Task[];
+    const tasks = activeRecords as readonly Task[];
     const statuses: Status[] = ['pending', 'progress', 'done', 'overdue'];
     return [
       { value: 'all', label: '全部任务' },
@@ -116,7 +119,7 @@ export function getLedgerFilterOptions<K extends LedgerKind>(kind: K, records: r
     { value: 'time:missing', label: '时间：待补充' },
   ];
   if (kind === 'documents') {
-    const documents = records as readonly OfficialDocument[];
+    const documents = activeRecords as readonly OfficialDocument[];
     return [
       { value: 'all', label: '全部文件' },
       ...(['收文', '发文', '其他'] as const).map((type) => ({ value: `type:${type}`, label: `类型：${type}` })),
@@ -128,7 +131,7 @@ export function getLedgerFilterOptions<K extends LedgerKind>(kind: K, records: r
     return [{ value: 'all', label: '全部活动' }, ...directions.map((direction) => ({ value: `direction:${direction}`, label: `类型：${direction}` }))];
   }
   if (kind === 'seals') {
-    const seals = records as readonly SealRecord[];
+    const seals = activeRecords as readonly SealRecord[];
     return [{ value: 'all', label: '全部用章' }, ...uniqueOptions(seals.map((seal) => seal.docType), 'type')];
   }
   return [
@@ -223,9 +226,10 @@ const ledgerConfigs: { [K in LedgerKind]: LedgerConfig<LedgerRecordMap[K]> } = {
   },
 };
 
-function applyLedgerView<T>(records: readonly T[], state: LedgerViewState, config: LedgerConfig<T>): T[] {
+function applyLedgerView<T extends BusinessRecordLifecycle>(records: readonly T[], state: LedgerViewState, config: LedgerConfig<T>): T[] {
   const query = state.query.trim().toLocaleLowerCase('zh-CN');
   return records
+    .filter(isActiveBusinessRecord)
     .map((record, index) => ({ record, index }))
     .filter(({ record }) => (!query || config.searchText(record).toLocaleLowerCase('zh-CN').includes(query)) && config.matchesFilter(record, state.filter))
     .sort((left, right) => config.compare(left.record, right.record, state.sort) || left.index - right.index)

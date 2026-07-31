@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, defaultCategoryTint, extractTaskFromText,
   extractWeeklyTemplateFromSample, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, listStatisticsMonths, materialStockKey,
-  mergeContactDirectory, mergePartnerGroupMembers, parseWeeklyTemplate, resolveCategoryTint, sampleDocuments, sampleMaterials,
-  sampleContactDirectory, sampleMeetings, sampleResearches, sampleSeals, sampleTasks
+  mergeContactDirectory, mergePartnerGroupMembers, moveBusinessRecordToTrash, parseWeeklyTemplate, partitionBusinessRecords, purgeBusinessRecord,
+  resolveCategoryTint, restoreBusinessRecord, sampleDocuments, sampleMaterials, sampleContactDirectory, sampleMeetings, sampleResearches,
+  sampleSeals, sampleTasks
 } from './index.js';
 
 const statisticsInput = {
@@ -14,6 +15,63 @@ const statisticsInput = {
   seals: sampleSeals,
   materials: sampleMaterials
 };
+
+describe('business record lifecycle', () => {
+  const deletedAt = '2026-07-31T08:00:00.000Z';
+  const restoredAt = '2026-07-31T09:00:00.000Z';
+  const purgedAt = '2026-07-31T10:00:00.000Z';
+
+  it('moves a record to trash without mutating its business payload or attachment references', () => {
+    const source = { ...sampleTasks[0], files: ['attachment-trash'] };
+    const trashed = moveBusinessRecordToTrash(source, deletedAt);
+
+    expect(source).not.toHaveProperty('deletedAt');
+    expect(trashed).toMatchObject({ id: source.id, name: source.name, files: ['attachment-trash'], deletedAt, updatedAt: deletedAt });
+    expect(trashed).not.toHaveProperty('purgedAt');
+  });
+
+  it('partitions active, trashed and purged rows without treating tombstones as business content', () => {
+    const active = sampleTasks[0];
+    const trashed = moveBusinessRecordToTrash({ ...sampleTasks[1], id: 'task-trash' }, deletedAt);
+    const purged = purgeBusinessRecord(trashed, purgedAt);
+
+    const result = partitionBusinessRecords([active, trashed, purged]);
+
+    expect(result.active.map((record) => record.id)).toEqual([active.id]);
+    expect(result.trashed.map((record) => record.id)).toEqual([trashed.id]);
+    expect(result.purged).toEqual([purged]);
+  });
+
+  it('restores the complete payload and removes lifecycle markers', () => {
+    const source = moveBusinessRecordToTrash({ ...sampleDocuments[0], files: ['attachment-restore'] }, deletedAt);
+    const restored = restoreBusinessRecord(source, restoredAt);
+
+    expect(restored).toMatchObject({ title: source.title, code: source.code, files: ['attachment-restore'], updatedAt: restoredAt });
+    expect(restored).not.toHaveProperty('deletedAt');
+    expect(restored).not.toHaveProperty('purgedAt');
+  });
+
+  it('permanently deletes business content into a minimal synchronization tombstone', () => {
+    const source = moveBusinessRecordToTrash({ ...sampleTasks[0], files: ['attachment-purge'], remark: '不得进入 tombstone' }, deletedAt);
+    const purged = purgeBusinessRecord(source, purgedAt);
+
+    expect(purged).toEqual({ id: source.id, updatedAt: purgedAt, deletedAt, purgedAt });
+    expect(Object.keys(purged).sort()).toEqual(['deletedAt', 'id', 'purgedAt', 'updatedAt']);
+  });
+
+  it('keeps trashed records out of stock, weekly summaries and statistics even if a caller passes them', () => {
+    const trashedTask = moveBusinessRecordToTrash({ ...sampleTasks[0], id: 'task-derived-trash' }, deletedAt);
+    const trashedMaterial = moveBusinessRecordToTrash({ ...sampleMaterials[0], id: 'material-derived-trash', quantity: 50 }, deletedAt);
+    const report = buildWeeklyReportSummary([trashedTask], sampleDocuments, '2026-07-20', '2026-07-31');
+    const statistics = buildWorkStatistics({ ...statisticsInput, tasks: [trashedTask], materials: [trashedMaterial] }, { today: '2026-07-31' });
+    const stock = calculateMaterialStock([sampleMaterials[0], trashedMaterial]);
+
+    expect(report.taskIds).toEqual([]);
+    expect(statistics.taskTotal).toBe(0);
+    expect(statistics.materialIn).toBe(0);
+    expect(stock.get(materialStockKey(sampleMaterials[0]))).toBe(sampleMaterials[0].quantity);
+  });
+});
 
 describe('domain fixtures', () => {
   it('creates prefixed unique ids', () => {

@@ -17,6 +17,18 @@ export interface Attachment {
   createdAt: string;
 }
 
+export interface BusinessRecordLifecycle {
+  deletedAt?: string;
+  purgedAt?: string;
+}
+
+export interface PurgedBusinessRecord {
+  id: string;
+  updatedAt: string;
+  deletedAt: string;
+  purgedAt: string;
+}
+
 export interface PartnerStatus {
   name: string;
   status: 'notified' | 'pending' | 'progress' | 'done';
@@ -29,7 +41,7 @@ export interface TaskStage {
   partnerStatus: PartnerStatus[];
 }
 
-export interface Task {
+export interface Task extends BusinessRecordLifecycle {
   id: string;
   name: string;
   category: string;
@@ -49,7 +61,7 @@ export interface Task {
   legacyPayload?: Record<string, unknown>;
 }
 
-export interface OfficialDocument {
+export interface OfficialDocument extends BusinessRecordLifecycle {
   id: string;
   title: string;
   code: string;
@@ -70,7 +82,7 @@ export interface OfficialDocument {
   legacyPayload?: Record<string, unknown>;
 }
 
-export interface MeetingRecord {
+export interface MeetingRecord extends BusinessRecordLifecycle {
   id: string;
   subject: string;
   sendTo: string;
@@ -86,7 +98,7 @@ export interface MeetingRecord {
   legacyPayload?: Record<string, unknown>;
 }
 
-export interface ResearchRecord {
+export interface ResearchRecord extends BusinessRecordLifecycle {
   id: string;
   researchTime: string;
   direction: ResearchDirection;
@@ -104,7 +116,7 @@ export interface ResearchRecord {
   legacyPayload?: Record<string, unknown>;
 }
 
-export interface SealRecord {
+export interface SealRecord extends BusinessRecordLifecycle {
   id: string;
   sealTime: string;
   userName: string;
@@ -119,7 +131,7 @@ export interface SealRecord {
   legacyPayload?: Record<string, unknown>;
 }
 
-export interface MaterialRecord {
+export interface MaterialRecord extends BusinessRecordLifecycle {
   id: string;
   materialName: string;
   spec: string;
@@ -135,6 +147,8 @@ export interface MaterialRecord {
   sourceVersion?: string;
   legacyPayload?: Record<string, unknown>;
 }
+
+export type EditableBusinessRecord = Task | OfficialDocument | MeetingRecord | ResearchRecord | SealRecord | MaterialRecord;
 
 export interface WritingRule {
   id: string;
@@ -337,6 +351,58 @@ export const nowIso = () => new Date().toISOString();
 
 export const createId = (prefix: string) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
+const lifecycleTimestamp = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
+
+export function isPurgedBusinessRecord(record: unknown): record is PurgedBusinessRecord {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return false;
+  const value = record as Partial<PurgedBusinessRecord>;
+  return typeof value.id === 'string' && value.id.length > 0
+    && lifecycleTimestamp(value.updatedAt)
+    && lifecycleTimestamp(value.deletedAt)
+    && lifecycleTimestamp(value.purgedAt);
+}
+
+export function minimizePurgedBusinessRecord(record: PurgedBusinessRecord): PurgedBusinessRecord {
+  return { id: record.id, updatedAt: record.updatedAt, deletedAt: record.deletedAt, purgedAt: record.purgedAt };
+}
+
+export function isActiveBusinessRecord(record: BusinessRecordLifecycle): boolean {
+  return !lifecycleTimestamp(record.deletedAt) && !lifecycleTimestamp(record.purgedAt);
+}
+
+export function moveBusinessRecordToTrash<T extends EditableBusinessRecord>(record: T, deletedAt = nowIso()): T {
+  if (isPurgedBusinessRecord(record)) throw new Error('永久删除记录不能再次移入回收站');
+  const { purgedAt: _purgedAt, ...payload } = record;
+  return { ...payload, deletedAt, updatedAt: deletedAt } as T;
+}
+
+export function restoreBusinessRecord<T extends EditableBusinessRecord>(record: T, restoredAt = nowIso()): T {
+  if (isPurgedBusinessRecord(record)) throw new Error('永久删除记录不能恢复');
+  const { deletedAt: _deletedAt, purgedAt: _purgedAt, ...payload } = record;
+  return { ...payload, updatedAt: restoredAt } as T;
+}
+
+export function purgeBusinessRecord(record: EditableBusinessRecord, purgedAt = nowIso()): PurgedBusinessRecord {
+  if (isPurgedBusinessRecord(record)) return minimizePurgedBusinessRecord(record);
+  return { id: record.id, updatedAt: purgedAt, deletedAt: record.deletedAt || purgedAt, purgedAt };
+}
+
+export function partitionBusinessRecords<T extends EditableBusinessRecord>(records: readonly (T | PurgedBusinessRecord)[]) {
+  const active: T[] = [];
+  const trashed: T[] = [];
+  const purged: PurgedBusinessRecord[] = [];
+  for (const record of records) {
+    if (isPurgedBusinessRecord(record) && lifecycleTimestamp(record.purgedAt)) {
+      purged.push(minimizePurgedBusinessRecord(record));
+    } else if (lifecycleTimestamp(record.deletedAt)) {
+      trashed.push(record as T);
+    } else if (isActiveBusinessRecord(record)) {
+      active.push(record as T);
+    }
+  }
+  return { active, trashed, purged };
+}
+
 export function mergeContactDirectory(
   current: ContactDirectory,
   people: string[] = [],
@@ -379,6 +445,7 @@ export const materialStockKey = (record: Pick<MaterialRecord, 'materialName' | '
 export function calculateMaterialStock(records: MaterialRecord[]) {
   const balances = new Map<string, number>();
   for (const record of records) {
+    if (!isActiveBusinessRecord(record)) continue;
     const key = materialStockKey(record);
     const quantity = Number.isInteger(record.quantity) && record.quantity > 0 ? record.quantity : 0;
     balances.set(key, (balances.get(key) || 0) + (record.type === 'in' ? quantity : -quantity));
@@ -515,7 +582,7 @@ export function buildWeeklyReportSummary(tasks: Task[], documents: OfficialDocum
   if (!isValidIsoDate(startDate, false) || !isValidIsoDate(endDate, false) || startDate > endDate) {
     throw new Error('周报起止日期无效');
   }
-  const selectedTasks = tasks.filter((task) => {
+  const selectedTasks = tasks.filter(isActiveBusinessRecord).filter((task) => {
     const eventDates = [task.assignDate, task.deadline, task.createdAt, task.updatedAt];
     if (eventDates.some((date) => date && inRange(date, startDate, endDate))) return true;
     const assignDate = isoDate(task.assignDate);
@@ -524,11 +591,11 @@ export function buildWeeklyReportSummary(tasks: Task[], documents: OfficialDocum
       && (!task.assignDate || (isValidIsoDate(assignDate, false) && assignDate <= endDate))
       && (!task.deadline || (isValidIsoDate(deadline, false) && deadline >= startDate));
   });
-  const selectedDocuments = documents.filter((document) => [document.docDate, document.createdAt, document.updatedAt].some((date) => date && inRange(date, startDate, endDate)));
-  const selectedMeetings = (sources.meetings || []).filter((meeting) => [meeting.meetingTime, meeting.notifyTime, meeting.createdAt, meeting.updatedAt].some((date) => date && inRange(date, startDate, endDate)));
-  const selectedResearches = (sources.researches || []).filter((research) => [research.researchTime, research.createdAt, research.updatedAt].some((date) => date && inRange(date, startDate, endDate)));
-  const selectedSeals = (sources.seals || []).filter((seal) => [seal.sealTime, seal.createdAt, seal.updatedAt].some((date) => date && inRange(date, startDate, endDate)));
-  const selectedMaterials = (sources.materials || []).filter((material) => [material.handlerTime, material.createdAt, material.updatedAt].some((date) => date && inRange(date, startDate, endDate)));
+  const selectedDocuments = documents.filter(isActiveBusinessRecord).filter((document) => [document.docDate, document.createdAt, document.updatedAt].some((date) => date && inRange(date, startDate, endDate)));
+  const selectedMeetings = (sources.meetings || []).filter(isActiveBusinessRecord).filter((meeting) => [meeting.meetingTime, meeting.notifyTime, meeting.createdAt, meeting.updatedAt].some((date) => date && inRange(date, startDate, endDate)));
+  const selectedResearches = (sources.researches || []).filter(isActiveBusinessRecord).filter((research) => [research.researchTime, research.createdAt, research.updatedAt].some((date) => date && inRange(date, startDate, endDate)));
+  const selectedSeals = (sources.seals || []).filter(isActiveBusinessRecord).filter((seal) => [seal.sealTime, seal.createdAt, seal.updatedAt].some((date) => date && inRange(date, startDate, endDate)));
+  const selectedMaterials = (sources.materials || []).filter(isActiveBusinessRecord).filter((material) => [material.handlerTime, material.createdAt, material.updatedAt].some((date) => date && inRange(date, startDate, endDate)));
   const statusLabels: Record<Status, string> = { pending: '未启动', progress: '推进中', done: '已办结', overdue: '已超期' };
   const progressLines = selectedTasks.length
     ? selectedTasks.map((task, index) => {
@@ -617,19 +684,23 @@ const inStatisticsMonth = (anchor: string, monthKey: string) => !monthKey || anc
 export function listStatisticsMonths(input: WorkStatisticsInput): string[] {
   const keys = new Set<string>();
   const collect = (anchor: string) => { const key = anchor.slice(0, 7); if (/^\d{4}-\d{2}$/.test(key)) keys.add(key); };
-  for (const task of input.tasks) collect(statisticsAnchor.task(task));
-  for (const meeting of input.meetings) collect(statisticsAnchor.meeting(meeting));
-  for (const document of input.documents) collect(statisticsAnchor.document(document));
-  for (const research of input.researches) collect(statisticsAnchor.research(research));
-  for (const seal of input.seals) collect(statisticsAnchor.seal(seal));
-  for (const material of input.materials) collect(statisticsAnchor.material(material));
+  for (const task of input.tasks.filter(isActiveBusinessRecord)) collect(statisticsAnchor.task(task));
+  for (const meeting of input.meetings.filter(isActiveBusinessRecord)) collect(statisticsAnchor.meeting(meeting));
+  for (const document of input.documents.filter(isActiveBusinessRecord)) collect(statisticsAnchor.document(document));
+  for (const research of input.researches.filter(isActiveBusinessRecord)) collect(statisticsAnchor.research(research));
+  for (const seal of input.seals.filter(isActiveBusinessRecord)) collect(statisticsAnchor.seal(seal));
+  for (const material of input.materials.filter(isActiveBusinessRecord)) collect(statisticsAnchor.material(material));
   return [...keys].sort((left, right) => right.localeCompare(left));
 }
 
 export function buildWorkStatistics(input: WorkStatisticsInput, options: { monthKey?: string; category?: string; today: string }): WorkStatistics {
   const monthKey = options.monthKey || '';
   const category = (options.category || '').trim();
-  const monthTasks = input.tasks.filter((task) => inStatisticsMonth(statisticsAnchor.task(task), monthKey));
+  const activeInput: WorkStatisticsInput = {
+    tasks: input.tasks.filter(isActiveBusinessRecord), meetings: input.meetings.filter(isActiveBusinessRecord), documents: input.documents.filter(isActiveBusinessRecord),
+    researches: input.researches.filter(isActiveBusinessRecord), seals: input.seals.filter(isActiveBusinessRecord), materials: input.materials.filter(isActiveBusinessRecord)
+  };
+  const monthTasks = activeInput.tasks.filter((task) => inStatisticsMonth(statisticsAnchor.task(task), monthKey));
   const scopeTasks = category ? monthTasks.filter((task) => task.category.trim() === category) : monthTasks;
   const statusCounts: Record<Status, number> = { pending: 0, progress: 0, done: 0, overdue: 0 };
   let derivedOverdue = 0;
@@ -642,9 +713,9 @@ export function buildWorkStatistics(input: WorkStatisticsInput, options: { month
     const name = task.category.trim() || '未分类';
     categoryCounts.set(name, (categoryCounts.get(name) || 0) + 1);
   }
-  const taskNew = input.tasks.filter((task) => (!category || task.category.trim() === category) && inStatisticsMonth(task.createdAt.slice(0, 10), monthKey)).length;
+  const taskNew = activeInput.tasks.filter((task) => (!category || task.category.trim() === category) && inStatisticsMonth(task.createdAt.slice(0, 10), monthKey)).length;
   const countMonthly = <T,>(records: T[], anchor: (record: T) => string) => records.filter((record) => inStatisticsMonth(anchor(record), monthKey)).length;
-  const monthMaterials = input.materials.filter((material) => inStatisticsMonth(statisticsAnchor.material(material), monthKey));
+  const monthMaterials = activeInput.materials.filter((material) => inStatisticsMonth(statisticsAnchor.material(material), monthKey));
   return {
     monthKey,
     category,
@@ -658,10 +729,10 @@ export function buildWorkStatistics(input: WorkStatisticsInput, options: { month
     categoryBreakdown: [...categoryCounts.entries()]
       .map(([name, count]) => ({ name, count }))
       .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name, 'zh-CN')),
-    meetings: countMonthly(input.meetings, statisticsAnchor.meeting),
-    documents: countMonthly(input.documents, statisticsAnchor.document),
-    researches: countMonthly(input.researches, statisticsAnchor.research),
-    seals: countMonthly(input.seals, statisticsAnchor.seal),
+    meetings: countMonthly(activeInput.meetings, statisticsAnchor.meeting),
+    documents: countMonthly(activeInput.documents, statisticsAnchor.document),
+    researches: countMonthly(activeInput.researches, statisticsAnchor.research),
+    seals: countMonthly(activeInput.seals, statisticsAnchor.seal),
     materialIn: monthMaterials.filter((material) => material.type === 'in').length,
     materialOut: monthMaterials.filter((material) => material.type === 'out').length
   };

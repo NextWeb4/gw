@@ -351,6 +351,28 @@
 - 联网变化：只有用户点击“解锁并刷新站点”“获取模型”或确认生成后才请求回环服务；页面加载、选择入口和填写密码保持零请求。
 - 回滚：移除 `RelayAiClient` 与中转 UI 即可恢复 v0.5.0 直连行为，不涉及本地业务数据库 schema。
 
+## v0.7.5 六类业务回收站与同步墓碑方案审计
+
+问题本质：六类业务当前执行物理删除，记录正文与独占附件立即消失；在启用私有同步后，若只在本机移除行而不传播删除状态，其他设备上的旧记录还可能重新同步回来。系统需要同时满足“日常误删可恢复”“永久删除不保留业务正文”“附件不提前丢失”“远端旧数据不能复活”四个不变量。先比较复制记录、保存视图和回收站后，复制记录并不解决误删与同步复活，保存视图又与当前会话级台账视图规则冲突，因此本轮只采用回收站生命周期。
+
+| 方案名称 | 来源 | 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与当前项目的契合度 | 可能冲突点 | 是否采用 | 采用方式 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Vikunja 任务复制 | [官方源码 `task_duplicate.go`](https://github.com/go-vikunja/vikunja/blob/506dbd7b0483c626295081fd9dd5beef3df8def7/pkg/models/task_duplicate.go) | AGPL-3.0-or-later | 复制属性、附件和关联 | 适合快速创建相似任务，关联语义完整 | 不解决误删、附件保留或多设备复活；源码许可证与本项目不兼容 | GitHub API 显示 2026-07-31 仍有提交，仓库未归档 | 中 | 复制附件引用需要另行定义共享/克隆语义，容易扩大当前迭代 | 不采用 | 仅保留为后续独立候选，不复制源码或数据模型 |
+| Vikunja Saved Filters | [官方源码 `saved_filters.go`](https://github.com/go-vikunja/vikunja/blob/506dbd7b0483c626295081fd9dd5beef3df8def7/pkg/models/saved_filters.go) | AGPL-3.0-or-later | 服务端持久化筛选与收藏 | 适合复杂多人任务视图 | 当前六类台账视图明确只保留 React 会话，不进入 IndexedDB/同步；引入会形成第二套持久化规则 | GitHub API 显示 2026-07-31 仍有提交，仓库未归档 | 低 | 与会话级视图、不新增服务端路由和显式同步边界直接冲突 | 不采用 | 保留现有会话级筛选、排序与清除控件 |
+| Vikunja 软删除定时清理 | [官方源码 `task_delete_cron.go`](https://github.com/go-vikunja/vikunja/blob/506dbd7b0483c626295081fd9dd5beef3df8def7/pkg/models/task_delete_cron.go) | AGPL-3.0-or-later | 软删除后保留 30 天，再清理关联数据 | 生命周期和关联清理边界清晰 | 自动到期销毁不适合当前本机优先产品；用户可能长期离线，后台清理会产生不可见的数据损失 | GitHub API 显示 2026-07-31 仍有提交，仓库未归档 | 生命周期参考高，源码复用低 | 不得复制 AGPL 源码；不得引入定时后台任务或自动联网 | 只借鉴设计 | 借鉴“先软删除、再清理关联”的顺序，改为用户显式永久删除/清空 |
+| Plane archive/unarchive | [官方源码 `archive.py`](https://github.com/makeplane/plane/blob/master/apps/api/plane/app/views/issue/archive.py) | AGPL-3.0-only | 已完成/取消事项归档与恢复 | 恢复路径明确，适合工作项生命周期 | “归档”偏向业务状态而非误删；限制完成状态与六类通用业务不匹配 | GitHub API 显示 2026-07-31 仍有提交，仓库未归档 | 中 | 若复用“归档”会与已有只读历史档案模块混淆 | 只借鉴设计 | 只借鉴显式恢复；产品名称固定为“回收站”，不改变历史档案语义 |
+| AppFlowy Trash | [官方 Trash 模块](https://github.com/AppFlowy-IO/AppFlowy/tree/main/frontend/appflowy_flutter/lib/plugins/trash) | AGPL-3.0 | 独立回收站、恢复和永久删除 | 用户心智成熟，操作入口清楚 | Flutter/Bloc 架构不同，完整实现和视觉资产不可复制 | GitHub API 显示 2026-07-24 仍有提交，仓库未归档 | 交互参考高，源码复用低 | 不得复制 AGPL 代码、文案、样式或资产 | 只借鉴设计 | 借鉴独立入口、类型筛选、恢复、永久删除与清空操作 |
+| 现有领域纯函数 + RxDB payload + 私有同步透传 | 当前锁定架构 | 项目自有 / UNLICENSED，RxDB Apache-2.0 | `deletedAt` 软删除、最小 tombstone、附件引用清理、显式同步 | 零新增依赖和路由；保留现有本机数据适配、附件库、快照与显式同步；能用同一 `updatedAt` 冲突规则阻止旧记录复活 | 需要项目自行覆盖六类派生数据、附件和同步回归 | 当前持续维护 | 高 | 必须保证所有业务派生只消费 active，私有同步仍消费 active/trash/purged 全量 | 采用 | 领域层集中分区/恢复/永久删除；App 只展示 active 与 trash；purged 只保存四字段墓碑并参与同步 |
+
+- 直接复用：React 会话状态、RxDB 单表、现有 `putRecord`/附件引用扫描、私有同步的 `id + updatedAt` 主版本规则、Lucide 和现有暗色工业设计系统。
+- 只借鉴：Vikunja 的删除后关联清理顺序、Plane 的恢复生命周期、AppFlowy 的独立回收站交互；未复制任何外部代码、文案、样式、资产或测试数据。
+- 不采用：复制相似记录、持久化保存视图、自动 30 天清理、后台定时任务、服务器新路由、第三方回收站依赖和物理删除同步行。
+- 最小集成：六类 payload 增加可选 `deletedAt/purgedAt`；软删除保留完整 payload 和附件引用，恢复移除生命周期字段，永久删除覆盖为 `id/updatedAt/deletedAt/purgedAt` 四字段墓碑并清理无引用附件。
+- 冲突结论：RxDB 外层 schema 未增加字段或 kind，payload 仍允许扩展，因此无需提升本地 schema version；服务端同步 schema 已透传 `id/updatedAt` payload，因此无需新增 API/数据库迁移。若部署时发现服务端拒绝墓碑字段，应停止发布而不是改为本机物理删除。
+- 联网变化：无。回收站操作均为本机操作；墓碑只在用户点击既有“同步”后与普通记录一起传输。
+- 许可证风险：三项参考仓库均为 AGPL，全部只作设计研究；最终实现不引入其代码或依赖。
+- 回滚：发布后若要移除 UI，可继续保留 `deletedAt/purgedAt` 解析和同步，避免旧墓碑被当作业务记录；不得直接回退为物理删除，否则多设备旧记录会复活。
+
 ## 采用边界
 
 - 直接复用：Electron 打印能力、RxDB/Dexie 本地存储、Tiptap 编辑、docx 导出、Mammoth DOCX 转换、Playwright 验证。

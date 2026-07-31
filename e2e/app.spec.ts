@@ -92,6 +92,58 @@ test('collapses the desktop navigation and keeps record details linked to the ex
   await expect(page.locator('.shell')).not.toHaveClass(/sidebar-collapsed/);
 });
 
+test('moves business records through trash, restore and permanent-delete lifecycle without network traffic', async ({ page }, testInfo) => {
+  const unexpectedRequests: string[] = [];
+  const pageOrigin = new URL(page.url()).origin;
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (!['data:', 'blob:'].includes(url.protocol) && url.origin !== pageOrigin) unexpectedRequests.push(request.url());
+  });
+
+  await page.getByRole('button', { name: '任务管理' }).click();
+  const title = '整理省政府办公厅来文并建立关联';
+  const row = page.locator('.selectable-row').filter({ hasText: title });
+  page.once('dialog', (dialog) => dialog.accept());
+  await row.getByTitle('删除任务').click();
+  await expect(row).toHaveCount(0);
+  await page.getByRole('button', { name: '打开全局查找' }).click();
+  await page.getByPlaceholder('查找模块、任务、会议、文件或其他本机记录').fill(title);
+  await expect(page.getByText('没有找到匹配项')).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: '回收站' }).click();
+  const recycleRegion = page.getByRole('region', { name: '已删除业务记录' });
+  await expect(recycleRegion.getByText(title)).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
+  await recycleRegion.getByRole('button', { name: `恢复任务：${title}` }).click();
+  await expect(recycleRegion.getByText(title)).toHaveCount(0);
+
+  await page.getByRole('button', { name: '任务管理' }).click();
+  const restoredRow = page.locator('.selectable-row').filter({ hasText: title });
+  await expect(restoredRow).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
+  await restoredRow.getByTitle('删除任务').click();
+  await page.getByRole('button', { name: '回收站' }).click();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: `永久删除任务：${title}` }).click();
+  await expect(page.getByText(title)).toHaveCount(0);
+
+  if (testInfo.project.name === 'mobile') {
+    for (const control of [page.getByLabel('搜索回收站'), page.getByLabel('按类型筛选')]) {
+      const box = await control.boundingBox();
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+    const recycleNav = await page.getByRole('button', { name: '回收站', exact: true }).boundingBox();
+    const navViewport = await page.locator('.nav-list').boundingBox();
+    expect(recycleNav).not.toBeNull();
+    expect(navViewport).not.toBeNull();
+    expect(recycleNav!.x).toBeGreaterThanOrEqual(navViewport!.x);
+    expect(recycleNav!.x + recycleNav!.width).toBeLessThanOrEqual(navViewport!.x + navViewport!.width + 1);
+    expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+  expect(unexpectedRequests).toEqual([]);
+});
+
 test('moves narrow-screen record selection to the detail and provides a return path to the list', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile', 'Narrow-screen detail flow is checked in the mobile project.');
   await page.getByRole('button', { name: '任务管理' }).click();
@@ -237,7 +289,7 @@ test('opens local global search from the keyboard and finds navigation and busin
   await page.keyboard.press('Control+K');
   let dialog = page.getByRole('dialog', { name: '全局查找' });
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator('.global-search-group').filter({ hasText: '导航模块' }).locator('.global-search-item')).toHaveCount(16);
+  await expect(dialog.locator('.global-search-group').filter({ hasText: '导航模块' }).locator('.global-search-item')).toHaveCount(17);
   let searchInput = dialog.getByRole('combobox', { name: '全局查找' });
   await searchInput.fill('事务日历');
   await expect(dialog.getByText('导航模块', { exact: true })).toBeVisible();
@@ -494,12 +546,17 @@ test('creates, persists, edits and deletes an editable task', async ({ page }) =
 
   await page.getByRole('button', { name: '任务管理' }).click();
   let updatedTaskRow = page.locator('.table-row').filter({ hasText: updatedName });
-  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('确认删除该任务'); await dialog.dismiss(); });
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('移入回收站'); await dialog.dismiss(); });
   await updatedTaskRow.getByTitle('删除任务').click();
   await expect(page.getByText(updatedName, { exact: true })).toBeVisible();
-  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('删除后无法撤销'); await dialog.accept(); });
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('移入回收站'); await dialog.accept(); });
   updatedTaskRow = page.locator('.table-row').filter({ hasText: updatedName });
   await updatedTaskRow.getByTitle('删除任务').click();
+  await expect(page.getByText(updatedName, { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '回收站' }).click();
+  await expect(page.getByText(updatedName, { exact: true })).toBeVisible();
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('永久删除'); await dialog.accept(); });
+  await page.getByRole('button', { name: `永久删除任务：${updatedName}` }).click();
   await expect(page.getByText(updatedName, { exact: true })).toHaveCount(0);
 });
 
@@ -702,6 +759,28 @@ test('creates and persists meeting, research, seal and material records', async 
   page.once('dialog', async (dialog) => { await dialog.accept(); });
   await persistedMeeting.getByTitle('删除会议').click();
   await expect(page.getByText('端到端业务调度会', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '回收站' }).click();
+  await expect(page.getByText('端到端业务调度会', { exact: true })).toBeVisible();
+  const trashedAttachmentDownload = page.waitForEvent('download');
+  await page.getByTitle('下载附件 会议议程.txt').click();
+  expect((await trashedAttachmentDownload).suggestedFilename()).toBe('会议议程.txt');
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('恢复'); await dialog.accept(); });
+  await page.getByRole('button', { name: '恢复会议：端到端业务调度会' }).click();
+  await page.getByRole('button', { name: '会议管理' }).click();
+  persistedMeeting = page.locator('.table-row').filter({ hasText: '端到端业务调度会' });
+  await expect(persistedMeeting).toBeVisible();
+  await persistedMeeting.getByTitle('编辑会议').click();
+  const restoredAttachmentDownload = page.waitForEvent('download');
+  await page.getByRole('dialog', { name: '编辑会议' }).getByTitle('下载附件 会议议程.txt').click();
+  expect((await restoredAttachmentDownload).suggestedFilename()).toBe('会议议程.txt');
+  await page.getByTitle('关闭').click();
+  persistedMeeting = page.locator('.table-row').filter({ hasText: '端到端业务调度会' });
+  page.once('dialog', async (dialog) => { await dialog.accept(); });
+  await persistedMeeting.getByTitle('删除会议').click();
+  await page.getByRole('button', { name: '回收站' }).click();
+  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('永久删除回收站'); await dialog.accept(); });
+  await page.getByRole('button', { name: '清空回收站' }).click();
+  await expect(page.getByText('回收站为空')).toBeVisible();
   await page.getByRole('button', { name: '数据迁移' }).click();
   const afterMeetingDelete = page.waitForEvent('download');
   await page.getByRole('button', { name: '导出快照' }).click();

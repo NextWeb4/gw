@@ -22,6 +22,7 @@ describe('local agenda derivation', () => {
       { ...sampleTasks[1], id: 'task-blank', deadline: '' },
       { ...sampleTasks[1], id: 'task-invalid', deadline: '2026-02-30' },
       { ...sampleTasks[1], id: 'task-wide-year', deadline: '200026-07-24' },
+      { ...sampleTasks[1], id: 'task-deleted', deadline: '2026-07-24', deletedAt: '2026-07-31T08:00:00.000Z' },
     ];
     const originalTaskIds = tasks.map((task) => task.id);
 
@@ -54,6 +55,7 @@ describe('local agenda derivation', () => {
       time: '',
     });
     expect(tasks.map((task) => task.id)).toEqual(originalTaskIds);
+    expect(events.some((event) => event.recordId === 'task-deleted')).toBe(false);
   });
 
   it('builds a Monday-first 42-day month grid and counts only the filtered events', () => {

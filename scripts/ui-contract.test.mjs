@@ -7,15 +7,17 @@ const root = path.resolve(import.meta.dirname, '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
 
 test('interface uses Lucide components without emoji or custom functional image icons', async () => {
-  const [app, agendaView, index] = await Promise.all([
+  const [app, agendaView, recycleBin, index] = await Promise.all([
     read('apps/web/src/App.tsx'),
     read('apps/web/src/AgendaView.tsx'),
+    read('apps/web/src/RecycleBinView.tsx'),
     read('apps/web/index.html'),
   ]);
-  const interfaceSource = `${app}\n${agendaView}\n${index}`;
+  const interfaceSource = `${app}\n${agendaView}\n${recycleBin}\n${index}`;
 
   assert.match(app, /from 'lucide-react'/, 'interface must import Lucide components');
   assert.match(agendaView, /from 'lucide-react'/, 'agenda interface must use the same Lucide component source');
+  assert.match(recycleBin, /from 'lucide-react'/, 'recycle-bin interface must use the same Lucide component source');
   assert.doesNotMatch(interfaceSource, /[\u2600-\u27BF\u{1F300}-\u{1FAFF}]/u, 'interface must not contain emoji');
   assert.doesNotMatch(interfaceSource, /<(?:img|svg)\b/i, 'functional interface icons must not use image or inline SVG elements');
   assert.doesNotMatch(interfaceSource, /icon-font|fontawesome|material-icons/i, 'interface must not use icon fonts');
@@ -126,6 +128,24 @@ test('quick task capture reuses deterministic extraction and the existing guarde
   assert.match(app, /useUnsavedChangesGuard\([^\n]+Boolean\(initialImportText\)\)/, 'a prefilled capture must be protected as unsaved from first render');
   assert.match(css, /\.quick-capture-dialog/, 'the native dialog must have a dedicated responsive treatment');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.quick-capture-action[^}]*min-height:\s*44px/, 'narrow quick-capture actions must keep 44px touch targets');
+});
+
+test('recycle bin stays local-only and exposes explicit restore and permanent-delete actions', async () => {
+  const [app, recycleBin, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/RecycleBinView.tsx'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(app, /\{ id: 'recycle', label: '回收站', icon: Trash2 \}/, 'recycle bin must be a discoverable navigation module');
+  assert.match(app, /partitionBusinessRecords/, 'all business consumers must receive active records derived from the shared lifecycle partition');
+  assert.match(app, /<RecycleBinView/, 'the application must use a dedicated recycle-bin view');
+  assert.doesNotMatch(recycleBin, /\bfetch\b|listRecords|IndexedDB|localStorage|Electron|putRecord|removeRecord|ipc/i, 'recycle-bin presentation must only use records already loaded by App');
+  assert.match(recycleBin, /aria-label="搜索回收站"/, 'trash search must have an accessible name');
+  assert.match(recycleBin, /永久删除/, 'permanent deletion must remain an explicit action');
+  assert.match(recycleBin, /恢复/, 'restore must remain an explicit action');
+  assert.match(css, /\.recycle-toolbar[^}]*flex-wrap:\s*wrap/, 'trash controls must wrap instead of widening narrow layouts');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.recycle-action[^}]*min-height:\s*44px/, 'narrow trash actions must keep a 44px touch target');
 });
 
 test('AI compact mode keeps consent controls while history and downloads remain explicit', async () => {

@@ -1,4 +1,4 @@
-import { isValidIsoDate, statusLabels, type MaterialRecord, type MeetingRecord, type OfficialDocument, type ResearchRecord, type SealRecord, type Task } from '@hxhwang/domain';
+import { isActiveBusinessRecord, isValidIsoDate, statusLabels, type MaterialRecord, type MeetingRecord, type OfficialDocument, type ResearchRecord, type SealRecord, type Task } from '@hxhwang/domain';
 import { agendaKindOrder, buildAgendaEvents, type AgendaEvent, type AgendaKind, type AgendaSources } from './agenda';
 
 export type WorkOverviewBucket = 'overdue' | 'today' | 'upcoming' | 'unscheduled';
@@ -64,7 +64,7 @@ function compareUnscheduled(left: WorkOverviewItem, right: WorkOverviewItem) {
 
 export function buildWorkOverview(sources: AgendaSources, today: string): WorkOverview {
   if (!isValidIsoDate(today, false)) throw new Error(`无效概览日期：${today}`);
-  const activeTaskIds = new Set(sources.tasks.filter((task) => task.status !== 'done').map((task) => task.id));
+  const activeTaskIds = new Set(sources.tasks.filter(isActiveBusinessRecord).filter((task) => task.status !== 'done').map((task) => task.id));
   const events = buildAgendaEvents(sources).filter((event) => event.kind !== 'tasks' || activeTaskIds.has(event.recordId));
   const eventKeys = new Set(events.map((event) => event.key));
   const daySeven = shiftLocalDate(today, 7);
@@ -82,7 +82,7 @@ export function buildWorkOverview(sources: AgendaSources, today: string): WorkOv
 
   const unscheduledItems: WorkOverviewItem[] = [];
   const collect = <T extends Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord>(kind: AgendaKind, records: T[]) => {
-    records.forEach((record, sourceIndex) => {
+    records.filter(isActiveBusinessRecord).forEach((record, sourceIndex) => {
       if (kind === 'tasks' && (record as Task).status === 'done') return;
       if (!eventKeys.has(`${kind}:${record.id}`)) unscheduledItems.push(unscheduledItem(kind, record, sourceIndex));
     });

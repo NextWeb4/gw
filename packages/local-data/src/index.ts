@@ -2,15 +2,17 @@ import { addRxPlugin, createRxDatabase, type RxCollection, type RxDatabase } fro
 import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 import type {
-  ArchiveRecord, Attachment, Draft, MaterialRecord, MeetingRecord, OfficialDocument, ResearchRecord, SealRecord, Task, WeeklyReport
+  ArchiveRecord, Attachment, Draft, MaterialRecord, MeetingRecord, OfficialDocument, PurgedBusinessRecord, ResearchRecord, SealRecord, Task, WeeklyReport
 } from '@hxhwang/domain';
-import { mergeContactDirectory, sampleContactDirectory, sampleDocuments, sampleMaterials, sampleMeetings, sampleResearches, sampleSeals, sampleTasks } from '@hxhwang/domain';
+import { isPurgedBusinessRecord, mergeContactDirectory, minimizePurgedBusinessRecord, sampleContactDirectory, sampleDocuments, sampleMaterials, sampleMeetings, sampleResearches, sampleSeals, sampleTasks } from '@hxhwang/domain';
 
 export type Kind = 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material' | 'attachment' | 'draft' | 'weekly' | 'archive' | 'setting';
-type RecordPayload = Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord | Attachment | Draft | WeeklyReport | ArchiveRecord | Record<string, unknown>;
+export type BusinessKind = Extract<Kind, 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material'>;
+type RecordPayload = Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord | PurgedBusinessRecord | Attachment | Draft | WeeklyReport | ArchiveRecord | Record<string, unknown>;
 interface StoredRecord { id: string; kind: Kind; payload: RecordPayload; updatedAt: string; }
 interface SnapshotRecord { id: string; kind: Kind; payload: RecordPayload; updatedAt?: string; }
 const allowedKinds = new Set<Kind>(['task', 'meeting', 'document', 'research', 'seal', 'material', 'attachment', 'draft', 'weekly', 'archive', 'setting']);
+const businessKinds = new Set<Kind>(['task', 'meeting', 'document', 'research', 'seal', 'material']);
 const attachmentReferencingKinds = new Set<Kind>(['task', 'meeting', 'document', 'research', 'seal', 'material', 'archive']);
 export const LOCAL_SCHEMA_VERSION = 2;
 addRxPlugin(RxDBMigrationSchemaPlugin);
@@ -109,6 +111,13 @@ export async function removeAttachmentsIfUnreferenced(candidateIds: string[]) {
   return removed;
 }
 
+export async function putPurgedBusinessRecord(kind: BusinessKind, id: string, payload: PurgedBusinessRecord) {
+  const previous = await getRecord<RecordPayload>(id);
+  const attachmentIds = attachmentIdsFromPayload(previous);
+  await putRecord(kind, id, minimizePurgedBusinessRecord(payload));
+  return removeAttachmentsIfUnreferenced(attachmentIds);
+}
+
 const previousDemoUpdatedAt = new Map([
   ['task_demo_1', '2026-07-22T08:00:00.000Z'],
   ['task_demo_2', '2026-07-21T08:00:00.000Z'],
@@ -174,8 +183,12 @@ export async function exportLocalSnapshot() {
     format: 'hxhwang-gw-local-v1',
     exportedAt: new Date().toISOString(),
     author: 'HaoXiangHwang',
-    records: docs.map((doc: any) => ({ id: doc.id, kind: doc.kind, payload: doc.payload, updatedAt: doc.updatedAt }))
+    records: docs.map((doc: any) => ({ id: doc.id, kind: doc.kind, payload: snapshotPayloadForRecord(doc.kind, doc.payload), updatedAt: doc.updatedAt }))
   };
+}
+
+export function snapshotPayloadForRecord(kind: Kind, payload: RecordPayload): RecordPayload {
+  return businessKinds.has(kind) && isPurgedBusinessRecord(payload) ? minimizePurgedBusinessRecord(payload) : payload;
 }
 
 export function parseLocalSnapshot(snapshot: unknown): { records: SnapshotRecord[]; warnings: string[] } {
@@ -202,7 +215,7 @@ export function parseLocalSnapshot(snapshot: unknown): { records: SnapshotRecord
       continue;
     }
     seenKinds.set(record.id, kind);
-    records.push({ id: record.id, kind, payload: record.payload as RecordPayload, updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : undefined });
+    records.push({ id: record.id, kind, payload: snapshotPayloadForRecord(kind, record.payload as RecordPayload), updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : undefined });
   }
   return { records, warnings };
 }

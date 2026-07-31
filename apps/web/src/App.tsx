@@ -5,14 +5,15 @@ import Placeholder from '@tiptap/extension-placeholder';
 import {
   Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowUpDown, ArrowUpRight, BarChart3, BookOpen, CalendarDays, CalendarRange, Check, ChevronRight, ClipboardList,
   Bot, Building2, FileArchive, FileOutput, FileText, FileUp, FolderOpen, Globe2, Info, KeyRound, LayoutDashboard, Library, MapPin,
-  ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Stamp, Upload, UsersRound, WandSparkles, X
+  ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Stamp, Trash2, Upload, UsersRound, WandSparkles, X
 } from 'lucide-react';
 import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, DEFAULT_WEEKLY_TEMPLATE, extractTaskFromText,
-  extractWeeklyTemplateFromSample, listStatisticsMonths, mergePartnerGroupMembers, nowIso, parseWeeklyTemplate, resolveCategoryTint,
+  extractWeeklyTemplateFromSample, listStatisticsMonths, mergePartnerGroupMembers, moveBusinessRecordToTrash, nowIso, parseWeeklyTemplate, partitionBusinessRecords,
+  purgeBusinessRecord, resolveCategoryTint, restoreBusinessRecord,
   weeklySectionSourceLabels,
   type AiFieldChange, type AiGuidancePreset, type AiHistoryEntry, type AiSkill, type ArchiveRecord, type Attachment, type CategoryStyle, type CategoryTint, type Draft, type KnowledgePack, type MaterialRecord, type PartnerGroup,
-  type MeetingRecord, type MigrationReport, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, mergeContactDirectory, statusLabels,
+  type MeetingRecord, type MigrationReport, type PurgedBusinessRecord, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, mergeContactDirectory, statusLabels,
   type ContactDirectory, type CustomWritingTemplate, type OfficialDocument, type PartnerStatus, type ResearchDirection, type ResearchRecord,
   type SealRecord, type Status, type Task, type TaskStage, type WeeklyReport, type WeeklySectionSource, type WeeklyTemplate,
   type WeeklyTemplateSection, type WorkStatisticsInput, type WorkSummaryTemplateId, type WritingTemplate,
@@ -20,7 +21,7 @@ import {
 } from '@hxhwang/domain';
 import {
   attachmentIdsFromPayload, exportLocalSnapshot, getRecord, importLocalSnapshot, listRecords, putRecord, removeAttachmentsIfUnreferenced,
-  removeRecord, seedDemoData, type Kind
+  putPurgedBusinessRecord, removeRecord, seedDemoData, type BusinessKind, type Kind
 } from '@hxhwang/local-data';
 import { migrateLegacyExport, type MigrationBundle } from '@hxhwang/migration';
 import { AI_MAX_CONTENT_LENGTH, AI_MAX_GUIDANCE_LENGTH, AI_PROVIDER_PRESETS, DirectAiClient, extractOpenAiText, PrivateSyncClient, RelayAiClient, type RelayProviderDescriptor } from '@hxhwang/sync-client';
@@ -36,8 +37,9 @@ import { AgendaView } from './AgendaView';
 import type { AgendaKind } from './agenda';
 import { WorkOverview } from './WorkOverview';
 import { QuickTaskCapture } from './QuickTaskCapture';
+import { RecycleBinView, type RecycleBinEntry, type RecycleRecordKind } from './RecycleBinView';
 
-type Tab = 'dashboard' | 'agenda' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'archive' | 'migration' | 'about';
+type Tab = 'dashboard' | 'agenda' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'recycle' | 'archive' | 'migration' | 'about';
 type BusinessTab = Extract<Tab, 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials'>;
 type BusinessDetail =
   | { kind: 'task'; record: Task }
@@ -46,6 +48,21 @@ type BusinessDetail =
   | { kind: 'research'; record: ResearchRecord }
   | { kind: 'seal'; record: SealRecord }
   | { kind: 'material'; record: MaterialRecord };
+type TrashedBusinessRecord =
+  | { kind: 'task'; record: Task }
+  | { kind: 'meeting'; record: MeetingRecord }
+  | { kind: 'document'; record: OfficialDocument }
+  | { kind: 'research'; record: ResearchRecord }
+  | { kind: 'seal'; record: SealRecord }
+  | { kind: 'material'; record: MaterialRecord };
+interface SyncBusinessWorkspace {
+  tasks: Array<Task | PurgedBusinessRecord>;
+  meetings: Array<MeetingRecord | PurgedBusinessRecord>;
+  documents: Array<OfficialDocument | PurgedBusinessRecord>;
+  researches: Array<ResearchRecord | PurgedBusinessRecord>;
+  seals: Array<SealRecord | PurgedBusinessRecord>;
+  materials: Array<MaterialRecord | PurgedBusinessRecord>;
+}
 interface AiChangeContext { targetLabel: string; fields: Array<{ field: string; label: string; before: string }>; }
 interface AiPrefill { source: string; purpose: string; custom?: string; changeContext?: AiChangeContext; nonce: number; }
 type AiAssistRequest = { source?: string; purpose?: string; custom?: string; changeContext?: AiChangeContext };
@@ -72,6 +89,7 @@ const navItems: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> 
   { id: 'weekly', label: '周报生成', icon: FileOutput },
   { id: 'stats', label: '统计分析', icon: BarChart3 },
   { id: 'ai', label: 'AI 助手', icon: Sparkles },
+  { id: 'recycle', label: '回收站', icon: Trash2 },
   { id: 'archive', label: '历史档案', icon: Archive },
   { id: 'migration', label: '数据迁移', icon: RefreshCw }
 ];
@@ -118,6 +136,17 @@ const normalizedLegacyDateTime = (value: string) => {
   return isValidIsoDateTime(candidate, false) ? candidate : '';
 };
 
+const recycleEntryFor = (item: TrashedBusinessRecord): RecycleBinEntry => {
+  const { kind, record } = item;
+  const base = { id: record.id, kind, deletedAt: record.deletedAt || record.updatedAt, attachmentIds: attachmentIdsFromPayload(record) };
+  if (kind === 'task') return { ...base, typeLabel: '任务', title: record.name || '未命名任务', description: `${record.category || '未分类'} · ${statusLabels[record.status]} · ${record.assigner || '未指定交办人'}` };
+  if (kind === 'meeting') return { ...base, typeLabel: '会议', title: record.subject || '未命名会议', description: `${record.meetingTime?.replace('T', ' ') || '未设时间'} · ${record.location || record.sendTo || '未填写地点或对象'}` };
+  if (kind === 'document') return { ...base, typeLabel: '文件', title: record.title || '未命名文件', description: `${record.code || '无文号'} · ${record.fromUnit || '未填写来源单位'}` };
+  if (kind === 'research') return { ...base, typeLabel: '外出', title: record.subject || '未命名外出活动', description: `${record.direction} · ${record.location || '未填写地点'}` };
+  if (kind === 'seal') return { ...base, typeLabel: '用章', title: record.docName || '未命名用章文件', description: `${record.docType || '未分类'} · ${record.userName || '未填写用章人'}` };
+  return { ...base, typeLabel: '物资', title: record.materialName || '未命名物资', description: `${record.type === 'in' ? '入库' : '领用'} ${record.quantity} · ${record.spec || '无规格'}` };
+};
+
 function App() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -128,6 +157,8 @@ function App() {
   const [researches, setResearches] = useState<ResearchRecord[]>([]);
   const [seals, setSeals] = useState<SealRecord[]>([]);
   const [materials, setMaterials] = useState<MaterialRecord[]>([]);
+  const [trashedBusinessRecords, setTrashedBusinessRecords] = useState<TrashedBusinessRecord[]>([]);
+  const [syncBusinessWorkspace, setSyncBusinessWorkspace] = useState<SyncBusinessWorkspace>({ tasks: [], meetings: [], documents: [], researches: [], seals: [], materials: [] });
   const [weeklyReports, setWeeklyReports] = useState<WeeklyReport[]>([]);
   const [archives, setArchives] = useState<ArchiveRecord[]>([]);
   const [legacySettings, setLegacySettings] = useState<Array<Record<string, unknown>>>([]);
@@ -168,6 +199,7 @@ function App() {
   const globalSearchReturnFocusRef = useRef<HTMLElement | null>(null);
   const quickCaptureTriggerRef = useRef<HTMLButtonElement>(null);
   const quickCaptureReturnFocusRef = useRef<HTMLElement | null>(null);
+  const activeMobileNavRef = useRef<HTMLButtonElement>(null);
   const isDesktop = Boolean(desktopBridge());
   const businessEditorOpen = Boolean(taskEditor || meetingEditor || documentEditor || researchEditor || sealEditor || materialEditor);
   const globalSearchBlocked = Boolean(businessEditorOpen || aiOverlayOpen || quickCaptureOpen);
@@ -198,22 +230,37 @@ function App() {
   const reload = async () => {
     if (__SEED_DEMO_DATA__) await seedDemoData();
     const [taskRows, meetingRows, documentRows, researchRows, sealRows, materialRows, reportRows, archiveRows, settings, attachmentRows] = await Promise.all([
-      listRecords<Task>('task'), listRecords<MeetingRecord>('meeting'), listRecords<OfficialDocument>('document'), listRecords<ResearchRecord>('research'),
-      listRecords<SealRecord>('seal'), listRecords<MaterialRecord>('material'), listRecords<WeeklyReport>('weekly'), listRecords<ArchiveRecord>('archive'),
+      listRecords<Task | PurgedBusinessRecord>('task'), listRecords<MeetingRecord | PurgedBusinessRecord>('meeting'), listRecords<OfficialDocument | PurgedBusinessRecord>('document'), listRecords<ResearchRecord | PurgedBusinessRecord>('research'),
+      listRecords<SealRecord | PurgedBusinessRecord>('seal'), listRecords<MaterialRecord | PurgedBusinessRecord>('material'), listRecords<WeeklyReport>('weekly'), listRecords<ArchiveRecord>('archive'),
       listRecords<Record<string, unknown>>('setting'), listRecords<Attachment>('attachment')
     ]);
-    setTasks(taskRows); setMeetings(meetingRows); setDocuments(documentRows); setResearches(researchRows); setSeals(sealRows); setMaterials(materialRows);
+    const taskRecords = partitionBusinessRecords<Task>(taskRows);
+    const meetingRecords = partitionBusinessRecords<MeetingRecord>(meetingRows);
+    const documentRecords = partitionBusinessRecords<OfficialDocument>(documentRows);
+    const researchRecords = partitionBusinessRecords<ResearchRecord>(researchRows);
+    const sealRecords = partitionBusinessRecords<SealRecord>(sealRows);
+    const materialRecords = partitionBusinessRecords<MaterialRecord>(materialRows);
+    setTasks(taskRecords.active); setMeetings(meetingRecords.active); setDocuments(documentRecords.active); setResearches(researchRecords.active); setSeals(sealRecords.active); setMaterials(materialRecords.active);
+    setTrashedBusinessRecords([
+      ...taskRecords.trashed.map((record) => ({ kind: 'task' as const, record })),
+      ...meetingRecords.trashed.map((record) => ({ kind: 'meeting' as const, record })),
+      ...documentRecords.trashed.map((record) => ({ kind: 'document' as const, record })),
+      ...researchRecords.trashed.map((record) => ({ kind: 'research' as const, record })),
+      ...sealRecords.trashed.map((record) => ({ kind: 'seal' as const, record })),
+      ...materialRecords.trashed.map((record) => ({ kind: 'material' as const, record }))
+    ]);
+    setSyncBusinessWorkspace({ tasks: taskRows, meetings: meetingRows, documents: documentRows, researches: researchRows, seals: sealRows, materials: materialRows });
     setWeeklyReports(reportRows); setArchives(archiveRows); setAttachments(attachmentRows);
     const directorySetting = settings.find((setting) => setting.type === 'contact-directory') as (ContactDirectory & { type: string }) | undefined;
     const legacyAssigners = settings.flatMap((setting) => setting.id === 'work_assigners' && Array.isArray(setting.value) ? setting.value.filter((value): value is string => typeof value === 'string') : []);
-    const participantNames = researchRows.flatMap((research) => research.participants.split(/[、，,;；\n]/));
+    const participantNames = researchRecords.active.flatMap((research) => research.participants.split(/[、，,;；\n]/));
     const derivedPeople = [
-      ...taskRows.map((task) => task.assigner), ...documentRows.map((document) => document.handler), ...meetingRows.map((meeting) => meeting.receiver),
-      ...participantNames, ...sealRows.flatMap((seal) => [seal.userName, seal.approver]), ...materialRows.map((material) => material.handler), ...legacyAssigners
+      ...taskRecords.active.map((task) => task.assigner), ...documentRecords.active.map((document) => document.handler), ...meetingRecords.active.map((meeting) => meeting.receiver),
+      ...participantNames, ...sealRecords.active.flatMap((seal) => [seal.userName, seal.approver]), ...materialRecords.active.map((material) => material.handler), ...legacyAssigners
     ];
     const derivedUnits = [
-      ...documentRows.map((document) => document.fromUnit), ...meetingRows.map((meeting) => meeting.sendTo), ...materialRows.map((material) => material.fromUnit),
-      ...taskRows.flatMap((task) => [...task.partnerStatus.map((partner) => partner.name), ...task.stages.flatMap((stage) => stage.partnerStatus.map((partner) => partner.name))])
+      ...documentRecords.active.map((document) => document.fromUnit), ...meetingRecords.active.map((meeting) => meeting.sendTo), ...materialRecords.active.map((material) => material.fromUnit),
+      ...taskRecords.active.flatMap((task) => [...task.partnerStatus.map((partner) => partner.name), ...task.stages.flatMap((stage) => stage.partnerStatus.map((partner) => partner.name))])
     ];
     const stored = directorySetting ? { people: directorySetting.people || [], units: directorySetting.units || [], updatedAt: directorySetting.updatedAt || nowIso() } : undefined;
     const nextDirectory = stored
@@ -236,6 +283,11 @@ function App() {
   useEffect(() => { void reload(); }, []);
   useEffect(() => { if (!toast.text) return; const timer = window.setTimeout(() => setToastState((prev) => ({ text: '', key: prev.key })), 3200); return () => window.clearTimeout(timer); }, [toast]);
   useLayoutEffect(() => { mainAreaRef.current?.scrollTo({ top: 0, left: 0 }); window.scrollTo({ top: 0, left: 0 }); }, [tab]);
+  useLayoutEffect(() => {
+    if (!window.matchMedia('(max-width: 800px)').matches || tab === 'about') return;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.requestAnimationFrame(() => activeMobileNavRef.current?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'nearest', inline: 'center' }));
+  }, [tab]);
 
   const updateLedgerView = (kind: LedgerKind, patch: Partial<LedgerViewState>) => setLedgerViews((current) => ({ ...current, [kind]: { ...current[kind], ...patch } }));
   const resetLedgerView = (kind: LedgerKind) => setLedgerViews((current) => ({ ...current, [kind]: { query: '', filter: 'all', sort: 'default' } }));
@@ -251,6 +303,7 @@ function App() {
   const researchFilterOptions = useMemo(() => getLedgerFilterOptions('researches', researches), [researches]);
   const sealFilterOptions = useMemo(() => getLedgerFilterOptions('seals', seals), [seals]);
   const materialFilterOptions = useMemo(() => getLedgerFilterOptions('materials', materials), [materials]);
+  const recycleEntries = useMemo(() => trashedBusinessRecords.map(recycleEntryFor).sort((left, right) => right.deletedAt.localeCompare(left.deletedAt) || left.title.localeCompare(right.title, 'zh-CN')), [trashedBusinessRecords]);
   const globalSearchGroups = useMemo<Array<GlobalSearchGroup<Tab>>>(() => [
     {
       id: 'navigation', label: '导航模块', items: globalNavItems.map((item, index) => ({
@@ -585,25 +638,58 @@ function App() {
     }
   };
   const categoryTints = useMemo(() => new Map(categoryStyles.map((style) => [style.name, style.tint])), [categoryStyles]);
-  const deleteEditableRecord = async <T extends Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord,>(id: string, label: string, successMessage: string) => {
-    if (!window.confirm(`确认删除${label}？删除后无法撤销，建议先导出本地快照。`)) return;
+  const deleteEditableRecord = async <T extends Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord,>(kind: BusinessKind, id: string, label: string, successMessage: string) => {
+    if (!window.confirm(`确认将${label}移入回收站？记录和附件仍保留在本机，可稍后恢复。`)) return;
     try {
       const existing = await getRecord<T>(id);
-      const attachmentIds = attachmentIdsFromPayload(existing);
-      await removeRecord(id);
-      await removeAttachmentsIfUnreferenced(attachmentIds);
+      if (!existing) throw new Error('未找到要删除的记录');
+      await putRecord(kind, id, moveBusinessRecordToTrash(existing));
       await reload();
       setToast(successMessage);
     } catch (error) {
       setToast(error instanceof Error ? `删除失败：${error.message}` : '删除失败');
     }
   };
-  const deleteTask = (id: string) => deleteEditableRecord<Task>(id, '该任务', '任务已删除');
-  const deleteMeeting = (id: string) => deleteEditableRecord<MeetingRecord>(id, '该会议记录', '会议记录已删除');
-  const deleteDocument = (id: string) => deleteEditableRecord<OfficialDocument>(id, '该文件记录', '文件已删除');
-  const deleteResearch = (id: string) => deleteEditableRecord<ResearchRecord>(id, '该外出活动', '外出活动已删除');
-  const deleteSeal = (id: string) => deleteEditableRecord<SealRecord>(id, '该用章记录', '用章记录已删除');
-  const deleteMaterial = (id: string) => deleteEditableRecord<MaterialRecord>(id, '该物资流水', '物资记录已删除');
+  const deleteTask = (id: string) => deleteEditableRecord<Task>('task', id, '该任务', '任务已移入回收站');
+  const deleteMeeting = (id: string) => deleteEditableRecord<MeetingRecord>('meeting', id, '该会议记录', '会议记录已移入回收站');
+  const deleteDocument = (id: string) => deleteEditableRecord<OfficialDocument>('document', id, '该文件记录', '文件记录已移入回收站');
+  const deleteResearch = (id: string) => deleteEditableRecord<ResearchRecord>('research', id, '该外出活动', '外出活动已移入回收站');
+  const deleteSeal = (id: string) => deleteEditableRecord<SealRecord>('seal', id, '该用章记录', '用章记录已移入回收站');
+  const deleteMaterial = (id: string) => deleteEditableRecord<MaterialRecord>('material', id, '该物资流水', '物资记录已移入回收站');
+  const findTrashedBusinessRecord = (kind: RecycleRecordKind, id: string) => trashedBusinessRecords.find((item) => item.kind === kind && item.record.id === id);
+  const restoreDeletedRecord = async (kind: RecycleRecordKind, id: string) => {
+    const item = findTrashedBusinessRecord(kind, id);
+    if (!item || !window.confirm(`确认恢复「${recycleEntryFor(item).title}」？恢复后会重新出现在原业务模块。`)) return;
+    try {
+      await putRecord(kind, id, restoreBusinessRecord(item.record));
+      await reload();
+      setToast('记录已恢复');
+    } catch (error) {
+      setToast(error instanceof Error ? `恢复失败：${error.message}` : '恢复失败');
+    }
+  };
+  const permanentlyDeleteRecord = async (kind: RecycleRecordKind, id: string) => {
+    const item = findTrashedBusinessRecord(kind, id);
+    if (!item || !window.confirm(`确认永久删除「${recycleEntryFor(item).title}」？业务正文将被移除，此操作无法撤销。`)) return;
+    try {
+      await putPurgedBusinessRecord(kind, id, purgeBusinessRecord(item.record));
+      await reload();
+      setToast('记录已永久删除');
+    } catch (error) {
+      setToast(error instanceof Error ? `永久删除失败：${error.message}` : '永久删除失败');
+    }
+  };
+  const emptyRecycleBin = async () => {
+    if (!trashedBusinessRecords.length || !window.confirm(`确认永久删除回收站中的 ${trashedBusinessRecords.length} 条记录？业务正文将被移除，此操作无法撤销。`)) return;
+    try {
+      const timestamp = nowIso();
+      for (const item of trashedBusinessRecords) await putPurgedBusinessRecord(item.kind, item.record.id, purgeBusinessRecord(item.record, timestamp));
+      await reload();
+      setToast('回收站已清空');
+    } catch (error) {
+      setToast(error instanceof Error ? `清空失败：${error.message}` : '清空失败');
+    }
+  };
   const saveWeeklyReport = async (report: WeeklyReport) => {
     if (!report.title.trim() || !report.contentText.trim()) throw new Error('请填写周报标题和正文');
     if (!isValidIsoDate(report.startDate, false) || !isValidIsoDate(report.endDate, false) || report.startDate > report.endDate) throw new Error('周报起止日期无效');
@@ -762,7 +848,7 @@ function App() {
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [aiOverlayOpen]);
-  const aiWorkspace: AiWorkspaceData = { tasks, meetings, documents, researches, seals, materials, weeklyReports, draft };
+  const aiWorkspace: AiWorkspaceData = { tasks, meetings, documents, researches, seals, materials, syncBusinessWorkspace, weeklyReports, draft };
   const selectedIdFor = <T extends { id: string },>(businessTab: BusinessTab, records: T[]) => {
     const selectedId = selectedBusinessRecord?.tab === businessTab ? selectedBusinessRecord.id : '';
     return records.some((record) => record.id === selectedId) ? selectedId : records[0]?.id;
@@ -848,6 +934,7 @@ function App() {
     if (tab === 'weekly') return <WeeklyView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} reports={weeklyReports} templates={weeklyTemplates} onSave={saveWeeklyReport} onDelete={deleteWeeklyReport} onSaveTemplate={saveWeeklyTemplate} onDeleteTemplate={deleteWeeklyTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
     if (tab === 'stats') return <StatsView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} categoryTints={categoryTints} onSetCategoryTint={setCategoryTint} />;
     if (tab === 'ai') return null;
+    if (tab === 'recycle') return <RecycleBinView entries={recycleEntries} attachments={attachments} onRestore={(kind, id) => void restoreDeletedRecord(kind, id)} onPurge={(kind, id) => void permanentlyDeleteRecord(kind, id)} onEmpty={() => void emptyRecycleBin()} onDownloadAttachment={downloadStoredAttachment} />;
     if (tab === 'archive') return <ArchiveView archives={archives} settings={legacySettings} attachments={attachments} onCopy={copyArchiveToEditable} />;
     if (tab === 'migration') return <MigrationView onImport={importLegacy} onRestore={restoreSnapshot} onReload={reload} setToast={setToast} />;
     return <AboutView desktop={isDesktop} distribution={distributionMode} weeklyReports={weeklyReports} onNavigate={navigate} />;
@@ -866,7 +953,7 @@ function App() {
       </div>
       <div className="mode-label" title={isDesktop ? `桌面${modeLabel}` : modeLabel}><span className="status-dot" /><span>{isDesktop ? `桌面${modeLabel}` : modeLabel}</span></div>
       <nav className="nav-list" aria-label="主导航">
-        {navItems.map(({ id, label, icon: Icon }, index) => <button aria-label={label} title={sidebarCollapsed ? label : undefined} className={`nav-button ${tab === id ? 'active' : ''}`} key={id} onClick={() => navigate(id)}><span className="nav-index">{String(index + 1).padStart(2, '0')}</span><Icon size={17} strokeWidth={1.6} /><span>{label}</span>{tab === id && <ArrowUpRight size={14} />}</button>)}
+        {navItems.map(({ id, label, icon: Icon }, index) => <button ref={tab === id ? activeMobileNavRef : undefined} aria-label={label} title={sidebarCollapsed ? label : undefined} className={`nav-button ${tab === id ? 'active' : ''}`} key={id} onClick={() => navigate(id)}><span className="nav-index">{String(index + 1).padStart(2, '0')}</span><Icon size={17} strokeWidth={1.6} /><span>{label}</span>{tab === id && <ArrowUpRight size={14} />}</button>)}
       </nav>
       <div className="sidebar-bottom"><button aria-label="关于与设置" title={sidebarCollapsed ? '关于与设置' : undefined} className={`nav-button ${tab === 'about' ? 'active' : ''}`} onClick={() => navigate('about')}><span className="nav-index">{String(navItems.length + 1).padStart(2, '0')}</span><Info size={17} /><span>关于与设置</span>{tab === 'about' && <ArrowUpRight size={14} />}</button><div className="sidebar-credit"><span>ORIGIN / LOCAL</span><strong>© HaoXiangHwang</strong><a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a></div></div>
     </aside>
@@ -1746,6 +1833,7 @@ interface AiWorkspaceData {
   researches: ResearchRecord[];
   seals: SealRecord[];
   materials: MaterialRecord[];
+  syncBusinessWorkspace: SyncBusinessWorkspace;
   weeklyReports: WeeklyReport[];
   draft: Draft;
 }
@@ -1983,7 +2071,7 @@ function IntranetServices({ compact, workspace, attachments, prefill, skills, on
   const resetModels = () => { modelRequest.invalidate(); setModels([]); setModel(''); invalidateAiResult(); };
   const changeBaseUrl = (value: string) => { setBaseUrl(value); setClient(null); resetModels(); };
   const connect = async () => { resetModels(); setClient(null); try { const next = new PrivateSyncClient({ baseUrl }); await next.createSession(accessCode); setClient(next); setAccessCode(''); setToast('内网会话已建立，访问码未保存'); } catch (error) { setToast(error instanceof Error ? error.message : '连接失败'); } };
-  const sync = async () => { if (!client) return setToast('请先建立内网会话'); try { const result = await syncPrivateWorkspace(client, { tasks: workspace.tasks, meetings: workspace.meetings, documents: workspace.documents, researches: workspace.researches, seals: workspace.seals, materials: workspace.materials, drafts: [workspace.draft], weeklyReports: workspace.weeklyReports, attachments }); await onReload(); setToast(`同步完成：拉取 ${result.pulled}，推送 ${result.pushed}，冲突 ${result.conflicts}，附件上传 ${result.attachmentsUploaded}`); } catch (error) { setToast(error instanceof Error ? error.message : '同步失败'); } };
+  const sync = async () => { if (!client) return setToast('请先建立内网会话'); try { const result = await syncPrivateWorkspace(client, { ...workspace.syncBusinessWorkspace, drafts: [workspace.draft], weeklyReports: workspace.weeklyReports, attachments }); await onReload(); setToast(`同步完成：拉取 ${result.pulled}，推送 ${result.pushed}，冲突 ${result.conflicts}，附件上传 ${result.attachmentsUploaded}`); } catch (error) { setToast(error instanceof Error ? error.message : '同步失败'); } };
   const loadModels = async () => {
     if (!client) return setToast('请先建立内网会话');
     const previousModels = models;

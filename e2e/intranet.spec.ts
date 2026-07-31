@@ -89,13 +89,15 @@ test('retrieves internal models and sends only explicitly confirmed redacted con
 
 test('stops internal generation without accepting a late result or duplicate history', async ({ page }) => {
   let generationRequests = 0;
+  let releaseGeneration = () => undefined;
+  const generationGate = new Promise<void>((resolve) => { releaseGeneration = resolve; });
   await page.route('**/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/v1/demo/session') return route.fulfill({ json: { token: 'session-token', expiresIn: 3600 } });
     if (path === '/v1/ai/models') return route.fulfill({ json: { models: ['qwen3:4b'], defaultModel: 'qwen3:4b' } });
     if (path === '/v1/ai/generate') {
       generationRequests += 1;
-      await new Promise((resolve) => setTimeout(resolve, 450));
+      await generationGate;
       try { await route.fulfill({ json: { result: { choices: [{ message: { content: '不应写入的内部迟到结果' } }] }, audit: { purpose: '提纲生成', provider: 'localhost', model: 'qwen3:4b', contentHash: 'hash', createdAt: 'now' } } }); } catch { /* Browser request was actively aborted. */ }
       return;
     }
@@ -117,9 +119,10 @@ test('stops internal generation without accepting a late result or duplicate his
   await expect(page.getByRole('button', { name: '正在生成结果' })).toBeDisabled();
   await expect(confirmation).toBeDisabled();
   await page.getByRole('button', { name: '停止等待生成结果' }).click();
+  releaseGeneration();
   await expect(confirmation).toBeEnabled();
   await expect.poll(() => generationRequests).toBe(1);
-  await page.waitForTimeout(550);
+  await page.waitForTimeout(100);
   await expect(page.getByText('不应写入的内部迟到结果')).toHaveCount(0);
   await expect(page.locator('.ai-history-row')).toHaveCount(0);
   await expect(confirmation).not.toBeChecked();

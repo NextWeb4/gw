@@ -1,6 +1,7 @@
 import {
   isValidIsoDate,
   isValidIsoDateTime,
+  isActiveBusinessRecord,
   statusLabels,
   type MaterialRecord,
   type MeetingRecord,
@@ -72,32 +73,32 @@ function compareAgendaEvents(left: AgendaEvent, right: AgendaEvent) {
 
 export function buildAgendaEvents(sources: AgendaSources) {
   const events: AgendaEvent[] = [];
-  sources.tasks.forEach((task, sourceIndex) => {
+  sources.tasks.filter(isActiveBusinessRecord).forEach((task, sourceIndex) => {
     const date = validDate(task.deadline);
     if (!date) return;
     events.push({ key: `tasks:${task.id}`, kind: 'tasks', recordId: task.id, date, time: '', title: task.name, detail: `${task.category || '未分类'} · ${statusLabels[task.status]}`, badge: '任务截止', sourceIndex });
   });
-  sources.meetings.forEach((meeting, sourceIndex) => {
+  sources.meetings.filter(isActiveBusinessRecord).forEach((meeting, sourceIndex) => {
     const value = validDateTime(meeting.meetingTime);
     if (!value) return;
     events.push({ key: `meetings:${meeting.id}`, kind: 'meetings', recordId: meeting.id, date: value.date, time: value.time, title: meeting.subject, detail: meeting.location || meeting.sendTo || '未填写地点或对象', badge: '会议', sourceIndex });
   });
-  sources.documents.forEach((document, sourceIndex) => {
+  sources.documents.filter(isActiveBusinessRecord).forEach((document, sourceIndex) => {
     const date = validDate(document.docDate);
     if (!date) return;
     events.push({ key: `documents:${document.id}`, kind: 'documents', recordId: document.id, date, time: '', title: document.title, detail: `${document.docType}${document.code ? ` · ${document.code}` : ''}`, badge: '文件', sourceIndex });
   });
-  sources.researches.forEach((research, sourceIndex) => {
+  sources.researches.filter(isActiveBusinessRecord).forEach((research, sourceIndex) => {
     const date = validDate(research.researchTime);
     if (!date) return;
     events.push({ key: `researches:${research.id}`, kind: 'researches', recordId: research.id, date, time: '', title: research.subject, detail: `${research.direction}${research.location ? ` · ${research.location}` : ''}`, badge: '外出', sourceIndex });
   });
-  sources.seals.forEach((seal, sourceIndex) => {
+  sources.seals.filter(isActiveBusinessRecord).forEach((seal, sourceIndex) => {
     const date = validDate(seal.sealTime);
     if (!date) return;
     events.push({ key: `seals:${seal.id}`, kind: 'seals', recordId: seal.id, date, time: '', title: seal.docName, detail: `${seal.docType || '未分类'}${seal.userName ? ` · ${seal.userName}` : ''}`, badge: '用章', sourceIndex });
   });
-  sources.materials.forEach((material, sourceIndex) => {
+  sources.materials.filter(isActiveBusinessRecord).forEach((material, sourceIndex) => {
     const date = validDate(material.handlerTime);
     if (!date) return;
     events.push({ key: `materials:${material.id}`, kind: 'materials', recordId: material.id, date, time: '', title: material.materialName, detail: `${material.type === 'in' ? '入库' : '领用'} ${material.quantity}${material.spec ? ` · ${material.spec}` : ''}`, badge: '物资', sourceIndex });
