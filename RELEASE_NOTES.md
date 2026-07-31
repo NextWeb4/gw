@@ -9,7 +9,7 @@
 - 开源方案审计比较了 Super Productivity Today View（MIT）、Nextcloud Tasks Dashboard（AGPL-3.0-or-later）、Vikunja Upcoming（AGPL-3.0-or-later）和 Google Tasks / Calendar 官方交互说明。最终不新增依赖；只借鉴时间视图与分类视图分工、有界行动列表、未来范围与无日期分离、日历定位与待处理列表互补，不复制外部代码、文案、样式、图标、接口数据或业务模型。
 - 新增 `work-overview.ts`、`WorkOverview.tsx`、两项纯函数单元测试、UI 合约和桌面/移动 E2E。首个单元回归因概览模块尚不存在而按预期失败；完整 E2E 首轮发现“打开事务日历”与导航“事务日历”无障碍名称重叠，改为“查看完整日历”后聚焦 4/4 与完整套件重新通过。
 - 本机已通过 lint、格式检查、108 项单元/契约测试、主 E2E 67 项通过/7 项条件跳过、互联网 E2E 7 项、内网 E2E 3 项，以及公开/互联网/内网三类构建。八份发布清单均为 `0.7.3`，互联网/内网构建 source map 为 0；三类构建未命中 `0.7.2`、`0.3.1`、用户给定密码、E2E 秘密标记、私钥或长格式 API Key。双视口检查无控制台错误或外部请求，截图保存为 `artifacts/work-overview-v073-1440x900.png`、`artifacts/work-overview-v073-390x844-top.png` 和 `artifacts/work-overview-v073-390x844.png`。
-- GitHub Pages、桌面矩阵与 Release 的正式发布结果将在 `v0.7.3` 标签工作流完成后补记。
+- [Pages run 30628737861](https://github.com/NextWeb4/gw/actions/runs/30628737861) 已成功；线上入口 bundle 中 `0.7.3` 命中 10 次、`0.7.2` 为 0，并包含“工作焦点 / 今日与逾期”。真实 Chromium 显示三个范围、页脚 `0.7.3`，可从概览进入原任务详情，`body.scrollWidth=1440`，无控制台错误或外部请求，截图为 `artifacts/work-overview-v073-live.png`。[Desktop run 30628740473](https://github.com/NextWeb4/gw/actions/runs/30628740473) 已成功，包含 verify、Linux 4 项、Windows 4 项、Debian 10/12 双分版双架构 8 项和 release。[v0.7.3 Release](https://github.com/NextWeb4/gw/releases/tag/v0.7.3) 包含 12 个互联网/内网、Windows/Linux、x64/arm64 安装包和 `SHA256SUMS.txt`；13 个直接地址均返回 HTTP 200，校验文件含 12 条格式有效且文件名唯一的记录。
 
 ## v0.7.2
 
