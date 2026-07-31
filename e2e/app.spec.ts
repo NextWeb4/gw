@@ -145,6 +145,49 @@ test('filters and sorts all six ledgers while preserving session views and full 
   }
 });
 
+test('browses the unified local agenda and opens the original business detail', async ({ page }, testInfo) => {
+  const unexpectedRequests: string[] = [];
+  const pageOrigin = new URL(page.url()).origin;
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (!['data:', 'blob:'].includes(url.protocol) && url.origin !== pageOrigin) unexpectedRequests.push(request.url());
+  });
+
+  await page.getByRole('button', { name: '事务日历' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: '事务日历' })).toBeVisible();
+  await expect(page.locator('.agenda-day-button')).toHaveCount(42);
+  await expect(page.getByRole('button', { name: '上一个月' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '下一个月' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '回到今天' })).toBeVisible();
+
+  const july24 = page.getByRole('button', { name: /2026年7月24日，3 条事项/ });
+  await july24.click();
+  await expect(july24).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('全省重点工作协调推进会', { exact: true })).toBeVisible();
+  await expect(page.getByText('省直单位工作联系函', { exact: true })).toBeVisible();
+  await expect(page.getByText('A4 打印纸', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: '只看会议' }).click();
+  await expect(page.getByText('显示 1 / 7 条事项')).toBeVisible();
+  await expect(page.getByText('省直单位工作联系函', { exact: true })).toHaveCount(0);
+  const meetingAgendaItem = page.getByRole('button', { name: /打开会议记录：全省重点工作协调推进会/ });
+  await meetingAgendaItem.click();
+  await expect(page.getByRole('heading', { level: 1, name: '会议管理' })).toBeVisible();
+  await expect(page.locator('.business-detail-panel').getByRole('heading', { level: 2 })).toContainText('全省重点工作协调推进会');
+
+  if (testInfo.project.name === 'mobile') {
+    await page.getByRole('button', { name: '事务日历' }).click();
+    const dayBox = await page.locator('.agenda-day-button').first().boundingBox();
+    expect(dayBox?.height || 0).toBeGreaterThanOrEqual(44);
+    await page.getByRole('button', { name: /2026年7月24日，3 条事项/ }).click();
+    const itemBox = await page.getByRole('button', { name: /打开会议记录：全省重点工作协调推进会/ }).boundingBox();
+    expect(itemBox?.height || 0).toBeGreaterThanOrEqual(44);
+    expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+
+  expect(unexpectedRequests).toEqual([]);
+});
+
 test('opens local global search from the keyboard and finds navigation and business records', async ({ page }, testInfo) => {
   const unexpectedRequests: string[] = [];
   const pageOrigin = new URL(page.url()).origin;
@@ -165,12 +208,13 @@ test('opens local global search from the keyboard and finds navigation and busin
   await page.keyboard.press('Control+K');
   let dialog = page.getByRole('dialog', { name: '全局查找' });
   await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.global-search-group').filter({ hasText: '导航模块' }).locator('.global-search-item')).toHaveCount(16);
   let searchInput = dialog.getByRole('combobox', { name: '全局查找' });
-  await searchInput.fill('公文写作');
+  await searchInput.fill('事务日历');
   await expect(dialog.getByText('导航模块', { exact: true })).toBeVisible();
   await page.keyboard.press('Enter');
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole('heading', { level: 1, name: '公文写作' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: '事务日历' })).toBeVisible();
 
   await trigger.click();
   dialog = page.getByRole('dialog', { name: '全局查找' });

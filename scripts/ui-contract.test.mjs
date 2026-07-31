@@ -7,15 +7,17 @@ const root = path.resolve(import.meta.dirname, '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
 
 test('interface uses Lucide components without emoji or custom functional image icons', async () => {
-  const [app, index] = await Promise.all([
+  const [app, agendaView, index] = await Promise.all([
     read('apps/web/src/App.tsx'),
+    read('apps/web/src/AgendaView.tsx'),
     read('apps/web/index.html'),
   ]);
-  const interfaceSource = `${app}\n${index}`;
+  const interfaceSource = `${app}\n${agendaView}\n${index}`;
 
   assert.match(app, /from 'lucide-react'/, 'interface must import Lucide components');
+  assert.match(agendaView, /from 'lucide-react'/, 'agenda interface must use the same Lucide component source');
   assert.doesNotMatch(interfaceSource, /[\u2600-\u27BF\u{1F300}-\u{1FAFF}]/u, 'interface must not contain emoji');
-  assert.doesNotMatch(app, /<(?:img|svg)\b/i, 'functional interface icons must not use image or inline SVG elements');
+  assert.doesNotMatch(interfaceSource, /<(?:img|svg)\b/i, 'functional interface icons must not use image or inline SVG elements');
   assert.doesNotMatch(interfaceSource, /icon-font|fontawesome|material-icons/i, 'interface must not use icon fonts');
 });
 
@@ -62,6 +64,26 @@ test('six ledgers share local-only filter and sort controls without changing sto
   assert.match(css, /\.ledger-view-controls[^}]*flex-wrap:\s*wrap/, 'ledger controls must wrap instead of widening the page');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.ledger-select[^}]*min-height:\s*44px/, 'narrow ledger selects must retain a 44px touch target');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.ledger-clear[^}]*min-height:\s*44px/, 'narrow clear action must retain a 44px touch target');
+});
+
+test('unified agenda stays local-only and reuses the existing record detail path', async () => {
+  const [app, agenda, agendaView, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/agenda.ts'),
+    read('apps/web/src/AgendaView.tsx'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(app, /\{ id: 'agenda', label: '事务日历', icon: CalendarRange \}/, 'agenda must be a discoverable primary navigation module');
+  assert.match(app, /resetLedgerView\(businessTab\);\s*navigate\(businessTab\);\s*selectBusinessRecord\(businessTab, id\)/, 'agenda records must reuse ledger reset, navigation and detail selection');
+  assert.match(agenda, /Array\.from\(\{ length: 42 \}/, 'month derivation must always create a stable six-week grid');
+  assert.match(agenda, /isValidIsoDateTime/, 'meeting date-times must use the shared strict domain validator');
+  assert.doesNotMatch(`${agenda}\n${agendaView}`, /\bfetch\b|listRecords|IndexedDB|localStorage|Electron|putRecord|removeRecord|ipc/i, 'agenda derivation and UI must stay within already loaded local arrays');
+  assert.match(agendaView, /aria-current=\{day\.date === today \? 'date' : undefined\}/, 'the current day must expose semantic state');
+  assert.match(agendaView, /aria-pressed=\{selectedDate === day\.date\}/, 'the selected day must expose semantic state');
+  assert.match(css, /\.agenda-layout[^}]*grid-template-columns:/, 'desktop agenda must separate the month grid and selected-day list');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.agenda-layout[^}]*grid-template-columns:\s*1fr/, 'narrow agenda must stack without horizontal overflow');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.agenda-day-button[^}]*min-height:\s*44px/, 'narrow date cells must keep a 44px touch target');
 });
 
 test('AI compact mode keeps consent controls while history and downloads remain explicit', async () => {

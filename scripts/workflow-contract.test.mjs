@@ -146,6 +146,7 @@ test('Chinese user manual matches the current workspace and every navigation mod
   assert.match(help, /https:\/\/github\.com\/NextWeb4\/gw\/releases\/latest/);
   for (const moduleName of [
     '工作台',
+    '事务日历',
     '任务管理',
     '会议管理',
     '文件收发',
@@ -200,7 +201,10 @@ test('Chinese user manual matches the current workspace and every navigation mod
   ]) {
     assert.match(help, new RegExp(topic), `detailed manual must explain ${topic}`);
   }
-  assert.match(help, /当前十五个导航模块/);
+  assert.match(help, /当前十六个导航模块/);
+  assert.match(help, /任务[\s\S]*`deadline`[\s\S]*会议[\s\S]*`meetingTime`[\s\S]*文件[\s\S]*`docDate`[\s\S]*外出[\s\S]*`researchTime`[\s\S]*用章[\s\S]*`sealTime`[\s\S]*物资[\s\S]*`handlerTime`/, 'manual must explain the fixed agenda date mapping');
+  assert.match(help, /42 个日期格/, 'manual must explain the stable six-week month grid');
+  assert.match(help, /日历不联网、不提醒、不订阅外部日历，也不支持拖拽改期/, 'manual must state the agenda network and write boundaries');
   assert.match(help, /润色指引/);
   assert.match(help, /20,000 字符/);
   assert.match(help, /周报模板/);

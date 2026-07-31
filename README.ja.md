@@ -15,7 +15,7 @@
 ![Pages の状態](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![最終コミット](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![リポジトリサイズ](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![バージョン](https://img.shields.io/badge/version-0.7.1-0969da?style=flat-square)
+![バージョン](https://img.shields.io/badge/version-0.7.2-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@
 
 HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラネット Web ビルド、インターネット/イントラネット Electron クライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、ネットワーク機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
 
-現在のリリースは `0.7.1` です。タスク、会議、文書、外出、押印、物資の 6 台帳で、共通のローカル絞り込み・並べ替え操作を利用できます。キーワード、モジュール固有の項目フィルター、日付/名称順を組み合わせ、表示件数と総件数、明示的なクリア操作を確認できます。表示状態は現在のセッション内でモジュール移動後も維持されますが、再読込後には保存されません。処理対象は React に読み込み済みの配列だけで、通信や IndexedDB 書込みは行わず、物資在庫は常に全収支記録から計算します。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
+現在のリリースは `0.7.2` です。独立した「業務カレンダー」で、タスク期限、会議時刻、文書日付、外出日、押印日、物資処理日を月曜日始まりの月表示にまとめます。前月/翌月、今日、6 種類の絞り込み、選択日の予定一覧を利用でき、予定から元の台帳と既存の読み取り専用詳細へ戻れます。カレンダーは React に読み込み済みの配列だけから派生し、通信や IndexedDB 書込み、直接の日付変更は行いません。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
 
 公開 Pages はプライベート同期を表示しませんが、ローカル台帳、添付、旧 JSON/スナップショット、ユーザー自身の Key を使う AI、明示的に解除した `127.0.0.1` 中継を利用できます。ページ読込やパスワード入力だけでは中継へ接続しません。業務データは現在のブラウザーの IndexedDB に保存されます。[GitHub Pages](https://nextweb4.github.io/gw/) では公開、架空、または許可済みの非機密資料だけを扱ってください。
 
@@ -33,7 +33,7 @@ HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラ
 
 | 分野 | 実装内容 |
 | --- | --- |
-| 業務管理 | タスク、会議、文書、外出、押印、物資の編集可能な6台帳、再利用可能な担当者/組織、段階、要約、添付、台帳内キーワード/項目フィルター/並べ替え、ローカル全体検索 |
+| 業務管理 | タスク、会議、文書、外出、押印、物資の編集可能な6台帳、再利用可能な担当者/組織、段階、要約、添付、台帳内キーワード/項目フィルター/並べ替え、ローカル全体検索、統合業務カレンダー |
 | 文書作成 | リッチテキスト下書き、サニタイズ済み DOCX/HTML/TXT 取込、ローカルカスタム書式、決定的な週報、編集可能な版 |
 | 文書 | DOCX/PDF 共通の A4 指向エンジン。Web はブラウザー印刷、デスクトップは Electron 印刷を使用 |
 | 移行 | 2 種類の旧プロトタイプ書き出し形式と JSON/スナップショットのドラッグ＆ドロップに対応し、出所を特定できない場合は警告 |
@@ -60,7 +60,7 @@ HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラ
 - NSIS インストーラーには Windows、AppImage/DEB のパッケージ化と最終 Linux 互換性確認には Linux。
 - Web ビルドには Chromium 系ブラウザー。
 
-リポジトリのバージョンは `0.7.1` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
+リポジトリのバージョンは `0.7.2` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
 
 ## インストールと実行
 

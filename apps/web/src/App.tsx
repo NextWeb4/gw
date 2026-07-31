@@ -3,7 +3,7 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import {
-  Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowUpDown, ArrowUpRight, BarChart3, BookOpen, CalendarDays, Check, ChevronRight, ClipboardList,
+  Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowUpDown, ArrowUpRight, BarChart3, BookOpen, CalendarDays, CalendarRange, Check, ChevronRight, ClipboardList,
   Bot, Building2, FileArchive, FileOutput, FileText, FileUp, FolderOpen, Globe2, Info, KeyRound, LayoutDashboard, Library, MapPin,
   ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Stamp, Upload, UsersRound, WandSparkles, X
 } from 'lucide-react';
@@ -32,8 +32,10 @@ import { importWritingDocument } from './document-import';
 import { createInitialLedgerViewStates, deriveLedgerRecords, getLedgerFilterOptions, LEDGER_SORT_OPTIONS, type LedgerKind, type LedgerViewOption, type LedgerViewState } from './ledger-view';
 import { syncPrivateWorkspace } from './private-services';
 import { GlobalSearch, type GlobalSearchGroup, type GlobalSearchItem } from './GlobalSearch';
+import { AgendaView } from './AgendaView';
+import type { AgendaKind } from './agenda';
 
-type Tab = 'dashboard' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'archive' | 'migration' | 'about';
+type Tab = 'dashboard' | 'agenda' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'archive' | 'migration' | 'about';
 type BusinessTab = Extract<Tab, 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials'>;
 type BusinessDetail =
   | { kind: 'task'; record: Task }
@@ -56,6 +58,7 @@ const emptyDirectory = (): ContactDirectory => ({ people: [], units: [], updated
 
 const navItems: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: '工作台', icon: LayoutDashboard },
+  { id: 'agenda', label: '事务日历', icon: CalendarRange },
   { id: 'tasks', label: '任务管理', icon: ClipboardList },
   { id: 'meetings', label: '会议管理', icon: CalendarDays },
   { id: 'documents', label: '文件收发', icon: FileText },
@@ -775,16 +778,20 @@ function App() {
     if (item.kind === 'record' && item.recordId) {
       const businessTab = item.tab as BusinessTab;
       const id = item.recordId;
-      resetLedgerView(businessTab);
-      navigate(businessTab);
-      selectBusinessRecord(businessTab, id);
+      openBusinessRecord(businessTab, id);
       return;
     }
     navigate(item.tab);
   };
+  const openBusinessRecord = (businessTab: BusinessTab | AgendaKind, id: string) => {
+    resetLedgerView(businessTab);
+    navigate(businessTab);
+    selectBusinessRecord(businessTab, id);
+  };
 
   const renderContent = () => {
     if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} onNavigate={navigate} />;
+    if (tab === 'agenda') return <AgendaView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={openBusinessRecord} />;
     if (tab === 'tasks') return <TaskView tasks={filteredTasks} totalCount={tasks.length} view={ledgerViews.tasks} filterOptions={taskFilterOptions} onViewChange={(patch) => updateLedgerView('tasks', patch)} onReset={() => resetLedgerView('tasks')} selectedId={selectedTaskId} onSelect={(id) => selectBusinessRecord('tasks', id)} attachments={attachments} categoryTints={categoryTints} onNew={() => { clearPendingAttachments(); setTaskEditor(emptyTask()); }} onEdit={(task) => { clearPendingAttachments(); setTaskEditor(task); }} onDelete={deleteTask} />;
     if (tab === 'meetings') return <MeetingView meetings={filteredMeetings} totalCount={meetings.length} view={ledgerViews.meetings} filterOptions={meetingFilterOptions} onViewChange={(patch) => updateLedgerView('meetings', patch)} onReset={() => resetLedgerView('meetings')} selectedId={selectedMeetingId} onSelect={(id) => selectBusinessRecord('meetings', id)} onNew={() => { clearPendingAttachments(); setMeetingEditor(emptyMeeting()); }} onEdit={(meeting) => { clearPendingAttachments(); setMeetingEditor(meeting); }} onDelete={deleteMeeting} />;
     if (tab === 'documents') return <DocumentView documents={filteredDocuments} totalCount={documents.length} view={ledgerViews.documents} filterOptions={documentFilterOptions} onViewChange={(patch) => updateLedgerView('documents', patch)} onReset={() => resetLedgerView('documents')} selectedId={selectedDocumentId} onSelect={(id) => selectBusinessRecord('documents', id)} attachments={attachments} onNew={() => { clearPendingAttachments(); setDocumentEditor(emptyDocument()); }} onEdit={(document) => { clearPendingAttachments(); setDocumentEditor(document); }} onDelete={deleteDocument} />;

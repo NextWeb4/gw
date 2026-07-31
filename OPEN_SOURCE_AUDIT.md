@@ -1,6 +1,6 @@
 # 开源方案审计
 
-审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1 补充审计：2026-07-31。公开客户端为本地优先演示模式；服务端仅私有部署。
+审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2 补充审计：2026-07-31。公开客户端为本地优先演示模式；服务端仅私有部署。
 
 | 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与项目契合度 / 可能冲突 | 是否采用 / 采用方式 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,6 +24,29 @@
 | Node 24 `fetch`、`crypto`、`node:test` | [Node.js](https://nodejs.org/api/) / MIT | HTTPS 抓取、哈希和策略测试 | 标准运行时内置，不增加供应链或安装体积 | 重定向与体积限制需显式实现 | 随 Node 24 维护 | 只在内容同步脚本和 CI 中使用，不进入浏览器联网路径 | 采用，封装允许清单、逐跳重定向和 2 MB 上限 |
 | Got 15.1.0 | [官方仓库](https://github.com/sindresorhus/got) / MIT | HTTP 重试、钩子、重定向 | HTTP 能力成熟 | 当前仅抓取少量权威来源，引入运行依赖收益不足 | 活跃；npm 元数据 2026-07-02 更新 | 会扩大供应链，不能替代本项目域名策略 | 不采用 |
 | simple-git 3.36.0 | [官方仓库](https://github.com/steveukx/git-js) / MIT | Git 命令封装 | API 易用 | Actions 仅需 add/commit/push 三步 | 活跃；npm 元数据 2026-04-12 更新 | 增加无必要依赖；runner 已提供 Git | 不采用，工作流直接调用 Git |
+
+## v0.7.2 六类台账统一日历与当日议程方案审计
+
+问题本质：任务、会议、文件、外出、用章和物资都已经保存独立日期字段，但当前工作台只统计任务到期数量并列出前五条任务，六个台账也只能逐个打开。用户无法回答“某一天有哪些事情”“本月哪些日期有记录”，更不能从跨模块时间视图直接进入既有记录详情。这个缺口属于已加载业务数组的只读时间索引与导航，不需要日历服务、数据库 schema、拖拽改期、重复事件、时区转换或后台同步。
+
+第一性原理不变量：输入只能是 `App` 已加载的六类业务数组；日期来源固定为任务 `deadline`、会议 `meetingTime`、文件 `docDate`、外出 `researchTime`、用章 `sealTime`、物资 `handlerTime`，空值、无效日期和非四位年份必须排除；输出必须是新数组且不得修改业务记录；月视图、类型筛选和选中日期只保留在当前 React 会话；点击议程必须复用既有 `resetLedgerView`、`navigate`、`selectBusinessRecord` 和右侧详情链路；本功能不得新增 Fetch、IndexedDB 访问、Electron IPC、遥测、自动联网或第二套编辑保存逻辑。工作台已有长首屏和任务队列，继续叠加月历会让页面更长且入口不易发现，因此采用独立“事务日历”导航模块，并同步把导航总数从十五个调整为十六个。
+
+| 方案名称 | 来源 | 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与当前项目的契合度 | 可能冲突点 | 是否采用 | 采用方式 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 现有 React 19 + TypeScript 纯函数 + 原生 `Date` / 字符串日期 | 当前锁定依赖与 ECMAScript 标准 | React MIT / Web 标准 | 六类记录规范化、周一起始 42 日月网格、类型筛选、当日议程、键盘按钮和既有详情跳转 | 零新增依赖；可精确约束日期来源和无效日期；最容易保持离线、只读、中文信息密度和既有三栏链路 | 需要项目维护少量日期网格、排序和可访问标签逻辑 | React 19 与目标 Chromium 当前持续维护 | 高 | 必须避免 UTC 解析导致日期偏移；不得把月历变成第二套编辑器；移动端不能直接压缩桌面事件卡 | 采用 | 新增 Web 纯函数模块与独立 `AgendaView`；桌面为月历加当日议程，移动端为紧凑日期网格加所选日期列表；只使用本地状态和 Lucide |
+| FullCalendar 7.0.2 `b5e3796a` | [官方仓库](https://github.com/fullcalendar/fullcalendar/tree/b5e3796ad73982eae08c1b4d17c957d803cd76dc) / [MIT](https://github.com/fullcalendar/fullcalendar/blob/b5e3796ad73982eae08c1b4d17c957d803cd76dc/LICENSE.md) | MIT | 月/周/日视图、事件渲染、拖拽、插件体系和 React 适配 | 功能成熟；日期布局和跨月网格完整；React 17-19 可用 | `fullcalendar` npm 解包约 2.17 MB，React 包约 1.12 MB，并引入 Preact、headless calendar 与 Temporal；大量能力超出只读本地议程 | 2026-07-24 主分支仍有提交；仓库版本 7.0.2 | 中低 | 拖拽、插件状态、时区/Temporal 和样式体系会扩大包体及测试面，并容易形成未授权的改期入口 | 不采用 | 只核对其“前后月、今天、月网格、事件摘要”通用能力，不复制源码、样式或默认文案 |
+| React Big Calendar 1.20.0 `183783ad` | [官方仓库](https://github.com/bigcalendar/react-big-calendar/tree/183783ad45c8b845c2f57c46711c1c4c85047843) / [MIT](https://github.com/bigcalendar/react-big-calendar/blob/183783ad45c8b845c2f57c46711c1c4c85047843/LICENSE) | MIT | React 月/周/日/议程视图和事件布局 | React 原生；传统日历视图完整；React 19 peer 范围已声明 | npm 解包约 1.77 MB，依赖多套日期本地化库、lodash、overlays 等；需要固定容器高度和额外 CSS | 2026-06-01 发布 1.20.0 | 低 | 同时引入 Moment、Day.js、Luxon、Globalize 等当前项目不需要的运行依赖，违背小而稳与离线包体约束 | 不采用 | 不引入包；仅确认“月视图与议程视图应当互补”的通用信息架构 |
+| Schedule-X 4.x `e1901983` | [官方仓库](https://github.com/schedule-x/schedule-x/tree/e1901983a26d92073a4ccb39e65495d431a594e2) / [MIT](https://github.com/schedule-x/schedule-x/blob/e1901983a26d92073a4ccb39e65495d431a594e2/LICENSE) | MIT | 响应式事件日历、月/周/日视图、插件和 React 适配 | 响应式设计较新；核心日历与框架适配拆分 | `@schedule-x/calendar` npm 解包约 1.02 MB，并要求 Preact Signals 与固定 Temporal polyfill；部分高级能力位于商业扩展 | 2026-07-15 主分支仍有提交；核心包 4.6.1 | 中低 | 会在 React 应用中再引入 Preact Signals 状态体系和另一套样式/插件边界，收益低于集成成本 | 不采用 | 不引入包；只参考移动端应把日期选择与当日记录拆开的抽象原则 |
+| Plane Calendar `39856932` | [Header](https://github.com/makeplane/plane/blob/39856932cd6b9bd17eab0920506d628190b47af2/apps/web/core/components/issues/issue-layouts/calendar/header.tsx) / [Calendar](https://github.com/makeplane/plane/blob/39856932cd6b9bd17eab0920506d628190b47af2/apps/web/core/components/issues/issue-layouts/calendar/calendar.tsx) / [AGPL-3.0-only](https://github.com/makeplane/plane/blob/39856932cd6b9bd17eab0920506d628190b47af2/LICENSE.txt) | AGPL-3.0-only | 月/周切换、前后周期、今天、选中日期和移动端当日工作项列表 | 桌面网格与移动端议程分工明确；选中日期是导航状态而非第二份数据 | Next.js、MobX、拖拽、服务端分页与工作项模型远超当前需求 | 2026-07-30 `preview` 分支快照 | 交互参考高，源码复用低 | 复制代码/样式会产生 AGPL 与架构冲突；拖拽改期会绕过六类编辑抽屉 | 只借鉴设计 | 只借鉴“前后月/今天 + 选中日 + 移动端当日列表”的交互骨架，不复制代码、文案、样式或资产 |
+| Vikunja Upcoming `506dbd7b` | [导航](https://github.com/go-vikunja/vikunja/blob/506dbd7b0483c626295081fd9dd5beef3df8def7/frontend/src/components/home/Navigation.vue) / [路由](https://github.com/go-vikunja/vikunja/blob/506dbd7b0483c626295081fd9dd5beef3df8def7/frontend/src/router/index.ts) / [AGPL-3.0-or-later](https://github.com/go-vikunja/vikunja/blob/506dbd7b0483c626295081fd9dd5beef3df8def7/LICENSE) | AGPL-3.0-or-later | 把 upcoming 作为独立一级入口，以明确日期范围查看任务 | 证明跨日期工作视图具有独立导航价值；入口可发现、可用键盘快捷访问 | 当前实现面向单一任务模型和服务端过滤，不提供本项目所需六类月网格 | 2026-07-30 主分支快照 | 信息架构参考中高，源码复用低 | 复制 Vue/服务端过滤会破坏本地数组边界并产生 AGPL 风险 | 只借鉴设计 | 只借鉴“日期工作视图应有独立入口”，不复制源码、文案、样式或数据模型 |
+
+- 直接复用：现有 React 状态、TypeScript 严格类型、领域日期校验、Lucide、六类已加载数组、台账视图清除函数、导航、记录选择和只读详情面板。
+- 只借鉴设计：Plane 的桌面月网格/移动端当日列表分工；Vikunja 的独立 upcoming 入口；MIT 日历库的前后月、今天和议程互补原则。外部项目不复制代码、文案、样式或视觉资产。
+- 不采用：FullCalendar、React Big Calendar、Schedule-X 运行依赖；周/日时间轴、拖拽改期、重复事件、时区服务、日历订阅、远程同步、提醒推送、持久化筛选和后台缓存。
+- 适配范围：新增纯函数时间索引和独立 React 视图；`App.tsx` 只增加导航、数据传递和既有记录打开回调。领域 schema、RxDB、快照、同步、附件、编辑抽屉、删除和 AI 路径全部保留。
+- 冲突审计：方案与 React 19、Vite、现有目录、构建、配置、权限、离线/联网和保留全部权利许可证不冲突；新增一级导航会把文档与全局查找中的导航总数由十五调整为十六，必须同步 HELP、README、契约和 E2E。若实现需要任何新增持久化、自动联网、日历写回或 AGPL 代码复制，则立即阻塞并停止落地。
+- 许可证风险：最终不新增依赖；只使用 Web 标准和项目自有实现。MIT 候选只作能力审计，AGPL 项目只作抽象交互参考。
+- 回滚方式：移除 `agenda` 纯函数/视图、导航项、样式和对应文档/测试即可恢复 v0.7.1；无数据迁移、配置迁移、服务端回滚或 Release 资产兼容问题。
 
 ## v0.7.1 六类台账统一本地筛选与排序方案审计
 
