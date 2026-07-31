@@ -351,6 +351,123 @@ export const nowIso = () => new Date().toISOString();
 
 export const createId = (prefix: string) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
+export type BusinessRecordCopyKind = 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material';
+
+export function duplicateBusinessRecord(kind: 'task', record: Task, copiedAt?: string): Task;
+export function duplicateBusinessRecord(kind: 'meeting', record: MeetingRecord, copiedAt?: string): MeetingRecord;
+export function duplicateBusinessRecord(kind: 'document', record: OfficialDocument, copiedAt?: string): OfficialDocument;
+export function duplicateBusinessRecord(kind: 'research', record: ResearchRecord, copiedAt?: string): ResearchRecord;
+export function duplicateBusinessRecord(kind: 'seal', record: SealRecord, copiedAt?: string): SealRecord;
+export function duplicateBusinessRecord(kind: 'material', record: MaterialRecord, copiedAt?: string): MaterialRecord;
+export function duplicateBusinessRecord(kind: BusinessRecordCopyKind, record: EditableBusinessRecord, copiedAt = nowIso()): EditableBusinessRecord {
+  if (kind === 'task') {
+    const task = record as Task;
+    const resetPartner = (partner: PartnerStatus): PartnerStatus => ({ name: partner.name, status: 'pending', files: [] });
+    return {
+      id: createId('task'),
+      name: task.name,
+      category: task.category,
+      source: task.source,
+      assigner: task.assigner,
+      assignDate: task.assignDate,
+      deadline: task.deadline,
+      status: 'pending',
+      partnerStatus: task.partnerStatus.map(resetPartner),
+      stages: task.stages.map((stage) => ({ id: createId('stage'), name: stage.name, partnerStatus: stage.partnerStatus.map(resetPartner) })),
+      remark: task.remark,
+      workSummary: '',
+      files: [...task.files],
+      createdAt: copiedAt,
+      updatedAt: copiedAt
+    };
+  }
+  if (kind === 'meeting') {
+    const meeting = record as MeetingRecord;
+    return {
+      id: createId('meeting'),
+      subject: meeting.subject,
+      sendTo: meeting.sendTo,
+      receiver: meeting.receiver,
+      notifyTime: meeting.notifyTime,
+      meetingTime: meeting.meetingTime,
+      location: meeting.location,
+      remark: meeting.remark,
+      files: [...meeting.files],
+      createdAt: copiedAt,
+      updatedAt: copiedAt
+    };
+  }
+  if (kind === 'document') {
+    const document = record as OfficialDocument;
+    return {
+      id: createId('doc'),
+      title: document.title,
+      code: document.code,
+      docType: document.docType,
+      docDate: document.docDate,
+      securityLevel: document.securityLevel,
+      fromUnit: document.fromUnit,
+      fileCategory: document.fileCategory,
+      workCategory: document.workCategory,
+      handler: document.handler,
+      sendScope: document.sendScope,
+      receiptStatus: '待登记',
+      remark: document.remark,
+      files: [...document.files],
+      createdAt: copiedAt,
+      updatedAt: copiedAt
+    };
+  }
+  if (kind === 'research') {
+    const research = record as ResearchRecord;
+    return {
+      id: createId('research'),
+      researchTime: research.researchTime,
+      direction: research.direction,
+      subject: research.subject,
+      location: research.location,
+      useCar: research.useCar,
+      participants: research.participants,
+      summary: research.summary,
+      achievements: '',
+      remark: research.remark,
+      files: [...research.files],
+      createdAt: copiedAt,
+      updatedAt: copiedAt
+    };
+  }
+  if (kind === 'seal') {
+    const seal = record as SealRecord;
+    return {
+      id: createId('seal'),
+      sealTime: seal.sealTime,
+      userName: seal.userName,
+      approver: seal.approver,
+      docName: seal.docName,
+      docType: seal.docType,
+      remark: seal.remark,
+      files: [...seal.files],
+      createdAt: copiedAt,
+      updatedAt: copiedAt
+    };
+  }
+  const material = record as MaterialRecord;
+  return {
+    id: createId('material'),
+    materialName: material.materialName,
+    spec: material.spec,
+    quantity: material.quantity,
+    type: material.type,
+    handlerTime: material.handlerTime,
+    handler: material.handler,
+    fromUnit: material.fromUnit,
+    remark: material.remark,
+    files: [...material.files],
+    createdAt: copiedAt,
+    updatedAt: copiedAt
+  };
+}
+
 const lifecycleTimestamp = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 
 export function isPurgedBusinessRecord(record: unknown): record is PurgedBusinessRecord {

@@ -4,12 +4,12 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import {
   Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowUpDown, ArrowUpRight, BarChart3, BookOpen, CalendarDays, CalendarRange, Check, ChevronRight, ClipboardList,
-  Bot, Building2, FileArchive, FileOutput, FileText, FileUp, FolderOpen, Globe2, Info, KeyRound, LayoutDashboard, Library, MapPin,
+  Bot, Building2, CopyPlus, FileArchive, FileOutput, FileText, FileUp, FolderOpen, Globe2, Info, KeyRound, LayoutDashboard, Library, MapPin,
   ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Stamp, Trash2, Upload, UsersRound, WandSparkles, X
 } from 'lucide-react';
 import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, DEFAULT_WEEKLY_TEMPLATE, extractTaskFromText,
-  extractWeeklyTemplateFromSample, listStatisticsMonths, mergePartnerGroupMembers, moveBusinessRecordToTrash, nowIso, parseWeeklyTemplate, partitionBusinessRecords,
+  duplicateBusinessRecord, extractWeeklyTemplateFromSample, listStatisticsMonths, mergePartnerGroupMembers, moveBusinessRecordToTrash, nowIso, parseWeeklyTemplate, partitionBusinessRecords,
   purgeBusinessRecord, resolveCategoryTint, restoreBusinessRecord,
   weeklySectionSourceLabels,
   type AiFieldChange, type AiGuidancePreset, type AiHistoryEntry, type AiSkill, type ArchiveRecord, type Attachment, type CategoryStyle, type CategoryTint, type Draft, type KnowledgePack, type MaterialRecord, type PartnerGroup,
@@ -181,6 +181,7 @@ function App() {
   const [researchEditor, setResearchEditor] = useState<ResearchRecord | null>(null);
   const [sealEditor, setSealEditor] = useState<SealRecord | null>(null);
   const [materialEditor, setMaterialEditor] = useState<MaterialRecord | null>(null);
+  const [copyDraft, setCopyDraft] = useState<{ kind: BusinessDetail['kind']; id: string } | null>(null);
   const [toast, setToastState] = useState({ text: '', key: 0 });
   // 带自增 key：同文案连续提示也会重置定时器并重新渲染，不会被相同 state 合并吞掉
   const setToast = (text: string) => setToastState((prev) => ({ text, key: prev.key + 1 }));
@@ -415,10 +416,37 @@ function App() {
     setPendingAttachments([]);
     setPendingAttachmentJobs(0);
   };
-  const openTaskEditor = (task: Task, initialImportText = '') => {
+  const copyDraftMatches = (kind: BusinessDetail['kind'], id: string) => copyDraft?.kind === kind && copyDraft.id === id;
+  const openTaskEditor = (task: Task, initialImportText = '', copied = false) => {
     clearPendingAttachments();
+    setCopyDraft(copied ? { kind: 'task', id: task.id } : null);
     setTaskEditorImportText(initialImportText);
     setTaskEditor(task);
+  };
+  const openMeetingEditor = (meeting: MeetingRecord, copied = false) => {
+    clearPendingAttachments();
+    setCopyDraft(copied ? { kind: 'meeting', id: meeting.id } : null);
+    setMeetingEditor(meeting);
+  };
+  const openDocumentEditor = (document: OfficialDocument, copied = false) => {
+    clearPendingAttachments();
+    setCopyDraft(copied ? { kind: 'document', id: document.id } : null);
+    setDocumentEditor(document);
+  };
+  const openResearchEditor = (research: ResearchRecord, copied = false) => {
+    clearPendingAttachments();
+    setCopyDraft(copied ? { kind: 'research', id: research.id } : null);
+    setResearchEditor(research);
+  };
+  const openSealEditor = (seal: SealRecord, copied = false) => {
+    clearPendingAttachments();
+    setCopyDraft(copied ? { kind: 'seal', id: seal.id } : null);
+    setSealEditor(seal);
+  };
+  const openMaterialEditor = (material: MaterialRecord, copied = false) => {
+    clearPendingAttachments();
+    setCopyDraft(copied ? { kind: 'material', id: material.id } : null);
+    setMaterialEditor(material);
   };
   const continueQuickCapture = (sourceText: string) => {
     const extraction = extractTaskFromText(sourceText, localDateInput(new Date()));
@@ -446,6 +474,16 @@ function App() {
     await removeAttachmentsIfUnreferenced(detached).catch(() => undefined);
     return true;
   };
+  const finishBusinessEditorSave = async (kind: BusinessDetail['kind'], tabId: BusinessTab, id: string, closeEditor: () => void) => {
+    const copied = copyDraftMatches(kind, id);
+    setCopyDraft(null);
+    closeEditor();
+    await reload();
+    if (copied) {
+      resetLedgerView(tabId);
+      setSelectedBusinessRecord({ tab: tabId, id });
+    }
+  };
   const saveTask = async (task: Task) => {
     if (!task.name.trim()) return setToast('请填写任务名称');
     if (!isValidIsoDate(task.assignDate, false) || !isValidIsoDate(task.deadline)) return setToast('任务日期必须是有效的四位年份日期');
@@ -454,7 +492,7 @@ function App() {
     const saved = { ...task, name: task.name.trim(), partnerStatus, stages, updatedAt: nowIso() };
     if (!await persistEditableRecord('task', task.id, saved)) return;
     await persistDirectory([task.assigner], [...partnerStatus.map((partner) => partner.name), ...stages.flatMap((stage) => stage.partnerStatus.map((partner) => partner.name))]);
-    setTaskEditorImportText(''); setTaskEditor(null); await reload(); setToast('任务已保存，人员和单位已加入常用项');
+    await finishBusinessEditorSave('task', 'tasks', task.id, () => { setTaskEditorImportText(''); setTaskEditor(null); }); setToast('任务已保存，人员和单位已加入常用项');
   };
   const saveMeeting = async (meeting: MeetingRecord) => {
     if (!meeting.subject.trim()) return setToast('请填写会议主题');
@@ -462,7 +500,7 @@ function App() {
     const saved = { ...meeting, subject: meeting.subject.trim(), sendTo: meeting.sendTo.trim(), receiver: meeting.receiver.trim(), location: meeting.location.trim(), remark: meeting.remark.trim(), updatedAt: nowIso() };
     if (!await persistEditableRecord('meeting', saved.id, saved)) return;
     await persistDirectory([saved.receiver], [saved.sendTo]);
-    setMeetingEditor(null); await reload(); setToast('会议记录已保存');
+    await finishBusinessEditorSave('meeting', 'meetings', saved.id, () => setMeetingEditor(null)); setToast('会议记录已保存');
   };
   const saveDocument = async (doc: OfficialDocument) => {
     if (!doc.title.trim()) return setToast('请填写文件标题');
@@ -470,7 +508,7 @@ function App() {
     const saved = { ...doc, title: doc.title.trim(), updatedAt: nowIso() };
     if (!await persistEditableRecord('document', saved.id, saved)) return;
     await persistDirectory([saved.handler], [saved.fromUnit]);
-    setDocumentEditor(null); await reload(); setToast('文件登记已保存，人员和单位已加入常用项');
+    await finishBusinessEditorSave('document', 'documents', saved.id, () => setDocumentEditor(null)); setToast('文件登记已保存，人员和单位已加入常用项');
   };
   const saveResearch = async (research: ResearchRecord) => {
     if (!research.subject.trim()) return setToast('请填写活动主题');
@@ -478,7 +516,7 @@ function App() {
     const saved = { ...research, subject: research.subject.trim(), location: research.location.trim(), participants: research.participants.trim(), summary: research.summary.trim(), achievements: research.achievements.trim(), remark: research.remark.trim(), updatedAt: nowIso() };
     if (!await persistEditableRecord('research', saved.id, saved)) return;
     await persistDirectory(saved.participants.split(/[、，,;；\n]/), []);
-    setResearchEditor(null); await reload(); setToast('外出活动已保存');
+    await finishBusinessEditorSave('research', 'researches', saved.id, () => setResearchEditor(null)); setToast('外出活动已保存');
   };
   const saveSeal = async (seal: SealRecord) => {
     if (!seal.userName.trim() || !seal.approver.trim() || !seal.docName.trim()) return setToast('请填写用章人、审批人和所盖文件名称');
@@ -486,7 +524,7 @@ function App() {
     const saved = { ...seal, userName: seal.userName.trim(), approver: seal.approver.trim(), docName: seal.docName.trim(), docType: seal.docType.trim(), remark: seal.remark.trim(), updatedAt: nowIso() };
     if (!await persistEditableRecord('seal', saved.id, saved)) return;
     await persistDirectory([saved.userName, saved.approver], []);
-    setSealEditor(null); await reload(); setToast('用章记录已保存');
+    await finishBusinessEditorSave('seal', 'seals', saved.id, () => setSealEditor(null)); setToast('用章记录已保存');
   };
   const saveMaterial = async (material: MaterialRecord) => {
     if (!material.materialName.trim()) return setToast('请填写物资名称');
@@ -495,7 +533,7 @@ function App() {
     const saved = { ...material, materialName: material.materialName.trim(), spec: material.spec.trim(), handler: material.handler.trim(), fromUnit: material.fromUnit.trim(), remark: material.remark.trim(), updatedAt: nowIso() };
     if (!await persistEditableRecord('material', saved.id, saved)) return;
     await persistDirectory([saved.handler], [saved.fromUnit]);
-    setMaterialEditor(null); await reload(); setToast('物资收发记录已保存');
+    await finishBusinessEditorSave('material', 'materials', saved.id, () => setMaterialEditor(null)); setToast('物资收发记录已保存');
   };
   const rememberDirectoryValue = async (kind: 'people' | 'units', value: string) => {
     if (!value.trim()) return setToast(kind === 'people' ? '请先填写人员名称' : '请先填写单位名称');
@@ -785,42 +823,41 @@ function App() {
   };
 
   const copyArchiveToEditable = (record: ArchiveRecord) => {
-    clearPendingAttachments();
     const payload = record.legacyPayload;
     const copiedAt = nowIso();
     if (record.type === 'meeting') {
-      setMeetingEditor({
+      openMeetingEditor({
         ...emptyMeeting(), subject: legacyText(payload, 'subject') || record.title, sendTo: legacyText(payload, 'sendTo'), receiver: legacyText(payload, 'receiver'),
         notifyTime: normalizedLegacyDate(legacyText(payload, 'notifyTime')), meetingTime: normalizedLegacyDateTime(legacyText(payload, 'meetingTime')),
         location: legacyText(payload, 'location'), remark: legacyText(payload, 'remark'), files: record.files, sourceVersion: record.sourceVersion,
         legacyPayload: payload, createdAt: copiedAt, updatedAt: copiedAt
-      });
+      }, true);
       setTab('meetings');
     } else if (record.type === 'research') {
       const direction = legacyText(payload, 'direction');
       const directions: ResearchDirection[] = ['外出调研', '外出开会', '外出活动', '慰问活动', '上级来访'];
-      setResearchEditor({
+      openResearchEditor({
         ...emptyResearch(), researchTime: normalizedLegacyDate(legacyText(payload, 'researchTime')), direction: directions.includes(direction as ResearchDirection) ? direction as ResearchDirection : '外出调研',
         subject: legacyText(payload, 'subject') || record.title, location: legacyText(payload, 'location'), useCar: ['是', '否'].includes(legacyText(payload, 'useCar')) ? legacyText(payload, 'useCar') as '是' | '否' : '',
-        participants: legacyText(payload, 'participants'), summary: legacyText(payload, 'summary'), achievements: legacyText(payload, 'achievements'), remark: legacyText(payload, 'remark'),
+        participants: legacyText(payload, 'participants'), summary: legacyText(payload, 'summary'), achievements: '', remark: legacyText(payload, 'remark'),
         files: record.files, sourceVersion: record.sourceVersion, legacyPayload: payload, createdAt: copiedAt, updatedAt: copiedAt
-      });
+      }, true);
       setTab('researches');
     } else if (record.type === 'seal') {
-      setSealEditor({
+      openSealEditor({
         ...emptySeal(), sealTime: normalizedLegacyDate(legacyText(payload, 'sealTime')), userName: legacyText(payload, 'userName'), approver: legacyText(payload, 'approver'),
         docName: legacyText(payload, 'docName') || record.title, docType: legacyText(payload, 'docType'), remark: legacyText(payload, 'remark'), files: record.files,
         sourceVersion: record.sourceVersion, legacyPayload: payload, createdAt: copiedAt, updatedAt: copiedAt
-      });
+      }, true);
       setTab('seals');
     } else if (record.type === 'material') {
       const quantity = Number(payload.quantity);
-      setMaterialEditor({
+      openMaterialEditor({
         ...emptyMaterial(), materialName: legacyText(payload, 'materialName') || record.title, spec: legacyText(payload, 'spec'), quantity: Number.isInteger(quantity) && quantity > 0 ? quantity : 1,
         type: legacyText(payload, 'type') === 'out' ? 'out' : 'in', handlerTime: normalizedLegacyDate(legacyText(payload, 'handlerTime')), handler: legacyText(payload, 'handler'),
         fromUnit: legacyText(payload, 'fromUnit'), remark: legacyText(payload, 'remark'), files: record.files, sourceVersion: record.sourceVersion, legacyPayload: payload,
         createdAt: copiedAt, updatedAt: copiedAt
-      });
+      }, true);
       setTab('materials');
     }
   };
@@ -886,14 +923,21 @@ function App() {
     }
     return null;
   })();
+  const duplicateBusinessDetail = (detail: BusinessDetail) => {
+    if (detail.kind === 'task') openTaskEditor(duplicateBusinessRecord('task', detail.record), '', true);
+    if (detail.kind === 'meeting') openMeetingEditor(duplicateBusinessRecord('meeting', detail.record), true);
+    if (detail.kind === 'document') openDocumentEditor(duplicateBusinessRecord('document', detail.record), true);
+    if (detail.kind === 'research') openResearchEditor(duplicateBusinessRecord('research', detail.record), true);
+    if (detail.kind === 'seal') openSealEditor(duplicateBusinessRecord('seal', detail.record), true);
+    if (detail.kind === 'material') openMaterialEditor(duplicateBusinessRecord('material', detail.record), true);
+  };
   const editBusinessDetail = (detail: BusinessDetail) => {
     if (detail.kind === 'task') openTaskEditor(detail.record);
-    else clearPendingAttachments();
-    if (detail.kind === 'meeting') setMeetingEditor(detail.record);
-    if (detail.kind === 'document') setDocumentEditor(detail.record);
-    if (detail.kind === 'research') setResearchEditor(detail.record);
-    if (detail.kind === 'seal') setSealEditor(detail.record);
-    if (detail.kind === 'material') setMaterialEditor(detail.record);
+    if (detail.kind === 'meeting') openMeetingEditor(detail.record);
+    if (detail.kind === 'document') openDocumentEditor(detail.record);
+    if (detail.kind === 'research') openResearchEditor(detail.record);
+    if (detail.kind === 'seal') openSealEditor(detail.record);
+    if (detail.kind === 'material') openMaterialEditor(detail.record);
   };
   const scrollToBusinessRegion = (target: HTMLElement | null) => {
     if (!target) return;
@@ -924,11 +968,11 @@ function App() {
     if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} onNavigate={navigate} onOpenRecord={openBusinessRecord} onQuickCapture={() => changeQuickCaptureOpen(true)} />;
     if (tab === 'agenda') return <AgendaView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={openBusinessRecord} />;
     if (tab === 'tasks') return <TaskView tasks={filteredTasks} totalCount={tasks.length} view={ledgerViews.tasks} filterOptions={taskFilterOptions} onViewChange={(patch) => updateLedgerView('tasks', patch)} onReset={() => resetLedgerView('tasks')} selectedId={selectedTaskId} onSelect={(id) => selectBusinessRecord('tasks', id)} attachments={attachments} categoryTints={categoryTints} onNew={() => openTaskEditor(emptyTask())} onEdit={(task) => openTaskEditor(task)} onDelete={deleteTask} />;
-    if (tab === 'meetings') return <MeetingView meetings={filteredMeetings} totalCount={meetings.length} view={ledgerViews.meetings} filterOptions={meetingFilterOptions} onViewChange={(patch) => updateLedgerView('meetings', patch)} onReset={() => resetLedgerView('meetings')} selectedId={selectedMeetingId} onSelect={(id) => selectBusinessRecord('meetings', id)} onNew={() => { clearPendingAttachments(); setMeetingEditor(emptyMeeting()); }} onEdit={(meeting) => { clearPendingAttachments(); setMeetingEditor(meeting); }} onDelete={deleteMeeting} />;
-    if (tab === 'documents') return <DocumentView documents={filteredDocuments} totalCount={documents.length} view={ledgerViews.documents} filterOptions={documentFilterOptions} onViewChange={(patch) => updateLedgerView('documents', patch)} onReset={() => resetLedgerView('documents')} selectedId={selectedDocumentId} onSelect={(id) => selectBusinessRecord('documents', id)} attachments={attachments} onNew={() => { clearPendingAttachments(); setDocumentEditor(emptyDocument()); }} onEdit={(document) => { clearPendingAttachments(); setDocumentEditor(document); }} onDelete={deleteDocument} />;
-    if (tab === 'researches') return <ResearchView researches={filteredResearches} totalCount={researches.length} view={ledgerViews.researches} filterOptions={researchFilterOptions} onViewChange={(patch) => updateLedgerView('researches', patch)} onReset={() => resetLedgerView('researches')} selectedId={selectedResearchId} onSelect={(id) => selectBusinessRecord('researches', id)} onNew={() => { clearPendingAttachments(); setResearchEditor(emptyResearch()); }} onEdit={(research) => { clearPendingAttachments(); setResearchEditor(research); }} onDelete={deleteResearch} />;
-    if (tab === 'seals') return <SealView seals={filteredSeals} totalCount={seals.length} view={ledgerViews.seals} filterOptions={sealFilterOptions} onViewChange={(patch) => updateLedgerView('seals', patch)} onReset={() => resetLedgerView('seals')} selectedId={selectedSealId} onSelect={(id) => selectBusinessRecord('seals', id)} onNew={() => { clearPendingAttachments(); setSealEditor(emptySeal()); }} onEdit={(seal) => { clearPendingAttachments(); setSealEditor(seal); }} onDelete={deleteSeal} />;
-    if (tab === 'materials') return <MaterialView materials={filteredMaterials} allMaterials={materials} totalCount={materials.length} view={ledgerViews.materials} filterOptions={materialFilterOptions} onViewChange={(patch) => updateLedgerView('materials', patch)} onReset={() => resetLedgerView('materials')} selectedId={selectedMaterialId} onSelect={(id) => selectBusinessRecord('materials', id)} onNew={() => { clearPendingAttachments(); setMaterialEditor(emptyMaterial()); }} onEdit={(material) => { clearPendingAttachments(); setMaterialEditor(material); }} onDelete={deleteMaterial} />;
+    if (tab === 'meetings') return <MeetingView meetings={filteredMeetings} totalCount={meetings.length} view={ledgerViews.meetings} filterOptions={meetingFilterOptions} onViewChange={(patch) => updateLedgerView('meetings', patch)} onReset={() => resetLedgerView('meetings')} selectedId={selectedMeetingId} onSelect={(id) => selectBusinessRecord('meetings', id)} onNew={() => openMeetingEditor(emptyMeeting())} onEdit={(meeting) => openMeetingEditor(meeting)} onDelete={deleteMeeting} />;
+    if (tab === 'documents') return <DocumentView documents={filteredDocuments} totalCount={documents.length} view={ledgerViews.documents} filterOptions={documentFilterOptions} onViewChange={(patch) => updateLedgerView('documents', patch)} onReset={() => resetLedgerView('documents')} selectedId={selectedDocumentId} onSelect={(id) => selectBusinessRecord('documents', id)} attachments={attachments} onNew={() => openDocumentEditor(emptyDocument())} onEdit={(document) => openDocumentEditor(document)} onDelete={deleteDocument} />;
+    if (tab === 'researches') return <ResearchView researches={filteredResearches} totalCount={researches.length} view={ledgerViews.researches} filterOptions={researchFilterOptions} onViewChange={(patch) => updateLedgerView('researches', patch)} onReset={() => resetLedgerView('researches')} selectedId={selectedResearchId} onSelect={(id) => selectBusinessRecord('researches', id)} onNew={() => openResearchEditor(emptyResearch())} onEdit={(research) => openResearchEditor(research)} onDelete={deleteResearch} />;
+    if (tab === 'seals') return <SealView seals={filteredSeals} totalCount={seals.length} view={ledgerViews.seals} filterOptions={sealFilterOptions} onViewChange={(patch) => updateLedgerView('seals', patch)} onReset={() => resetLedgerView('seals')} selectedId={selectedSealId} onSelect={(id) => selectBusinessRecord('seals', id)} onNew={() => openSealEditor(emptySeal())} onEdit={(seal) => openSealEditor(seal)} onDelete={deleteSeal} />;
+    if (tab === 'materials') return <MaterialView materials={filteredMaterials} allMaterials={materials} totalCount={materials.length} view={ledgerViews.materials} filterOptions={materialFilterOptions} onViewChange={(patch) => updateLedgerView('materials', patch)} onReset={() => resetLedgerView('materials')} selectedId={selectedMaterialId} onSelect={(id) => selectBusinessRecord('materials', id)} onNew={() => openMaterialEditor(emptyMaterial())} onEdit={(material) => openMaterialEditor(material)} onDelete={deleteMaterial} />;
     if (tab === 'directory') return <DirectoryManager directory={directory} onSave={replaceDirectory} setToast={setToast} />;
     if (tab === 'writing') return <WritingStudio draft={draft} setDraft={setDraft} customTemplates={customTemplates} onSaveCustomTemplate={saveCustomTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
     if (tab === 'weekly') return <WeeklyView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} reports={weeklyReports} templates={weeklyTemplates} onSave={saveWeeklyReport} onDelete={deleteWeeklyReport} onSaveTemplate={saveWeeklyTemplate} onDeleteTemplate={deleteWeeklyTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
@@ -959,17 +1003,17 @@ function App() {
     </aside>
     <main className="main-area" ref={mainAreaRef}>
       <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="topbar-context"><span>HX / {String(activeNavIndex >= 0 ? activeNavIndex + 1 : navItems.length + 1).padStart(2, '0')}</span><strong>{navItems.find((item) => item.id === tab)?.label ?? '关于与设置'}</strong></div><div className="breadcrumbs">本地优先 <span>/</span> 外发必须逐次确认</div><div className="topbar-actions"><button ref={quickCaptureTriggerRef} type="button" className="global-search-trigger quick-capture-trigger" aria-label="快速记录任务" aria-haspopup="dialog" aria-expanded={quickCaptureOpen} title={quickCaptureBlocked ? '当前有查找、编辑或 AI 面板，暂不可用' : '快速记录任务（Shift + A）'} disabled={quickCaptureBlocked} onClick={() => changeQuickCaptureOpen(true)}><Plus size={16} /><span>快速记录</span><kbd>Shift A</kbd></button><button ref={globalSearchTriggerRef} type="button" className="global-search-trigger" aria-label="打开全局查找" aria-haspopup="dialog" aria-expanded={globalSearchOpen} title={globalSearchBlocked ? '当前有记录、编辑或 AI 面板，暂不可用' : '全局查找（Ctrl 或 Command + K）'} disabled={globalSearchBlocked} onClick={() => changeGlobalSearchOpen(true)}><Search size={16} /><span>全局查找</span><kbd>Ctrl K</kbd></button><span className="connection"><Activity size={15} /><span>{connectionLabel}</span><strong>{connectionDetail}</strong></span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
-      <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''}`}><div className="primary-content" ref={primaryContentRef}>{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} compact={aiOverlayOpen} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} history={aiHistory} onSaveHistory={saveAiHistory} onDeleteHistory={deleteAiHistory} onClearHistory={clearAiHistory} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && <BusinessDetailPanel detail={businessDetail} attachments={attachments} panelRef={businessDetailRef} onBackToList={() => scrollToBusinessRegion(primaryContentRef.current)} onEdit={() => editBusinessDetail(businessDetail)} />}</div>
+      <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''}`}><div className="primary-content" ref={primaryContentRef}>{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} compact={aiOverlayOpen} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} history={aiHistory} onSaveHistory={saveAiHistory} onDeleteHistory={deleteAiHistory} onClearHistory={clearAiHistory} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && <BusinessDetailPanel detail={businessDetail} attachments={attachments} panelRef={businessDetailRef} onBackToList={() => scrollToBusinessRegion(primaryContentRef.current)} onEdit={() => editBusinessDetail(businessDetail)} onDuplicate={() => duplicateBusinessDetail(businessDetail)} />}</div>
       <footer className="page-footer"><span>HXHWANG GW / {__APP_VERSION__}</span><span>© HaoXiangHwang · <a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a> · <a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer">nextweb4.github.io</a></span></footer>
     </main>
     <GlobalSearch open={globalSearchOpen} groups={globalSearchGroups} onOpenChange={changeGlobalSearchOpen} onSelectItem={selectGlobalSearchItem} />
     <QuickTaskCapture open={quickCaptureOpen} today={localDateInput(new Date())} onCancel={() => changeQuickCaptureOpen(false)} onCreateBlank={createBlankTaskFromCapture} onContinue={continueQuickCapture} />
-    {taskEditor && <TaskEditor task={taskEditor} initialImportText={taskEditorImportText} isNew={!tasks.some((task) => task.id === taskEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} partnerGroups={partnerGroups} onSaveGroup={savePartnerGroup} onDeleteGroup={deletePartnerGroup} onRemember={rememberDirectoryValue} onChange={setTaskEditor} onAttach={(files) => void addAttachments(files, taskEditor.files, (ids) => setTaskEditor({ ...taskEditor, files: ids }))} onSave={() => void saveTask(taskEditor)} onClose={() => { clearPendingAttachments(); setTaskEditor(null); setTaskEditorImportText(''); }} setToast={setToast} />}
-    {meetingEditor && <MeetingEditor meeting={meetingEditor} isNew={!meetings.some((meeting) => meeting.id === meetingEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setMeetingEditor} onAttach={(files) => void addAttachments(files, meetingEditor.files, (ids) => setMeetingEditor({ ...meetingEditor, files: ids }))} onSave={() => void saveMeeting(meetingEditor)} onClose={() => { clearPendingAttachments(); setMeetingEditor(null); }} />}
-    {documentEditor && <DocumentEditor document={documentEditor} isNew={!documents.some((document) => document.id === documentEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setDocumentEditor} onAttach={(files) => void addAttachments(files, documentEditor.files, (ids) => setDocumentEditor({ ...documentEditor, files: ids }))} onSave={() => void saveDocument(documentEditor)} onClose={() => { clearPendingAttachments(); setDocumentEditor(null); }} />}
-    {researchEditor && <ResearchEditor research={researchEditor} isNew={!researches.some((research) => research.id === researchEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onChange={setResearchEditor} onAttach={(files) => void addAttachments(files, researchEditor.files, (ids) => setResearchEditor({ ...researchEditor, files: ids }))} onSave={() => void saveResearch(researchEditor)} onClose={() => { clearPendingAttachments(); setResearchEditor(null); }} />}
-    {sealEditor && <SealEditor seal={sealEditor} isNew={!seals.some((seal) => seal.id === sealEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setSealEditor} onAttach={(files) => void addAttachments(files, sealEditor.files, (ids) => setSealEditor({ ...sealEditor, files: ids }))} onSave={() => void saveSeal(sealEditor)} onClose={() => { clearPendingAttachments(); setSealEditor(null); }} />}
-    {materialEditor && <MaterialEditor material={materialEditor} isNew={!materials.some((material) => material.id === materialEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setMaterialEditor} onAttach={(files) => void addAttachments(files, materialEditor.files, (ids) => setMaterialEditor({ ...materialEditor, files: ids }))} onSave={() => void saveMaterial(materialEditor)} onClose={() => { clearPendingAttachments(); setMaterialEditor(null); }} />}
+    {taskEditor && <TaskEditor task={taskEditor} initialImportText={taskEditorImportText} isNew={!tasks.some((task) => task.id === taskEditor.id)} forceDirty={copyDraftMatches('task', taskEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} partnerGroups={partnerGroups} onSaveGroup={savePartnerGroup} onDeleteGroup={deletePartnerGroup} onRemember={rememberDirectoryValue} onChange={setTaskEditor} onAttach={(files) => void addAttachments(files, taskEditor.files, (ids) => setTaskEditor({ ...taskEditor, files: ids }))} onSave={() => void saveTask(taskEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setTaskEditor(null); setTaskEditorImportText(''); }} setToast={setToast} />}
+    {meetingEditor && <MeetingEditor meeting={meetingEditor} isNew={!meetings.some((meeting) => meeting.id === meetingEditor.id)} forceDirty={copyDraftMatches('meeting', meetingEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setMeetingEditor} onAttach={(files) => void addAttachments(files, meetingEditor.files, (ids) => setMeetingEditor({ ...meetingEditor, files: ids }))} onSave={() => void saveMeeting(meetingEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setMeetingEditor(null); }} />}
+    {documentEditor && <DocumentEditor document={documentEditor} isNew={!documents.some((document) => document.id === documentEditor.id)} forceDirty={copyDraftMatches('document', documentEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setDocumentEditor} onAttach={(files) => void addAttachments(files, documentEditor.files, (ids) => setDocumentEditor({ ...documentEditor, files: ids }))} onSave={() => void saveDocument(documentEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setDocumentEditor(null); }} />}
+    {researchEditor && <ResearchEditor research={researchEditor} isNew={!researches.some((research) => research.id === researchEditor.id)} forceDirty={copyDraftMatches('research', researchEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onChange={setResearchEditor} onAttach={(files) => void addAttachments(files, researchEditor.files, (ids) => setResearchEditor({ ...researchEditor, files: ids }))} onSave={() => void saveResearch(researchEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setResearchEditor(null); }} />}
+    {sealEditor && <SealEditor seal={sealEditor} isNew={!seals.some((seal) => seal.id === sealEditor.id)} forceDirty={copyDraftMatches('seal', sealEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setSealEditor} onAttach={(files) => void addAttachments(files, sealEditor.files, (ids) => setSealEditor({ ...sealEditor, files: ids }))} onSave={() => void saveSeal(sealEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setSealEditor(null); }} />}
+    {materialEditor && <MaterialEditor material={materialEditor} isNew={!materials.some((material) => material.id === materialEditor.id)} forceDirty={copyDraftMatches('material', materialEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setMaterialEditor} onAttach={(files) => void addAttachments(files, materialEditor.files, (ids) => setMaterialEditor({ ...materialEditor, files: ids }))} onSave={() => void saveMaterial(materialEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setMaterialEditor(null); }} />}
     {toast.text && <div className="toast" role="status"><Check size={16} />{toast.text}</div>}
   </div>;
 }
@@ -1073,7 +1117,7 @@ interface BusinessDetailModel {
   sections: Array<{ title: string; content: React.ReactNode }>;
 }
 
-function BusinessDetailPanel({ detail, attachments, panelRef, onBackToList, onEdit }: { detail: BusinessDetail; attachments: Attachment[]; panelRef: React.RefObject<HTMLElement | null>; onBackToList: () => void; onEdit: () => void }) {
+function BusinessDetailPanel({ detail, attachments, panelRef, onBackToList, onEdit, onDuplicate }: { detail: BusinessDetail; attachments: Attachment[]; panelRef: React.RefObject<HTMLElement | null>; onBackToList: () => void; onEdit: () => void; onDuplicate: () => void }) {
   const show = (value: string | number | undefined) => String(value ?? '').trim() || '未填写';
   const model: BusinessDetailModel = (() => {
     if (detail.kind === 'task') {
@@ -1162,7 +1206,7 @@ function BusinessDetailPanel({ detail, attachments, panelRef, onBackToList, onEd
   const Icon = model.icon;
   return <aside className="panel business-detail-panel" aria-label="记录详情" ref={panelRef}>
     <div className="detail-panel-header"><span className="detail-icon"><Icon size={18} /></span><div><span className="eyebrow">{model.eyebrow}</span><h2><span className="sr-only">记录详情：</span>{model.title}</h2></div><span className={`status-pill ${model.badgeClass}`}>{model.badge}</span></div>
-    <div className="detail-panel-actions"><button type="button" className="secondary-button mobile-detail-back" onClick={onBackToList}><ClipboardList size={15} />返回记录列表</button><button type="button" className="secondary-button" onClick={onEdit}><Pencil size={15} />编辑此记录</button></div>
+    <div className="detail-panel-actions"><button type="button" className="secondary-button mobile-detail-back" onClick={onBackToList}><ClipboardList size={15} />返回记录列表</button><button type="button" className="secondary-button" onClick={onEdit}><Pencil size={15} />编辑此记录</button><button type="button" className="secondary-button" onClick={onDuplicate}><CopyPlus size={15} />复制相似记录</button></div>
     <dl className="detail-fields">{model.fields.map((field) => <div key={field.label}><dt>{field.label}</dt><dd>{field.value}</dd></div>)}</dl>
     {model.sections.map((section) => <section className="detail-section" key={section.title}><h3>{section.title}</h3><div>{section.content}</div></section>)}
     <section className="detail-section detail-attachments"><h3>本机附件 <span>{linkedAttachments.length}</span></h3>{linkedAttachments.length ? <div>{linkedAttachments.map((attachment) => <button type="button" key={attachment.id} disabled={attachment.data === undefined} title={attachment.data === undefined ? '附件内容不可用' : `下载附件 ${attachment.name}`} onClick={() => downloadStoredAttachment(attachment)}><FileText size={14} /><span>{attachment.name}</span><small>{formatBytes(attachment.size)}</small><ArrowDownToLine size={13} /></button>)}</div> : <p>当前记录没有附件</p>}</section>
@@ -1297,21 +1341,26 @@ function RowActions({ editTitle, deleteTitle, onEdit, onDelete }: { editTitle: s
   return <div className="row-actions" onClick={(event) => event.stopPropagation()}><button className="icon-button" title={editTitle} onClick={onEdit}><Pencil size={15} /></button><button className="icon-button danger-icon" title={deleteTitle} onClick={onDelete}><X size={15} /></button></div>;
 }
 
+function CopyDraftNotice({ detail }: { detail: string }) {
+  return <div className="copy-draft-notice" role="note"><CopyPlus size={18} /><div><strong>这是未保存的新记录</strong><p>{detail} 解除附件关联不会影响原记录，只有点击保存后才会写入本机数据。</p></div></div>;
+}
+
 const taskStatusOptions = (Object.entries(statusLabels) as Array<[Status, string]>).map(([value, label]) => ({ value, label }));
 
-function TaskEditor({ task, isNew, initialImportText, directory, attachments, attachmentBusy, partnerGroups, onSaveGroup, onDeleteGroup, onRemember, onChange, onAttach, onSave, onClose, setToast }: { task: Task; isNew: boolean; initialImportText: string; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; partnerGroups: PartnerGroup[]; onSaveGroup: (name: string, members: string[]) => Promise<void>; onDeleteGroup: (group: PartnerGroup) => Promise<void>; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (task: Task) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void; setToast: (text: string) => void }) {
+function TaskEditor({ task, isNew, forceDirty, initialImportText, directory, attachments, attachmentBusy, partnerGroups, onSaveGroup, onDeleteGroup, onRemember, onChange, onAttach, onSave, onClose, setToast }: { task: Task; isNew: boolean; forceDirty: boolean; initialImportText: string; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; partnerGroups: PartnerGroup[]; onSaveGroup: (name: string, members: string[]) => Promise<void>; onDeleteGroup: (group: PartnerGroup) => Promise<void>; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (task: Task) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void; setToast: (text: string) => void }) {
   const update = <K extends keyof Task,>(key: K, value: Task[K]) => onChange({ ...task, [key]: value });
   const [summaryTemplate, setSummaryTemplate] = useState<WorkSummaryTemplateId>('progress');
   const [importText, setImportText] = useState(initialImportText);
   const [smartImportOpen, setSmartImportOpen] = useState(Boolean(initialImportText));
-  const closeGuard = useUnsavedChangesGuard({ task, importText, attachmentBusy }, onClose, Boolean(initialImportText));
+  const closeGuard = useUnsavedChangesGuard({ task, importText, attachmentBusy }, onClose, forceDirty || Boolean(initialImportText));
   const applySmartImport = () => {
     const result = extractTaskFromText(importText, localDateInput(new Date()));
     if (!result.recognized.length) return setToast('未识别出可填字段，请检查文字或手工填写');
     onChange(applyTaskTextExtraction(task, result));
     setToast(`已按本机规则填入：${result.recognized.join('、')}，请人工核对`);
   };
-  return <Drawer title={isNew ? '新建任务' : '编辑任务'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+  return <Drawer title={forceDirty ? '复制任务为新记录' : isNew ? '新建任务' : '编辑任务'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+    {forceDirty && <CopyDraftNotice detail="已保留原字段和主附件引用；任务状态、配合单位状态、阶段状态与工作小结已重置，请核对日期后保存。" />}
     <details className="smart-import" open={smartImportOpen} onToggle={(event) => setSmartImportOpen(event.currentTarget.open)}>
       <summary><WandSparkles size={14} />智能识别填单（粘贴通知文字）</summary>
       <textarea aria-label="待识别文字" value={importText} placeholder={'例如：2026-07-21 张主任要求：整理台账，7月28日前完成'} onChange={(event) => setImportText(event.target.value)} />
@@ -1332,10 +1381,11 @@ function TaskEditor({ task, isNew, initialImportText, directory, attachments, at
   </Drawer>;
 }
 
-function MeetingEditor({ meeting, isNew, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { meeting: MeetingRecord; isNew: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (meeting: MeetingRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
+function MeetingEditor({ meeting, isNew, forceDirty, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { meeting: MeetingRecord; isNew: boolean; forceDirty: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (meeting: MeetingRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
   const update = <K extends keyof MeetingRecord,>(key: K, value: MeetingRecord[K]) => onChange({ ...meeting, [key]: value });
-  const closeGuard = useUnsavedChangesGuard({ meeting, attachmentBusy }, onClose);
-  return <Drawer title={isNew ? '新建会议' : '编辑会议'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+  const closeGuard = useUnsavedChangesGuard({ meeting, attachmentBusy }, onClose, forceDirty);
+  return <Drawer title={forceDirty ? '复制会议为新记录' : isNew ? '新建会议' : '编辑会议'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+    {forceDirty && <CopyDraftNotice detail="已保留会议对象、时间、地点、备注和本机附件引用；请核对本次会议日期后再保存。" />}
     <Field label="会议主题" value={meeting.subject} onChange={(value) => update('subject', value)} placeholder="例如：重点工作部署会" />
     <div className="form-grid"><ReusableField label="发送对象" value={meeting.sendTo} suggestions={directory.units} onChange={(value) => update('sendTo', value)} onRemember={() => void onRemember('units', meeting.sendTo)} /><ReusableField label="接收方" value={meeting.receiver} suggestions={directory.people} onChange={(value) => update('receiver', value)} onRemember={() => void onRemember('people', meeting.receiver)} /></div>
     <div className="form-grid"><DateField label="通知日期" value={meeting.notifyTime} onChange={(value) => update('notifyTime', value)} allowEmpty /><DateTimeField label="会议时间" value={meeting.meetingTime} onChange={(value) => update('meetingTime', value)} allowEmpty /></div>
@@ -1347,10 +1397,11 @@ function MeetingEditor({ meeting, isNew, directory, attachments, attachmentBusy,
   </Drawer>;
 }
 
-function DocumentEditor({ document, isNew, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { document: OfficialDocument; isNew: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (document: OfficialDocument) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
+function DocumentEditor({ document, isNew, forceDirty, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { document: OfficialDocument; isNew: boolean; forceDirty: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (document: OfficialDocument) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
   const update = <K extends keyof OfficialDocument,>(key: K, value: OfficialDocument[K]) => onChange({ ...document, [key]: value });
-  const closeGuard = useUnsavedChangesGuard({ document, attachmentBusy }, onClose);
-  return <Drawer title={isNew ? '登记文件' : '编辑文件'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+  const closeGuard = useUnsavedChangesGuard({ document, attachmentBusy }, onClose, forceDirty);
+  return <Drawer title={forceDirty ? '复制文件为新记录' : isNew ? '登记文件' : '编辑文件'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+    {forceDirty && <CopyDraftNotice detail="已保留原字段和本机附件引用，登记状态已重置为“待登记”；请重点核对成文日期与发文字号。" />}
     <Field label="文件标题" value={document.title} onChange={(v) => update('title', v)} placeholder="例如：关于做好年度重点工作的通知" />
     <div className="form-grid"><SelectField label="文件类型" value={document.docType} options={['收文', '发文', '其他']} onChange={(v) => update('docType', v as OfficialDocument['docType'])} /><DateField label="成文日期" value={document.docDate} onChange={(v) => update('docDate', v)} /></div>
     <div className="form-grid"><Field label="发文字号" value={document.code} onChange={(v) => update('code', v)} /><ReusableField label="来源单位" value={document.fromUnit} suggestions={directory.units} onChange={(v) => update('fromUnit', v)} onRemember={() => void onRemember('units', document.fromUnit)} /></div>
@@ -1366,14 +1417,15 @@ function DocumentEditor({ document, isNew, directory, attachments, attachmentBus
 
 const researchDirections: ResearchDirection[] = ['外出调研', '外出开会', '外出活动', '慰问活动', '上级来访'];
 
-function ResearchEditor({ research, isNew, directory, attachments, attachmentBusy, onChange, onAttach, onSave, onClose }: { research: ResearchRecord; isNew: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onChange: (research: ResearchRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
+function ResearchEditor({ research, isNew, forceDirty, directory, attachments, attachmentBusy, onChange, onAttach, onSave, onClose }: { research: ResearchRecord; isNew: boolean; forceDirty: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onChange: (research: ResearchRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
   const update = <K extends keyof ResearchRecord,>(key: K, value: ResearchRecord[K]) => onChange({ ...research, [key]: value });
-  const closeGuard = useUnsavedChangesGuard({ research, attachmentBusy }, onClose);
+  const closeGuard = useUnsavedChangesGuard({ research, attachmentBusy }, onClose, forceDirty);
   const appendParticipant = (person: string) => {
     const current = research.participants.split(/[、，,;；\n]/).map((value) => value.trim()).filter(Boolean);
     update('participants', [...new Set([...current, person])].join('、'));
   };
-  return <Drawer title={isNew ? '新建外出活动' : '编辑外出活动'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+  return <Drawer title={forceDirty ? '复制外出活动为新记录' : isNew ? '新建外出活动' : '编辑外出活动'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+    {forceDirty && <CopyDraftNotice detail="已保留活动安排、摘要、备注和本机附件引用，旧成果记录已清空；请核对日期与参与人员。" />}
     <div className="form-grid"><DateField label="活动日期" value={research.researchTime} onChange={(value) => update('researchTime', value)} allowEmpty /><SelectField label="活动类型" value={research.direction} options={researchDirections} onChange={(value) => update('direction', value as ResearchDirection)} /></div>
     <Field label="活动主题" value={research.subject} onChange={(value) => update('subject', value)} placeholder="例如：基层治理调研" />
     <div className="form-grid"><Field label="活动地点" value={research.location} onChange={(value) => update('location', value)} /><SelectField label="是否用车" value={research.useCar} options={[{ value: '', label: '未选择' }, '是', '否']} onChange={(value) => update('useCar', value as ResearchRecord['useCar'])} /></div>
@@ -1387,10 +1439,11 @@ function ResearchEditor({ research, isNew, directory, attachments, attachmentBus
   </Drawer>;
 }
 
-function SealEditor({ seal, isNew, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { seal: SealRecord; isNew: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (seal: SealRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
+function SealEditor({ seal, isNew, forceDirty, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { seal: SealRecord; isNew: boolean; forceDirty: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (seal: SealRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
   const update = <K extends keyof SealRecord,>(key: K, value: SealRecord[K]) => onChange({ ...seal, [key]: value });
-  const closeGuard = useUnsavedChangesGuard({ seal, attachmentBusy }, onClose);
-  return <Drawer title={isNew ? '新建用章记录' : '编辑用章记录'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+  const closeGuard = useUnsavedChangesGuard({ seal, attachmentBusy }, onClose, forceDirty);
+  return <Drawer title={forceDirty ? '复制用章记录为新记录' : isNew ? '新建用章记录' : '编辑用章记录'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+    {forceDirty && <CopyDraftNotice detail="已保留用章人、审批人、文件信息、备注和本机附件引用；请核对本次用章日期与文件名称。" />}
     <DateField label="用章日期" value={seal.sealTime} onChange={(value) => update('sealTime', value)} allowEmpty />
     <div className="form-grid"><ReusableField label="用章人" value={seal.userName} suggestions={directory.people} onChange={(value) => update('userName', value)} onRemember={() => void onRemember('people', seal.userName)} /><ReusableField label="审批人" value={seal.approver} suggestions={directory.people} onChange={(value) => update('approver', value)} onRemember={() => void onRemember('people', seal.approver)} /></div>
     <Field label="所盖文件名称" value={seal.docName} onChange={(value) => update('docName', value)} />
@@ -1402,10 +1455,11 @@ function SealEditor({ seal, isNew, directory, attachments, attachmentBusy, onRem
   </Drawer>;
 }
 
-function MaterialEditor({ material, isNew, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { material: MaterialRecord; isNew: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (material: MaterialRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
+function MaterialEditor({ material, isNew, forceDirty, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { material: MaterialRecord; isNew: boolean; forceDirty: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (material: MaterialRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
   const update = <K extends keyof MaterialRecord,>(key: K, value: MaterialRecord[K]) => onChange({ ...material, [key]: value });
-  const closeGuard = useUnsavedChangesGuard({ material, attachmentBusy }, onClose);
-  return <Drawer title={isNew ? '新建物资记录' : '编辑物资记录'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+  const closeGuard = useUnsavedChangesGuard({ material, attachmentBusy }, onClose, forceDirty);
+  return <Drawer title={forceDirty ? '复制物资记录为新记录' : isNew ? '新建物资记录' : '编辑物资记录'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+    {forceDirty && <CopyDraftNotice detail="已保留物资、数量、收发类型、经手信息、备注和本机附件引用；保存前请核对数量与日期。" />}
     <div className="form-grid"><Field label="物资名称" value={material.materialName} onChange={(value) => update('materialName', value)} /><Field label="规格" value={material.spec} onChange={(value) => update('spec', value)} /></div>
     <div className="form-grid"><NumberField label="数量" value={material.quantity} min={1} onChange={(value) => update('quantity', value)} /><SelectField label="收发类型" value={material.type} options={[{ value: 'in', label: '入库' }, { value: 'out', label: '领用' }]} onChange={(value) => update('type', value as MaterialRecord['type'])} /></div>
     <div className="form-grid"><DateField label="经手日期" value={material.handlerTime} onChange={(value) => update('handlerTime', value)} allowEmpty /><ReusableField label="经手人" value={material.handler} suggestions={directory.people} onChange={(value) => update('handler', value)} onRemember={() => void onRemember('people', material.handler)} /></div>

@@ -50,6 +50,25 @@ test('desktop ledger layout keeps accessible navigation collapse and a read-only
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.row-actions \.icon-button[^}]*44px/, 'narrow ledger actions must keep a 44px touch target');
 });
 
+test('copy-similar records stay as guarded drafts in the existing six business editors', async () => {
+  const [app, domain, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('packages/domain/src/index.ts'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(domain, /export function duplicateBusinessRecord\(/, 'copy semantics must live in one domain pure function');
+  assert.match(app, /duplicateBusinessDetail/, 'the detail lane must route all six kinds through one copy action');
+  assert.match(app, /复制相似记录/, 'the read-only detail lane must expose an explicit copy action');
+  assert.match(app, /这是未保存的新记录/, 'copied drafts must explain that no record has been written yet');
+  assert.ok((app.match(/forceDirty=\{copyDraftMatches\(/g) || []).length >= 6, 'all six existing editors must protect copied drafts as unsaved immediately');
+  assert.match(app, /duplicateBusinessRecord\('task'/, 'task copies must use the domain copier');
+  assert.match(app, /duplicateBusinessRecord\('material'/, 'material copies must use the same domain copier');
+  assert.doesNotMatch(domain, /\bfetch\b|IndexedDB|localStorage|Electron|putRecord|removeRecord|ipc/i, 'record duplication must remain a deterministic local transformation');
+  assert.match(css, /\.copy-draft-notice/, 'copied drafts must have a restrained, dedicated notice treatment');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.detail-panel-actions \.secondary-button[^}]*44px/, 'narrow detail actions must keep 44px touch targets');
+});
+
 test('six ledgers share local-only filter and sort controls without changing stock scope', async () => {
   const [app, ledgerView, css] = await Promise.all([
     read('apps/web/src/App.tsx'),
@@ -127,7 +146,7 @@ test('quick task capture reuses deterministic extraction and the existing guarde
   assert.match(app, /applyTaskTextExtraction\(emptyTask\(\), extraction\)/, 'capture must prefill the original task model instead of saving directly');
   assert.match(app, /useUnsavedChangesGuard\([^\n]+Boolean\(initialImportText\)\)/, 'a prefilled capture must be protected as unsaved from first render');
   assert.match(css, /\.quick-capture-dialog/, 'the native dialog must have a dedicated responsive treatment');
-  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.quick-capture-action[^}]*min-height:\s*44px/, 'narrow quick-capture actions must keep 44px touch targets');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.quick-capture-action[^}]*min-height:\s*(?:4[4-9]|[5-9]\d)px/, 'narrow quick-capture actions must keep at least 44px touch targets');
 });
 
 test('recycle bin stays local-only and exposes explicit restore and permanent-delete actions', async () => {
@@ -217,7 +236,7 @@ test('business drawers share one unsaved-change guard without persisting staged 
   assert.match(app, /window\.addEventListener\('beforeunload'/, 'dirty editors must protect browser refresh and window close');
   assert.match(app, /event\.key !== 'Escape'/, 'drawers must support Escape through the same guarded close path');
   assert.match(app, /未保存修改/, 'dirty drawers must expose visible state and confirmation copy');
-  assert.match(app, /clearPendingAttachments\(\); setTaskEditor\(null\)/, 'discarding a guarded task editor must continue clearing staged attachments');
+  assert.match(app, /clearPendingAttachments\(\); setCopyDraft\(null\); setTaskEditor\(null\)/, 'discarding a guarded task editor must continue clearing staged attachments and copy state');
   assert.match(app, /pendingAttachmentSessionRef\.current \+= 1/, 'discarding an editor must invalidate attachment reads still in flight');
   assert.match(app, /session !== pendingAttachmentSessionRef\.current/, 'late attachment reads must not update a closed or replaced editor');
   assert.ok((app.match(/attachmentBusy=\{pendingAttachmentJobs > 0\}/g) || []).length >= 6, 'all six editors must treat attachment processing as unsaved work');

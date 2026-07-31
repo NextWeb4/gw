@@ -92,6 +92,56 @@ test('collapses the desktop navigation and keeps record details linked to the ex
   await expect(page.locator('.shell')).not.toHaveClass(/sidebar-collapsed/);
 });
 
+test('copies all six business kinds into guarded drafts without auto-saving or external traffic', async ({ page }, testInfo) => {
+  const unexpectedRequests: string[] = [];
+  const pageOrigin = new URL(page.url()).origin;
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (!['data:', 'blob:'].includes(url.protocol) && url.origin !== pageOrigin) unexpectedRequests.push(request.url());
+  });
+
+  const cases = [
+    { nav: '任务管理', dialog: '复制任务为新记录', field: '任务名称', value: '推进全省基层治理年度工作总结' },
+    { nav: '会议管理', dialog: '复制会议为新记录', field: '会议主题', value: '全省重点工作协调推进会' },
+    { nav: '文件收发', dialog: '复制文件为新记录', field: '文件标题', value: '关于做好2026年全省重点工作的通知' },
+    { nav: '外出活动', dialog: '复制外出活动为新记录', field: '活动主题', value: '基层服务阵地运行情况调研' },
+    { nav: '用章管理', dialog: '复制用章记录为新记录', field: '所盖文件名称', value: '省直单位工作联系函' },
+    { nav: '物资收发', dialog: '复制物资记录为新记录', field: '物资名称', value: 'A4 打印纸' },
+  ];
+
+  for (const item of cases) {
+    await page.getByRole('button', { name: item.nav, exact: true }).click();
+    const rowCountBefore = await page.locator('.selectable-row').count();
+    const copyButton = page.locator('.business-detail-panel').getByRole('button', { name: '复制相似记录' });
+    await expect(copyButton).toBeVisible();
+    if (testInfo.project.name === 'mobile') {
+      const box = await copyButton.boundingBox();
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+    await copyButton.click();
+    const dialog = page.getByRole('dialog', { name: item.dialog });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('这是未保存的新记录')).toBeVisible();
+    await expect(dialog.getByLabel(item.field)).toHaveValue(item.value);
+    page.once('dialog', (confirmation) => confirmation.accept());
+    await dialog.getByRole('button', { name: '关闭' }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('.selectable-row')).toHaveCount(rowCountBefore);
+  }
+
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await page.locator('.business-detail-panel').getByRole('button', { name: '复制相似记录' }).click();
+  const taskDialog = page.getByRole('dialog', { name: '复制任务为新记录' });
+  await expect(taskDialog.getByRole('combobox').first()).toHaveValue('pending');
+  await expect(taskDialog.getByLabel('工作小结')).toHaveValue('');
+  await taskDialog.getByLabel('任务名称').fill('复制相似记录回归任务');
+  await taskDialog.getByRole('button', { name: '保存任务' }).click();
+  await expect(page.locator('.selectable-row').filter({ hasText: '复制相似记录回归任务' })).toBeVisible();
+  await expect(page.locator('.selectable-row').filter({ hasText: '推进全省基层治理年度工作总结' })).toBeVisible();
+  await expect(page.locator('.business-detail-panel').getByRole('heading', { level: 2 })).toContainText('复制相似记录回归任务');
+  expect(unexpectedRequests).toEqual([]);
+});
+
 test('moves business records through trash, restore and permanent-delete lifecycle without network traffic', async ({ page }, testInfo) => {
   const unexpectedRequests: string[] = [];
   const pageOrigin = new URL(page.url()).origin;
@@ -241,6 +291,21 @@ test('browses the unified local agenda and opens the original business detail', 
   await expect(page.getByRole('button', { name: '下一个月' })).toBeVisible();
   await expect(page.getByRole('button', { name: '回到今天' })).toBeVisible();
 
+  const openJuly2026 = async () => {
+    const monthLabel = page.locator('.agenda-month-control strong');
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const label = (await monthLabel.innerText()).replace(/\s+/g, '');
+      const match = label.match(/^(\d{4})年(\d{1,2})月$/);
+      if (!match) throw new Error(`无法识别日历月份：${label}`);
+      const current = Number(match[1]) * 12 + Number(match[2]);
+      const target = 2026 * 12 + 7;
+      if (current === target) return;
+      await page.getByRole('button', { name: current > target ? '上一个月' : '下一个月' }).click();
+    }
+    throw new Error('无法在 24 次切换内打开 2026 年 7 月');
+  };
+  await openJuly2026();
+
   const july24 = page.getByRole('button', { name: /2026年7月24日，3 条事项/ });
   await july24.click();
   await expect(july24).toHaveAttribute('aria-pressed', 'true');
@@ -258,6 +323,7 @@ test('browses the unified local agenda and opens the original business detail', 
 
   if (testInfo.project.name === 'mobile') {
     await page.getByRole('button', { name: '事务日历' }).click();
+    await openJuly2026();
     const dayBox = await page.locator('.agenda-day-button').first().boundingBox();
     expect(dayBox?.height || 0).toBeGreaterThanOrEqual(44);
     await page.getByRole('button', { name: /2026年7月24日，3 条事项/ }).click();
@@ -1332,7 +1398,7 @@ test('imports both legacy fixture formats and keeps archive records read-only', 
   await page.getByRole('button', { name: '下载附件 物资清单.txt' }).click();
   expect((await materialDownload).suggestedFilename()).toBe('物资清单.txt');
   await materialRow.getByRole('button', { name: '复制为新记录' }).click();
-  await expect(page.getByRole('heading', { name: '新建物资记录' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '复制物资记录为新记录' })).toBeVisible();
   await expect(page.getByLabel('物资名称')).toHaveValue('旧版物资');
   await page.getByLabel('物资名称').fill('旧版物资（复制）');
   await page.getByRole('button', { name: '保存物资' }).click();

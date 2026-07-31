@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, defaultCategoryTint, extractTaskFromText,
-  extractWeeklyTemplateFromSample, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, listStatisticsMonths, materialStockKey,
+  duplicateBusinessRecord, extractWeeklyTemplateFromSample, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, listStatisticsMonths, materialStockKey,
   mergeContactDirectory, mergePartnerGroupMembers, moveBusinessRecordToTrash, parseWeeklyTemplate, partitionBusinessRecords, purgeBusinessRecord,
   resolveCategoryTint, restoreBusinessRecord, sampleDocuments, sampleMaterials, sampleContactDirectory, sampleMeetings, sampleResearches,
   sampleSeals, sampleTasks
@@ -70,6 +70,77 @@ describe('business record lifecycle', () => {
     expect(statistics.taskTotal).toBe(0);
     expect(statistics.materialIn).toBe(0);
     expect(stock.get(materialStockKey(sampleMaterials[0]))).toBe(sampleMaterials[0].quantity);
+  });
+});
+
+describe('business record duplication', () => {
+  const copiedAt = '2026-08-01T01:02:03.000Z';
+
+  it('creates an independent unsaved task draft and resets progress-only state', () => {
+    const source = {
+      ...sampleTasks[0],
+      status: 'done' as const,
+      workSummary: '旧任务办结小结',
+      files: ['attachment-main'],
+      partnerStatus: [{ name: '甲单位', status: 'done' as const, files: ['attachment-partner'] }],
+      stages: [{ id: 'stage-old', name: '报送', partnerStatus: [{ name: '乙单位', status: 'progress' as const, files: ['attachment-stage'] }] }],
+      sourceVersion: 'legacy-v1',
+      legacyPayload: { raw: '不得带入新记录' },
+      deletedAt: '2026-07-31T08:00:00.000Z',
+      purgedAt: '2026-07-31T09:00:00.000Z'
+    };
+
+    const copied = duplicateBusinessRecord('task', source, copiedAt);
+
+    expect(copied).toMatchObject({
+      name: source.name,
+      status: 'pending',
+      workSummary: '',
+      files: ['attachment-main'],
+      partnerStatus: [{ name: '甲单位', status: 'pending', files: [] }],
+      createdAt: copiedAt,
+      updatedAt: copiedAt
+    });
+    expect(copied.id).toMatch(/^task_/);
+    expect(copied.id).not.toBe(source.id);
+    expect(copied.stages[0]).toMatchObject({ name: '报送', partnerStatus: [{ name: '乙单位', status: 'pending', files: [] }] });
+    expect(copied.stages[0].id).toMatch(/^stage_/);
+    expect(copied.stages[0].id).not.toBe(source.stages[0].id);
+    expect(copied.files).not.toBe(source.files);
+    expect(copied.partnerStatus).not.toBe(source.partnerStatus);
+    expect(copied).not.toHaveProperty('deletedAt');
+    expect(copied).not.toHaveProperty('purgedAt');
+    expect(copied).not.toHaveProperty('sourceVersion');
+    expect(copied).not.toHaveProperty('legacyPayload');
+
+    copied.partnerStatus[0].name = '已修改单位';
+    expect(source.partnerStatus[0].name).toBe('甲单位');
+  });
+
+  it('preserves reusable business fields for all other ledgers while resetting outcome state', () => {
+    const meeting = duplicateBusinessRecord('meeting', { ...sampleMeetings[0], files: ['attachment-meeting'] }, copiedAt);
+    const document = duplicateBusinessRecord('document', { ...sampleDocuments[0], receiptStatus: '已办结', files: ['attachment-document'] }, copiedAt);
+    const research = duplicateBusinessRecord('research', { ...sampleResearches[0], achievements: '旧活动成果', files: ['attachment-research'] }, copiedAt);
+    const seal = duplicateBusinessRecord('seal', { ...sampleSeals[0], files: ['attachment-seal'] }, copiedAt);
+    const material = duplicateBusinessRecord('material', { ...sampleMaterials[0], files: ['attachment-material'] }, copiedAt);
+
+    expect(meeting).toMatchObject({ subject: sampleMeetings[0].subject, meetingTime: sampleMeetings[0].meetingTime, files: ['attachment-meeting'] });
+    expect(document).toMatchObject({ title: sampleDocuments[0].title, code: sampleDocuments[0].code, receiptStatus: '待登记', files: ['attachment-document'] });
+    expect(research).toMatchObject({ subject: sampleResearches[0].subject, researchTime: sampleResearches[0].researchTime, achievements: '', files: ['attachment-research'] });
+    expect(seal).toMatchObject({ docName: sampleSeals[0].docName, sealTime: sampleSeals[0].sealTime, files: ['attachment-seal'] });
+    expect(material).toMatchObject({ materialName: sampleMaterials[0].materialName, quantity: sampleMaterials[0].quantity, files: ['attachment-material'] });
+
+    expect(meeting.id).toMatch(/^meeting_/);
+    expect(document.id).toMatch(/^doc_/);
+    expect(research.id).toMatch(/^research_/);
+    expect(seal.id).toMatch(/^seal_/);
+    expect(material.id).toMatch(/^material_/);
+    for (const copied of [meeting, document, research, seal, material]) {
+      expect(copied.createdAt).toBe(copiedAt);
+      expect(copied.updatedAt).toBe(copiedAt);
+      expect(copied).not.toHaveProperty('deletedAt');
+      expect(copied).not.toHaveProperty('purgedAt');
+    }
   });
 });
 
