@@ -9,6 +9,7 @@
 - 新增 `agenda.ts` 纯函数、独立 `AgendaView`、单元/UI 合约和桌面/390px E2E。日历只消费 React 已加载数组，不读取第二份 IndexedDB，不调用 Fetch、Electron IPC、localStorage、快照、同步或遥测。
 - 已审计 FullCalendar 7.0.2、React Big Calendar 1.20.0、Schedule-X 4.x、Plane Calendar 和 Vikunja Upcoming。最终不新增运行依赖；MIT 日历库只作能力对比，Plane/Vikunja 的 AGPL 源码只作抽象交互与信息架构参考，没有复制代码、文案、样式或资产。
 - `AGENTS.md`、详细帮助、三语 README、开源方案审计、工作流/UI 契约和导航总数已同步到十六个模块。本机 lint、格式检查、105 项单元/契约、主 E2E 65 项通过/7 项条件跳过、互联网 7 项、内网 3 项及三类 Web 构建均通过；Pages、桌面矩阵和 Release 结果见本节后续发布记录。
+- [Pages run 30623449945](https://github.com/NextWeb4/gw/actions/runs/30623449945) 的 build 与 deploy 均成功；线上真实 Chromium 返回 HTTP 200，页脚为 `0.7.2`，42 个日期格、六类筛选、原会议详情跳转均可用，`body.scrollWidth=1440`，无控制台错误或外部请求。[Desktop run 30623446895](https://github.com/NextWeb4/gw/actions/runs/30623446895) 的 18 个任务全部成功，覆盖 verify、8 个 Windows/Linux × x64/arm64 × internet/intranet 构建、8 个 Debian 10/12 分版启动门和 release。[v0.7.2 Release](https://github.com/NextWeb4/gw/releases/tag/v0.7.2) 不是草稿或预发布版本，12 个安装包与 `SHA256SUMS.txt` 共 13 个直接地址均返回 HTTP 200，校验文件含 12 条格式有效且文件名唯一的记录。
 
 ## v0.7.1
 
