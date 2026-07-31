@@ -91,6 +91,60 @@ test('moves narrow-screen record selection to the detail and provides a return p
   })).toBe(true);
 });
 
+test('filters and sorts all six ledgers while preserving session views and full material stock', async ({ page }, testInfo) => {
+  await page.getByRole('button', { name: '任务管理' }).click();
+  const taskFilter = page.getByLabel('任务管理筛选');
+  const taskSort = page.getByLabel('任务管理排序');
+  await expect(taskFilter).toBeVisible();
+  await taskFilter.selectOption('status:progress');
+  await expect(page.getByText('显示 1 / 2 条任务')).toBeVisible();
+  await expect(page.locator('.table-row').filter({ hasText: '推进全省基层治理年度工作总结' })).toBeVisible();
+  await expect(page.locator('.table-row').filter({ hasText: '整理省政府办公厅来文并建立关联' })).toHaveCount(0);
+
+  await taskFilter.selectOption('all');
+  await taskSort.selectOption('deadline:asc');
+  await expect(page.locator('.table-row').nth(0)).toContainText('整理省政府办公厅来文并建立关联');
+  await page.getByPlaceholder('搜索任务、类目或交办人').fill('省政府办公厅');
+  await page.getByRole('button', { name: '会议管理' }).click();
+  await page.getByRole('button', { name: '任务管理' }).click();
+  await expect(page.getByPlaceholder('搜索任务、类目或交办人')).toHaveValue('省政府办公厅');
+  await expect(taskSort).toHaveValue('deadline:asc');
+  await expect(page.getByText('显示 1 / 2 条任务')).toBeVisible();
+  await page.getByRole('button', { name: '清除当前台账筛选和排序' }).click();
+  await expect(page.getByText('显示 2 / 2 条任务')).toBeVisible();
+
+  const moduleFilters: Array<[string, string, string]> = [
+    ['会议管理', '会议管理筛选', 'time:scheduled'],
+    ['文件收发', '文件收发筛选', 'type:收文'],
+    ['外出活动', '外出活动筛选', 'direction:外出调研'],
+    ['用章管理', '用章管理筛选', 'type:函'],
+  ];
+  for (const [moduleName, filterName, option] of moduleFilters) {
+    await page.getByRole('button', { name: moduleName }).click();
+    await page.getByLabel(filterName).selectOption(option);
+    await expect(page.locator('.table-row')).toHaveCount(1);
+  }
+
+  await page.getByRole('button', { name: '物资收发' }).click();
+  await page.getByRole('button', { name: '新建物资记录' }).click();
+  await page.getByLabel('物资名称').fill('A4 打印纸');
+  await page.getByLabel('规格').fill('70g / 500 张');
+  await page.getByLabel('收发类型').selectOption('out');
+  await page.getByLabel('数量').fill('2');
+  await page.getByRole('button', { name: '保存物资' }).click();
+  await page.getByLabel('物资收发筛选').selectOption('movement:out');
+  await expect(page.getByText('显示 1 / 2 笔收发')).toBeVisible();
+  await expect(page.locator('.table-row').filter({ hasText: '领用 2' }).locator('.stock-balance')).toHaveText('3');
+
+  if (testInfo.project.name === 'mobile') {
+    for (const control of [page.getByLabel('物资收发筛选'), page.getByLabel('物资收发排序'), page.getByRole('button', { name: '清除当前台账筛选和排序' })]) {
+      const box = await control.boundingBox();
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+    expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});
+
 test('opens local global search from the keyboard and finds navigation and business records', async ({ page }, testInfo) => {
   const unexpectedRequests: string[] = [];
   const pageOrigin = new URL(page.url()).origin;

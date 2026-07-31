@@ -46,6 +46,24 @@ test('desktop ledger layout keeps accessible navigation collapse and a read-only
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.row-actions \.icon-button[^}]*44px/, 'narrow ledger actions must keep a 44px touch target');
 });
 
+test('six ledgers share local-only filter and sort controls without changing stock scope', async () => {
+  const [app, ledgerView, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/ledger-view.ts'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(app, /function LedgerViewControls\(/, 'all business ledgers must reuse one view-control component');
+  assert.ok((app.match(/<LedgerViewControls/g) || []).length >= 6, 'all six ledger views must render the shared control');
+  assert.match(app, /createInitialLedgerViewStates/, 'ledger view state must be separated per module for the current session');
+  assert.match(app, /allMaterials=\{materials\}/, 'material stock must continue receiving every material record');
+  assert.match(ledgerView, /\.map\(\(record, index\) => \(\{ record, index \}\)\)/, 'view derivation must copy and index source records before sorting');
+  assert.doesNotMatch(ledgerView, /\bfetch\b|listRecords|IndexedDB|localStorage|Electron|putRecord|removeRecord/i, 'ledger filtering and sorting must remain a pure local view transformation');
+  assert.match(css, /\.ledger-view-controls[^}]*flex-wrap:\s*wrap/, 'ledger controls must wrap instead of widening the page');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.ledger-select[^}]*min-height:\s*44px/, 'narrow ledger selects must retain a 44px touch target');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.ledger-clear[^}]*min-height:\s*44px/, 'narrow clear action must retain a 44px touch target');
+});
+
 test('AI compact mode keeps consent controls while history and downloads remain explicit', async () => {
   const [app, css] = await Promise.all([
     read('apps/web/src/App.tsx'),
