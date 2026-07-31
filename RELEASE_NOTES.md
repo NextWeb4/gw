@@ -9,6 +9,7 @@
 - 继续保持“附件保存业务记录时才写入 IndexedDB”的边界；本轮未新增数据库 schema、服务端路由、API、依赖、CSP 放宽、持久化秘密、后台刷新或自动联网行为。
 - 开源审计比较 React Router navigation blocking、React Hook Form、react-use 与现有 React 受控状态。只借鉴脏状态基线、proceed/reset 和条件式 `beforeunload` 生命周期，采用十余行项目局部 hook 与附件会话代次，不引入新的路由、表单或工具库。
 - 工作区版本升至 `0.6.9`，私有服务端保持 `0.2.3`。本机已通过 lint、格式检查、94 项单元/契约测试、主 E2E 59 项通过/7 项条件跳过、互联网 E2E 7 项、内网 E2E 3 项和生产构建。聚焦回归覆盖干净关闭、脏状态、刷新保护、拒绝/接受确认、外侧点击、Escape、暂存附件清理和延迟附件哈希迟到回调。1440×900 与 390×844 实测页面宽度分别保持 1440 和 390，抽屉完整贴合视口，移动关闭按钮为 44×44px，检查过程无第三方请求；截图保存在工作区根目录 `artifacts/unsaved-drawer-v069-1440x900.png` 与 `artifacts/unsaved-drawer-v069-390x844.png`，不进入发布产物。
+- [Pages run 30607878047](https://github.com/NextWeb4/gw/actions/runs/30607878047) 与 [desktop run 30607877902](https://github.com/NextWeb4/gw/actions/runs/30607877902) 均已成功。线上入口 bundle 中 `0.6.9` 命中 10 次，`0.6.8` 与 `0.3.1` 均为 0 次，并包含“未保存修改”和六类“正在处理附件”文案；[v0.6.9 Release](https://github.com/NextWeb4/gw/releases/tag/v0.6.9) 包含 12 个安装包和 `SHA256SUMS.txt`，13 个下载地址均返回 HTTP 200，校验文件含 12 条有效且文件名唯一的记录。
 
 ## v0.6.8
 
