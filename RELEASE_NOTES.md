@@ -15,6 +15,7 @@
 - 本机已通过 `pnpm lint`、`pnpm format:check`、120 项单元/契约测试、主 E2E 71 项通过/7 项条件跳过、互联网 E2E 7 项、内网 E2E 3 项，以及公开/互联网/内网三类构建。内网套件首次与互联网套件并行时旧 450ms 用例发生 DOM 换代超时；改为确定性闸门后独立 3/3 通过。
 - Python Playwright 在 1440×900 与 390×844 真实 Chromium 中验证回收站：两视口 `body.scrollWidth` 均不超过视口，移动主内容底边不越过固定底栏，搜索/筛选/操作按钮均至少 44px，当前回收站图标保持可见；截图为 `test-results/recycle-desktop-1440x900.png` 与 `test-results/recycle-mobile-390x844.png`。
 - 八份发布清单均为 `0.7.5`。公开构建 25 个文件、10 个 source map；互联网和内网构建各 15 个文件、0 个 source map。三类构建均命中 `0.7.5`，不命中 `0.7.4`、`0.3.1`、用户指定密码、私钥或长格式 API Key。
+- [Pages run 30641433505](https://github.com/NextWeb4/gw/actions/runs/30641433505) 的 build 与 deploy 均成功；线上入口和 7 个首屏资产返回 HTTP 200，bundle 中 `0.7.5` 命中 10 次、`0.7.4`/`0.3.1` 为 0，并包含“回收站”和 `purgedAt`。线上真实 Chromium 显示页脚 `0.7.5`，可把演示任务移入回收站并查看恢复/永久删除入口，`body.scrollWidth=1440`，无控制台错误或外部请求，截图为 `test-results/recycle-live-v075.png`。[Desktop run 30641434968](https://github.com/NextWeb4/gw/actions/runs/30641434968) 的 verify、Windows/Linux 双分版双架构、Debian 10/12 双分版双架构启动门和 release 共 18 项全部成功。[v0.7.5 Release](https://github.com/NextWeb4/gw/releases/tag/v0.7.5) 不是草稿或预发布版本，包含 12 个互联网/内网、Windows/Linux、x64/arm64 安装包和 `SHA256SUMS.txt`；13 个直接下载地址均为 HTTP 200 且非空，校验文件 12 条记录格式有效、文件名唯一并与 12 个安装资产完全一致。
 
 ## v0.7.4
 
