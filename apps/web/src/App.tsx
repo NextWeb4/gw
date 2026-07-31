@@ -34,6 +34,7 @@ import { syncPrivateWorkspace } from './private-services';
 import { GlobalSearch, type GlobalSearchGroup, type GlobalSearchItem } from './GlobalSearch';
 import { AgendaView } from './AgendaView';
 import type { AgendaKind } from './agenda';
+import { WorkOverview } from './WorkOverview';
 
 type Tab = 'dashboard' | 'agenda' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'archive' | 'migration' | 'about';
 type BusinessTab = Extract<Tab, 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials'>;
@@ -790,7 +791,7 @@ function App() {
   };
 
   const renderContent = () => {
-    if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} onNavigate={navigate} />;
+    if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} onNavigate={navigate} onOpenRecord={openBusinessRecord} />;
     if (tab === 'agenda') return <AgendaView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={openBusinessRecord} />;
     if (tab === 'tasks') return <TaskView tasks={filteredTasks} totalCount={tasks.length} view={ledgerViews.tasks} filterOptions={taskFilterOptions} onViewChange={(patch) => updateLedgerView('tasks', patch)} onReset={() => resetLedgerView('tasks')} selectedId={selectedTaskId} onSelect={(id) => selectBusinessRecord('tasks', id)} attachments={attachments} categoryTints={categoryTints} onNew={() => { clearPendingAttachments(); setTaskEditor(emptyTask()); }} onEdit={(task) => { clearPendingAttachments(); setTaskEditor(task); }} onDelete={deleteTask} />;
     if (tab === 'meetings') return <MeetingView meetings={filteredMeetings} totalCount={meetings.length} view={ledgerViews.meetings} filterOptions={meetingFilterOptions} onViewChange={(patch) => updateLedgerView('meetings', patch)} onReset={() => resetLedgerView('meetings')} selectedId={selectedMeetingId} onSelect={(id) => selectBusinessRecord('meetings', id)} onNew={() => { clearPendingAttachments(); setMeetingEditor(emptyMeeting()); }} onEdit={(meeting) => { clearPendingAttachments(); setMeetingEditor(meeting); }} onDelete={deleteMeeting} />;
@@ -858,7 +859,7 @@ function PageHeading({ eyebrow, title, detail, action }: { eyebrow: string; titl
   return <div className="page-heading"><div className="heading-copy"><span className="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{detail}</p></div>{action && <div className="heading-action">{action}</div>}<span className="heading-signal" aria-hidden="true">HX</span></div>;
 }
 
-function Dashboard({ tasks, meetings, documents, researches, seals, materials, archives, onNavigate }: { tasks: Task[]; meetings: MeetingRecord[]; documents: OfficialDocument[]; researches: ResearchRecord[]; seals: SealRecord[]; materials: MaterialRecord[]; archives: ArchiveRecord[]; onNavigate: (tab: Tab) => void }) {
+function Dashboard({ tasks, meetings, documents, researches, seals, materials, archives, onNavigate, onOpenRecord }: { tasks: Task[]; meetings: MeetingRecord[]; documents: OfficialDocument[]; researches: ResearchRecord[]; seals: SealRecord[]; materials: MaterialRecord[]; archives: ArchiveRecord[]; onNavigate: (tab: Tab) => void; onOpenRecord: (kind: AgendaKind, id: string) => void }) {
   const active = tasks.filter((task) => task.status !== 'done').length;
   const dueSoon = tasks.filter((task) => task.deadline && task.deadline <= localDateInput(new Date(Date.now() + 7 * 86400000)) && task.status !== 'done').length;
   const operations = meetings.length + researches.length + seals.length + materials.length;
@@ -869,7 +870,7 @@ function Dashboard({ tasks, meetings, documents, researches, seals, materials, a
       <div className="hero-meta"><span>01 / PRIVATE BY DEFAULT</span><span>02 / DETERMINISTIC RULES</span><span>03 / TRACEABLE RECORDS</span></div>
     </section>
     <section className="metric-grid"><Metric label="进行中任务" value={active} note="未完成事项" accent="rust" /><Metric label="近七日到期" value={dueSoon} note="需要优先处理" accent="gold" /><Metric label="登记文件" value={documents.length} note="本机索引" accent="green" /><Metric label="综合台账" value={operations} note={`会议/外出/用章/物资；历史 ${archives.length}`} accent="ink" /></section>
-    <div className="dashboard-grid"><section className="panel"><div className="panel-heading"><div><span className="eyebrow">优先事项</span><h2>任务队列</h2></div><button className="text-button" onClick={() => onNavigate('tasks')}>查看全部 <ChevronRight size={15} /></button></div><div className="task-queue">{tasks.slice(0, 5).map((task) => <div className="queue-row" key={task.id}><span className={`priority-bar ${task.status}`} /><div className="queue-main"><strong>{task.name}</strong><span>{task.category} · {task.assigner || '未指定交办人'}</span></div><StatusPill status={task.status} /><span className="queue-date">{task.deadline || '未设截止'}</span></div>)}{!tasks.length && <EmptyState text="还没有任务" />}</div></section><section className="panel paper-panel"><div className="paper-index">公文写作速查</div><h2>先立意，再落笔。</h2><p>将“依据—行动—结果”拆开，把可核验的数据留在句子里。正式规范与写作建议分别标注，不让模型替你做判断。</p><button className="secondary-button" onClick={() => onNavigate('writing')}><Sparkles size={16} />打开写作中心</button></section></div>
+    <div className="dashboard-grid"><WorkOverview tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={onOpenRecord} onOpenAgenda={() => onNavigate('agenda')} /><section className="panel paper-panel"><div className="paper-index">公文写作速查</div><h2>先立意，再落笔。</h2><p>将“依据—行动—结果”拆开，把可核验的数据留在句子里。正式规范与写作建议分别标注，不让模型替你做判断。</p><button className="secondary-button" onClick={() => onNavigate('writing')}><Sparkles size={16} />打开写作中心</button></section></div>
     <section className="panel quick-panel"><div className="panel-heading"><div><span className="eyebrow">工作入口</span><h2>继续处理</h2></div></div><div className="quick-actions"><button onClick={() => onNavigate('meetings')}><CalendarDays size={18} /><span>记录会议</span><small>通知、时间、地点</small></button><button onClick={() => onNavigate('documents')}><FileText size={18} /><span>登记新文件</span><small>收文、发文、附件</small></button><button onClick={() => onNavigate('writing')}><BookOpen size={18} /><span>开始写作</span><small>模板、规则、版本</small></button><button onClick={() => onNavigate('migration')}><Upload size={18} /><span>导入旧数据</span><small>支持 JSON 导出文件</small></button></div></section>
   </>;
 }

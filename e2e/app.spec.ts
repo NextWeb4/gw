@@ -34,6 +34,35 @@ test('loads the offline demo without third-party or private API traffic', async 
   expect(unexpectedRequests).toEqual([]);
 });
 
+test('workbench exposes local cross-module action scopes without extra traffic', async ({ page }, testInfo) => {
+  const unexpectedRequests: string[] = [];
+  const pageOrigin = new URL(page.url()).origin;
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (!['data:', 'blob:'].includes(url.protocol) && url.origin !== pageOrigin) unexpectedRequests.push(request.url());
+  });
+
+  const board = page.getByRole('region', { name: '工作焦点概览' });
+  await expect(board).toBeVisible();
+  await expect(board.getByRole('tab', { name: /今日与逾期/ })).toBeVisible();
+  await expect(board.getByRole('tab', { name: /未来 7 天/ })).toBeVisible();
+  await expect(board.getByRole('tab', { name: /未排期/ })).toBeVisible();
+  await board.getByRole('tab', { name: /未来 7 天/ }).click();
+  await expect(board.getByRole('tab', { name: /未来 7 天/ })).toHaveAttribute('aria-selected', 'true');
+  await board.getByRole('tab', { name: /未排期/ }).click();
+  await expect(board.getByRole('tab', { name: /未排期/ })).toHaveAttribute('aria-selected', 'true');
+  if (testInfo.project.name === 'mobile') {
+    for (const control of [board.getByRole('tab', { name: /今日与逾期/ }), board.getByRole('tab', { name: /未来 7 天/ }), board.getByRole('tab', { name: /未排期/ })]) {
+      const box = await control.boundingBox();
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+    expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+  await board.getByRole('button', { name: '查看完整日历' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: '事务日历' })).toBeVisible();
+  expect(unexpectedRequests).toEqual([]);
+});
+
 test('collapses the desktop navigation and keeps record details linked to the existing editor', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'Desktop three-column behavior is checked once.');
   const sidebar = page.locator('.sidebar');

@@ -42,7 +42,7 @@ export interface AgendaDay {
   kinds: AgendaKind[];
 }
 
-const kindOrder: Record<AgendaKind, number> = {
+export const agendaKindOrder: Record<AgendaKind, number> = {
   tasks: 0,
   meetings: 1,
   documents: 2,
@@ -65,7 +65,7 @@ function compareAgendaEvents(left: AgendaEvent, right: AgendaEvent) {
   if (byDate) return byDate;
   const byTime = (left.time || '00:00').localeCompare(right.time || '00:00');
   if (byTime) return byTime;
-  const byKind = kindOrder[left.kind] - kindOrder[right.kind];
+  const byKind = agendaKindOrder[left.kind] - agendaKindOrder[right.kind];
   if (byKind) return byKind;
   return left.sourceIndex - right.sourceIndex;
 }

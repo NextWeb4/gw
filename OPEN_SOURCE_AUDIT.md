@@ -1,6 +1,6 @@
 # 开源方案审计
 
-审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2 补充审计：2026-07-31。公开客户端为本地优先演示模式；服务端仅私有部署。
+审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3 补充审计：2026-07-31。公开客户端为本地优先演示模式；服务端仅私有部署。
 
 | 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与项目契合度 / 可能冲突 | 是否采用 / 采用方式 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,6 +24,29 @@
 | Node 24 `fetch`、`crypto`、`node:test` | [Node.js](https://nodejs.org/api/) / MIT | HTTPS 抓取、哈希和策略测试 | 标准运行时内置，不增加供应链或安装体积 | 重定向与体积限制需显式实现 | 随 Node 24 维护 | 只在内容同步脚本和 CI 中使用，不进入浏览器联网路径 | 采用，封装允许清单、逐跳重定向和 2 MB 上限 |
 | Got 15.1.0 | [官方仓库](https://github.com/sindresorhus/got) / MIT | HTTP 重试、钩子、重定向 | HTTP 能力成熟 | 当前仅抓取少量权威来源，引入运行依赖收益不足 | 活跃；npm 元数据 2026-07-02 更新 | 会扩大供应链，不能替代本项目域名策略 | 不采用 |
 | simple-git 3.36.0 | [官方仓库](https://github.com/steveukx/git-js) / MIT | Git 命令封装 | API 易用 | Actions 仅需 add/commit/push 三步 | 活跃；npm 元数据 2026-04-12 更新 | 增加无必要依赖；runner 已提供 Git | 不采用，工作流直接调用 Git |
+
+## v0.7.3 跨模块今日、近期与未排期工作概览方案审计
+
+问题本质：当前工作台首屏的视觉主区超过 600px，真正可操作的“任务队列”只取任务数组前五条，既不按日期优先级排序，也不包含会议、文件、外出、用章和物资。事务日历已经解决按月查找某一天记录的问题，但用户每天打开工作台时仍无法立即回答“今天与逾期有哪些事、未来七天有什么、哪些记录还没排日期”。这个缺口属于现有六类本地数组的行动视图派生，不需要新的数据库、任务服务、完成状态、提醒、通知、拖拽、路由或网络请求。
+
+第一性原理不变量：输入只能是 `App` 已加载的六类数组，并复用事务日历已验证的日期映射；逾期只适用于 `status !== 'done'` 且截止日期早于今天的任务，过去的会议、文件、外出、用章和物资是历史事实，不得回流为逾期待办；当天桶包含逾期未完成任务和日期等于今天的有效记录；未来桶只包含今天之后至第 7 天的有效记录，第 8 天不得进入；未排期只包含日期为空或无效的未完成任务与其他业务记录，已完成任务全部排除；派生不得修改源数组；切换状态只保留在当前 React 会话；点击记录必须复用 `resetLedgerView`、`navigate`、`selectBusinessRecord` 和右侧详情；工作台不得直接完成、编辑、改期、读写 IndexedDB、调用 Fetch/IPC 或产生遥测。
+
+| 方案名称 | 来源 | 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与当前项目的契合度 | 可能冲突点 | 是否采用 | 采用方式 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 现有 React 19 + TypeScript 纯函数 + `agenda.ts` 规范化事件 | 当前锁定依赖与项目自有代码 | React MIT / 项目 UNLICENSED / Web 标准 | 复用六类日期映射，派生今日与逾期、未来 7 天、未排期三个行动桶，并打开既有详情 | 零新增依赖；不复制日期语义；最容易保持本地只读、稳定排序、中文高信息密度和现有详情链路 | 需要项目明确区分“截止日期”与“发生日期”，并维护少量无日期元数据 | React 19 与目标 Chromium持续维护；`agenda.ts` 已有单元与 E2E | 高 | 若把过去非任务记录当逾期会制造错误行动信号；若直接在工作台保存会形成第二套业务链路 | 采用 | 新增纯函数概览模块和轻量视图；工作台缩短装饰主区，把首屏重心移到三个本地行动桶 |
+| Super Productivity Today View `3d41424f` | [官方 Today View 文档](https://github.com/johannesjo/super-productivity/blob/3d41424fb9726eaed70a696bef3a4909562ca761/docs/wiki/4.01-The-Today-View.md) / [MIT](https://github.com/johannesjo/super-productivity/blob/3d41424fb9726eaed70a696bef3a4909562ca761/LICENSE) | MIT | 把 Today 明确定义为按时间组织的日常工作入口，与项目/标签的分类视图区分 | 说明“日常行动视图”和“分类台账”应职责分离；逻辑日边界和明确空状态值得参考 | 面向单一任务模型，支持手工排序、计划迁移和大量本项目不需要的完成/调度行为 | 2026-07-31 主分支提交；package 18.16.0 | 交互概念高，源码复用低 | 复制 Angular 状态、拖拽或保存排序会引入持久化和第二套任务语义 | 只借鉴设计 | 借鉴“时间视图与分类视图分离、今天是主要工作入口”；不复制源码、文案、样式或排序状态 |
+| Nextcloud Tasks Dashboard `2fa8faca` | [Dashboard.vue](https://github.com/nextcloud/tasks/blob/2fa8faca5f1cbbb339dfe46b4ce696f61d8883e4/src/views/Dashboard.vue) / [Widget](https://github.com/nextcloud/tasks/blob/2fa8faca5f1cbbb339dfe46b4ce696f61d8883e4/lib/Dashboard/TasksWidget.php) / [AGPL-3.0-or-later](https://github.com/nextcloud/tasks/blob/2fa8faca5f1cbbb339dfe46b4ce696f61d8883e4/LICENSE) | AGPL-3.0-or-later | 仪表板显示有限数量的未完成近期任务，区分“今天无任务”和“无近期任务”，并提供进入完整任务应用的路径 | 有界列表、日期副文案、半空状态和“查看更多”降低首页噪声 | 依赖 CalDAV、Vuex、Nextcloud Dashboard 与直接完成动作；只覆盖任务 | 2026-07-30 主分支提交 | 信息架构高，源码复用低 | 复制代码会产生 AGPL 风险；直接完成会绕过本项目编辑抽屉和六类模型边界 | 只借鉴设计 | 借鉴“首页只显示有界行动项、空状态区分、记录可回到原应用”；不复制实现、样式、文案或图标 |
+| Vikunja Upcoming `506dbd7b` | [导航](https://github.com/go-vikunja/vikunja/blob/506dbd7b0483c626295081fd9dd5beef3df8def7/frontend/src/components/home/Navigation.vue) / [日期范围路由](https://github.com/go-vikunja/vikunja/blob/506dbd7b0483c626295081fd9dd5beef3df8def7/frontend/src/router/index.ts) / [AGPL-3.0-or-later](https://github.com/go-vikunja/vikunja/blob/506dbd7b0483c626295081fd9dd5beef3df8def7/LICENSE) | AGPL-3.0-or-later | 通过明确日期范围展示 upcoming，并可选择是否包含无日期任务 | 日期范围与无日期项是两个显式维度，避免把未排期混入普通时间顺序 | 服务端过滤、路由查询和单一任务模型与本项目不同 | 2026-07-30 主分支提交 | 交互参考中高，源码复用低 | 复制 Vue/服务端筛选会破坏已加载数组边界并产生 AGPL 风险 | 只借鉴设计 | 借鉴“未来范围与无日期项分开表达”；不复制源码、查询参数、文案或数据模型 |
+| Google Tasks / Calendar | [Google Tasks 官方说明](https://support.google.com/tasks/answer/7675772?hl=en) / [Calendar 任务说明](https://support.google.com/calendar/answer/9901136?hl=en) | Google 服务条款；非开源、无再分发授权 | 快速记录任务、用截止日期和通知跟进，在 Calendar 网格与 Pending tasks 列表之间切换 | 证明“时间网格用于日期定位、待处理列表用于行动”应互补；开始时间、截止日期和待处理列表语义清晰 | 商业服务、数据模型与界面资产不可复制；部分能力依赖 Workspace 账户与云端 | 2026-07-31 官方帮助页可访问 | 仅作交互概念参考 | 不得抓取界面、文案、图标、模板或接口数据，也不得引入 Google 联网依赖 | 只借鉴概念 | 只借鉴“日历定位 + 待处理列表”的职责拆分；不复制任何产品内容或运行时能力 |
+
+- 直接复用：现有 React state、`buildAgendaEvents`、领域严格日期校验、Lucide、六类已加载数组、台账视图清除、导航、选择和只读详情。
+- 只借鉴设计：Super Productivity 的时间视图/分类视图分工；Nextcloud 的有界行动列表和差异化空状态；Vikunja 的未来范围/无日期分离；Google Tasks 与 Calendar 的网格定位/待处理列表互补。所有外部项目都不复制代码、文案、样式、图标、接口数据或业务模型。
+- 不采用：新的 npm 依赖、CalDAV、云端任务服务、提醒/推送、拖拽排序、工作台直接完成或改期、服务端日期过滤、持久化视图状态、后台刷新和自动联网。
+- 适配与保留：只新增 Web 纯函数和工作台展示组件，`App.tsx` 继续持有已加载数组与既有记录打开回调；保留十六模块导航、事务日历、六类 CRUD、三栏详情、抽屉守卫、IndexedDB 适配层、同步、附件和 AI 边界。
+- 冲突审计：方案与 React/Vite、目录、构建、数据库、配置、权限、离线/联网和保留全部权利许可证均无冲突。若实现需要复制 AGPL/Google 内容、新增网络请求、增加完成状态或绕过原台账保存链路，则阻塞部署并停止集成。
+- 许可证风险：无新增依赖；MIT 项目只作设计审计，AGPL 与 Google 商业产品只作不可复制的抽象交互参考。
+- 联网变化：无。加载、切换概览和点击本机记录均不发起网络请求。
+- 回滚方式：恢复旧 `Dashboard` 结构并移除概览纯函数、样式、测试和文档即可；不涉及数据、配置、服务端协议或安装包兼容迁移。
 
 ## v0.7.2 六类台账统一日历与当日议程方案审计
 

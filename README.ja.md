@@ -15,7 +15,7 @@
 ![Pages の状態](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![最終コミット](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![リポジトリサイズ](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![バージョン](https://img.shields.io/badge/version-0.7.2-0969da?style=flat-square)
+![バージョン](https://img.shields.io/badge/version-0.7.3-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@
 
 HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラネット Web ビルド、インターネット/イントラネット Electron クライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、ネットワーク機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
 
-現在のリリースは `0.7.2` です。独立した「業務カレンダー」で、タスク期限、会議時刻、文書日付、外出日、押印日、物資処理日を月曜日始まりの月表示にまとめます。前月/翌月、今日、6 種類の絞り込み、選択日の予定一覧を利用でき、予定から元の台帳と既存の読み取り専用詳細へ戻れます。カレンダーは React に読み込み済みの配列だけから派生し、通信や IndexedDB 書込み、直接の日付変更は行いません。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
+現在のリリースは `0.7.3` です。ワークベンチの先頭に、全台帳を横断する「今日と期限超過 / 今後 7 日 / 未予定」のアクションボードを追加しました。期限超過になるのは未完了タスクだけで、過去の会議などの履歴は誤って待機項目に戻りません。業務カレンダーと同じ 6 種類の検証済み日付マッピングを再利用し、元の台帳詳細を開きます。新しい保存、通信、別編集経路は追加していません。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
 
 公開 Pages はプライベート同期を表示しませんが、ローカル台帳、添付、旧 JSON/スナップショット、ユーザー自身の Key を使う AI、明示的に解除した `127.0.0.1` 中継を利用できます。ページ読込やパスワード入力だけでは中継へ接続しません。業務データは現在のブラウザーの IndexedDB に保存されます。[GitHub Pages](https://nextweb4.github.io/gw/) では公開、架空、または許可済みの非機密資料だけを扱ってください。
 
@@ -60,7 +60,7 @@ HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラ
 - NSIS インストーラーには Windows、AppImage/DEB のパッケージ化と最終 Linux 互換性確認には Linux。
 - Web ビルドには Chromium 系ブラウザー。
 
-リポジトリのバージョンは `0.7.2` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
+リポジトリのバージョンは `0.7.3` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
 
 ## インストールと実行
 

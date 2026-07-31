@@ -86,6 +86,27 @@ test('unified agenda stays local-only and reuses the existing record detail path
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.agenda-day-button[^}]*min-height:\s*44px/, 'narrow date cells must keep a 44px touch target');
 });
 
+test('work overview stays a local read-only cross-module action board', async () => {
+  const [app, overview, view, styles] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/work-overview.ts'),
+    read('apps/web/src/WorkOverview.tsx'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(app, /<WorkOverview[^>]+onOpenRecord=\{onOpenRecord\}/, 'dashboard must pass the existing business-record opener into the action board');
+  assert.match(overview, /buildAgendaEvents\(sources\)/, 'overview must reuse the agenda date normalization instead of duplicating date mappings');
+  assert.match(overview, /event\.kind === 'tasks' && event\.date < today/, 'only task deadlines may enter the overdue bucket');
+  assert.match(overview, /event\.date > today && event\.date <= daySeven/, 'upcoming must have an explicit seven-day boundary');
+  assert.match(overview, /record as Task\)\.status === 'done'/, 'completed tasks must not enter the unscheduled bucket');
+  assert.doesNotMatch(`${overview}\n${view}`, /\bfetch\b|listRecords|IndexedDB|localStorage|Electron|putRecord|removeRecord|ipc/i, 'overview derivation and UI must stay within loaded local arrays');
+  assert.match(overview, /unscheduledItems\.sort\(compareUnscheduled\)/, 'unscheduled records must have deterministic ordering');
+  assert.match(view, /onOpenRecord\(item\.kind, item\.recordId\)/, 'overview items must reuse existing record navigation');
+  assert.match(styles, /\.work-overview-tabs[^}]*grid-template-columns:\s*repeat\(3/, 'overview scopes must remain visible as three explicit actions');
+  assert.match(styles, /@media \(max-width: 800px\)[\s\S]*\.work-overview-item[^}]*min-height:\s*68px/, 'narrow overview records must retain a touch-sized row');
+  assert.match(styles, /\.dashboard-hero[^}]*min-height:\s*320px/, 'dashboard hero must be compact enough to expose the action board earlier');
+});
+
 test('AI compact mode keeps consent controls while history and downloads remain explicit', async () => {
   const [app, css] = await Promise.all([
     read('apps/web/src/App.tsx'),

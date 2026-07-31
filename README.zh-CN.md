@@ -15,7 +15,7 @@
 ![Pages 状态](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![最近提交](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![仓库大小](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![版本](https://img.shields.io/badge/version-0.7.2-0969da?style=flat-square)
+![版本](https://img.shields.io/badge/version-0.7.3-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@
 
 HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联网/内网 Web 构建和互联网/内网 Electron 客户端之间共享同一套领域模型。系统首先把业务数据保存在本地，在构建时隔离不同联网能力，并通过显式适配器提供同步和 AI 请求。
 
-当前发布版本为 `0.7.2`：新增独立“事务日历”，把任务截止、会议时间、文件日期、外出日期、用章日期和物资经手日期汇入周一起始的月视图。用户可切换前后月、回到今天、按六类事项筛选，并在右侧或移动端下方查看所选日期议程；点击事项会回到原台账和既有只读详情。日历只处理 React 已加载数组，不联网、不写入 IndexedDB 或快照，也不直接改期。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
+当前发布版本为 `0.7.3`：工作台新增紧凑的跨模块“工作焦点”，把“今日与逾期 / 未来 7 天 / 未排期”放到首屏行动区。只有未完成任务的截止日期会判定为逾期，过去的会议等历史记录不会被误报。概览复用事务日历已经校验的六类日期映射，点击后回到原台账和既有只读详情，不新增持久化、网络请求或第二套编辑链路。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
 
 公开 Pages 不显示私有同步，但支持完整本机台账、附件、历史 JSON/快照、用户自备 Key 的兼容 AI，以及用户主动解锁的 `127.0.0.1` 本机中转站；页面加载和填写密码不会自动联系中转服务。所有业务数据只进入当前浏览器 IndexedDB。[GitHub Pages](https://nextweb4.github.io/gw/) 仅适合公开、虚构或获准的非敏感材料。
 
@@ -60,7 +60,7 @@ HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联�
 - NSIS 安装包需要 Windows；AppImage/DEB 打包和最终 Linux 兼容性检查需要 Linux。
 - Web 构建需要 Chromium 类浏览器。
 
-仓库版本为 `0.7.2`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
+仓库版本为 `0.7.3`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
 
 ## 安装与运行
 
