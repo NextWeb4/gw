@@ -10,6 +10,7 @@
 - 开源审计比较 `cmdk@1.1.1`、kbar、Plane Power K 和原生 React/ARIA 自研。采用 MIT 许可的 cmdk 负责 Dialog、combobox、分组、键盘和焦点语义；Plane 仅借鉴分组与模态冲突抑制，未复制 AGPL 源码、文案或样式；kbar 的历史、嵌套动作、Fuse 与虚拟化超过本轮需要，未采用。
 - 工作区版本升至 `0.7.0`，私有服务端保持 `0.2.3`。新增一个 MIT 运行依赖，不新增数据库 schema、私有 API、服务端协议、CSP 放宽、持久化秘密、后台索引、自动联网或远程搜索。
 - 本机已通过 lint、格式检查、95 项单元/契约测试、主 E2E 61 项通过/7 项条件跳过、互联网 E2E 7 项、内网 E2E 3 项和公开/互联网/内网构建。1440×900 与 390×844 真实浏览器检查中 `body.scrollWidth` 分别为 1440 和 390；对话框分别为 720×303px 和 370×283px，移动入口为 44×44px，底栏上方保留 477px 间距，检查过程无控制台错误或第三方请求。视觉检查发现并修复 cmdk portal 内容类名未落在 Dialog 容器的问题，修复后 UI 合约、双视口聚焦 E2E 与 Web 构建重新通过。截图保存为 `artifacts/global-search-v070-1440x900.png` 与 `artifacts/global-search-v070-390x844.png`，不进入发布产物；互联网/内网构建 source map 均为 0，公开构建只命中 `0.7.0`，不命中 `0.6.9` 或 `0.3.1`。
+- [Pages run 30611903426](https://github.com/NextWeb4/gw/actions/runs/30611903426) 与 [desktop run 30611903306](https://github.com/NextWeb4/gw/actions/runs/30611903306) 均已成功。线上真实 Chromium 显示页脚 `0.7.0`，可通过全局查找进入“整理省政府办公厅来文并建立关联”的原详情，全程无控制台错误或外部请求；线上入口 bundle 中 `0.7.0` 命中 10 次，`0.6.9` 与 `0.3.1` 均为 0 次。[v0.7.0 Release](https://github.com/NextWeb4/gw/releases/tag/v0.7.0) 的 12 个安装包和 `SHA256SUMS.txt` 共 13 个地址均返回 HTTP 200，校验文件含 12 条有效且文件名唯一的记录。
 
 ## v0.6.9
 
