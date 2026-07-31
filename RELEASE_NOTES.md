@@ -9,6 +9,7 @@
 - 依赖、数据库 schema、私有 API、服务端协议、CSP 和联网触发边界均未变化。开源审计比较了 TanStack Table（MIT）、Vikunja（AGPL-3.0）和 Plane（AGPL-3.0-only）；最终未新增依赖，只借鉴不可变行模型、明确清除与活动筛选反馈。
 - 本机已通过 lint、格式检查、101 项单元/契约测试、主 E2E 63 项通过/7 项条件跳过、互联网 E2E 7 项、内网 E2E 3 项，以及公开/互联网/内网三类构建。完整 E2E 首轮发现清除按钮的无障碍名称包含“任务管理”，会与导航按钮产生模糊匹配；改为“清除当前台账筛选和排序”后，聚焦回归 4/4 与完整套件均通过。
 - 1440×900 与 390×844 真实 Chromium 检查的 `body.scrollWidth` 分别为 1440 和 390；桌面列表与 360px 详情栏并排，移动筛选、排序和清除控件高度均为 44px，固定底栏顶边为 770px。检查过程无控制台错误或外部请求，截图保存为 `artifacts/ledger-view-v071-1440x900.png` 与 `artifacts/ledger-view-v071-390x844.png`；互联网/内网构建 source map 均为 0，八份发布清单版本一致，源码与三类构建未命中已知密码、测试秘密标记、会话 Key 或私钥模式。
+- [Pages run 30616709394](https://github.com/NextWeb4/gw/actions/runs/30616709394) 已成功，线上真实 Chromium 显示页脚 `0.7.1`，六类台账视图控制可用且无控制台错误或外部请求。桌面首次 [run 30616712071](https://github.com/NextWeb4/gw/actions/runs/30616712071) 的唯一失败是 Debian 12 arm64 冒烟在 GitHub runner 拉取 Docker Hub 时连接超时（exit 125），删除并重推同一标签后，[run 30617653755](https://github.com/NextWeb4/gw/actions/runs/30617653755) 全部成功。[v0.7.1 Release](https://github.com/NextWeb4/gw/releases/tag/v0.7.1) 包含 12 个互联网/内网、Windows/Linux、x64/arm64 安装包和 `SHA256SUMS.txt`；13 个直接下载地址均为 HTTP 200，校验文件含 12 条格式有效且文件名唯一的记录。
 
 ## v0.7.0
 
