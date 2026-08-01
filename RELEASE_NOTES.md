@@ -12,6 +12,7 @@
 - 本机完整验证已通过：`pnpm lint`、`pnpm format:check`、`pnpm test`（126 项）、主 E2E（84 条中 77 通过、7 条条件跳过）、互联网 E2E（7/7）、内网 E2E（3/3）、`pnpm build`、`pnpm build:web:internet` 与 `pnpm build:web:intranet`。Windows 并行执行 lint/format 时出现一次 pnpm `.bin` 链接创建提示，但实际类型与语法检查均成功，后续测试和构建也正常解析可执行文件。
 - 独立 Python Playwright 在 1440×900 与 390×844 下按“会议 → 任务 → 会议”建立 MRU：两视口均显示会议在前、任务在后，桌面/移动最近项高度约 56.6/61.9px；移动面板底边约 742.5px，固定底栏顶边 770px，`body.scrollWidth` 分别为 1440/390。两端操作期零请求、零控制台错误、零页面错误；截图与指标位于 `test-results/recent-records-0.7.8/`。
 - 八份发布清单均为 `0.7.8`。公开构建 25 个文件、10 个 source map；互联网和内网构建各 15 个文件、0 个 source map。三类运行时代码均命中 `0.7.8` 且不含 `0.7.7`/`0.3.1`；指定中转密码、私钥和真实长格式 API Key 均为 0，Git 未跟踪 `.env`。初次宽松 Key 正则命中的 `skipSelectionChangeEvent` 等均为依赖标识符，按真实 Key 前缀复核后为 0。
+- [Pages run 30685858239](https://github.com/NextWeb4/gw/actions/runs/30685858239) 与 [Desktop run 30685866201](https://github.com/NextWeb4/gw/actions/runs/30685866201) 均成功，分别对应功能提交 `0e953c5` 和 annotated tag `v0.7.8`。[线上站点](https://nextweb4.github.io/gw/) 返回 HTTP 200，`Last-Modified` 为 2026-08-01 05:32:13Z，并加载 `index-D3cV8ffp.js`；真实 Chromium 桌面/移动均显示页脚 `0.7.8` 和会议→任务 MRU，操作期零请求/错误、无横向溢出，移动面板底边约 747px、固定底栏顶边 770px。线上截图位于 `test-results/recent-records-0.7.8/recent-records-live-{desktop,mobile}.png`。[Release v0.7.8](https://github.com/NextWeb4/gw/releases/tag/v0.7.8) 的 12 个安装包和 `SHA256SUMS.txt` 共 13 个地址均为 HTTP 200 且非空；校验清单 12 行格式有效，SHA-256 与文件名分别唯一，并精确覆盖 12 个安装资产。
 
 ## v0.7.7
 
