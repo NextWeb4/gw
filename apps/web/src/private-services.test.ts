@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { moveBusinessRecordToTrash, purgeBusinessRecord, sampleMaterials, sampleMeetings, sampleResearches, sampleSeals, sampleTasks, type Attachment, type Draft, type Task, type WeeklyReport } from '@hxhwang/domain';
+import { moveBusinessRecordToTrash, purgeBusinessRecord, sampleDocuments, sampleMaterials, sampleMeetings, sampleResearches, sampleSeals, sampleTasks, type Attachment, type Draft, type Task, type WeeklyReport } from '@hxhwang/domain';
 import type { PrivateSyncClient, SyncRecord } from '@hxhwang/sync-client';
 import { persistPulledRecord, syncPrivateWorkspace } from './private-services';
 
@@ -51,11 +51,13 @@ describe('private workspace sync', () => {
     const push = vi.fn(async (_collection: string, _rows: unknown[]) => ({ conflicts: [] }));
     const client = { pull, push, putAttachment: vi.fn(), getAttachment: vi.fn() } as unknown as PrivateSyncClient;
     await syncPrivateWorkspace(client, {
-      tasks: [], meetings: sampleMeetings, documents: [], researches: sampleResearches, seals: sampleSeals, materials: sampleMaterials,
+      tasks: [], meetings: sampleMeetings, documents: sampleDocuments, researches: sampleResearches, seals: sampleSeals, materials: sampleMaterials,
       drafts: [], weeklyReports: [], attachments: []
     }, vi.fn(async () => {}));
-    expect(push.mock.calls.map((call) => call[0])).toEqual(expect.arrayContaining(['meetings', 'researches', 'seals', 'materials']));
-    expect(push).toHaveBeenCalledTimes(4);
+    expect(push.mock.calls.map((call) => call[0])).toEqual(expect.arrayContaining(['meetings', 'documents', 'researches', 'seals', 'materials']));
+    const documentPush = push.mock.calls.find((call) => call[0] === 'documents');
+    expect(documentPush?.[1]?.[0]).toMatchObject({ newDocumentState: { id: sampleDocuments[0].id, relatedTaskIds: ['task_demo_2'] } });
+    expect(push).toHaveBeenCalledTimes(5);
   });
 
   it('pushes permanent-delete tombstones so an older remote payload cannot resurrect a record', async () => {

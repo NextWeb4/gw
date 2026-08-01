@@ -1,6 +1,6 @@
 # 开源方案审计
 
-审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3、v0.7.4、v0.7.5、v0.7.6 补充审计：2026-07-31；v0.7.7、v0.7.8、v0.7.9、v0.7.10 补充审计：2026-08-01。公开客户端为本地优先演示模式；服务端仅私有部署。
+审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3、v0.7.4、v0.7.5、v0.7.6 补充审计：2026-07-31；v0.7.7、v0.7.8、v0.7.9、v0.7.10、v0.7.11 补充审计：2026-08-01。公开客户端为本地优先演示模式；服务端仅私有部署。
 
 | 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与项目契合度 / 可能冲突 | 是否采用 / 采用方式 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,6 +24,25 @@
 | Node 24 `fetch`、`crypto`、`node:test` | [Node.js](https://nodejs.org/api/) / MIT | HTTPS 抓取、哈希和策略测试 | 标准运行时内置，不增加供应链或安装体积 | 重定向与体积限制需显式实现 | 随 Node 24 维护 | 只在内容同步脚本和 CI 中使用，不进入浏览器联网路径 | 采用，封装允许清单、逐跳重定向和 2 MB 上限 |
 | Got 15.1.0 | [官方仓库](https://github.com/sindresorhus/got) / MIT | HTTP 重试、钩子、重定向 | HTTP 能力成熟 | 当前仅抓取少量权威来源，引入运行依赖收益不足 | 活跃；npm 元数据 2026-07-02 更新 | 会扩大供应链，不能替代本项目域名策略 | 不采用 |
 | simple-git 3.36.0 | [官方仓库](https://github.com/steveukx/git-js) / MIT | Git 命令封装 | API 易用 | Actions 仅需 add/commit/push 三步 | 活跃；npm 元数据 2026-04-12 更新 | 增加无必要依赖；runner 已提供 Git | 不采用，工作流直接调用 Git |
+
+## v0.7.11 文件与任务结构化关联方案审计
+
+问题本质：文件登记和任务办理已经分别具备 active/trash/purged 生命周期、原编辑抽屉、只读详情、筛选重置与跨模块导航，但两者只能靠标题、文号和来源文字人工保持一致。若在文件和任务两侧都保存关系，会产生双写冲突、复制漂移和跨设备同步不一致；若新增 relation 集合或服务端接口，又会扩大本地数据库、同步和回滚边界。
+
+| 方案名称 | 来源 / 许可证 | 可借鉴逻辑 | 冲突与限制 | 是否采用 / 采用方式 |
+| --- | --- | --- | --- | --- |
+| OpenProject work package relations | [官方文档](https://www.openproject.org/docs/user-guide/work-packages/work-package-relations-hierarchies/)、[文档源码](https://raw.githubusercontent.com/opf/openproject/dev/docs/user-guide/work-packages/work-package-relations-hierarchies/README.md)、[许可证](https://raw.githubusercontent.com/opf/openproject/dev/LICENSE) / GPL-3.0 | 在原记录的关系区域显式选择既有记录，并从关系列表打开目标 | 通用关系类型、父子层级、阻塞语义、服务端表和 GPL 源码均超出本项目边界 | 只借鉴“原记录内选择、详情跳转”；不复制源码、文案、视觉或数据模型 |
+| Vikunja | [官方仓库](https://github.com/go-vikunja/vikunja)、[许可证](https://raw.githubusercontent.com/go-vikunja/vikunja/main/LICENSE) / AGPL-3.0 | 任务系统中的显式关系和已有记录选择心智 | 通用任务关系、服务端 API、AGPL 源码与本项目文件台账模型不兼容 | 仅作成熟行为对照；不复制任何实现或资产 |
+| Plane | [官方仓库](https://github.com/makeplane/plane)、[许可证](https://raw.githubusercontent.com/makeplane/plane/preview/LICENSE.txt) / AGPL-3.0 | 在工作项上下文展示关系并导航到原详情 | 云端工作项模型、权限、协作和关系图会突破本机单用户边界 | 仅借鉴关系应留在原记录上下文；不复制源码、组件或视觉 |
+| 文件单侧弱引用 + active 反向纯派生 | 当前项目 / UNLICENSED | 文件保存任务 ID，任务详情从已加载 active 文件数组反向解析 | 必须处理不可信快照输入、软删除隐藏、恢复重现、永久删除弱引用和复制重置 | 采用；`OfficialDocument.relatedTaskIds` 是唯一真值源，详情复用 `openBusinessRecord` |
+| 双向 payload 或独立 relation 集合 | 自研 / 不适用 | 两侧都可直接写关系或集中保存关系边 | 双向 payload 会漂移；独立集合需要数据库 schema、同步集合、冲突与迁移 | 不采用 |
+
+- 数据边界：文件只保存不透明任务 ID，不复制任务标题、正文、备注、附件或敏感字段；任务不保存 `relatedDocumentIds`。关系解析过滤非字符串、空值、重复、trash、purged 与缺失记录。
+- 生命周期：软删除目标从 active 详情隐藏，恢复后由原 ID 自动重现；不可用弱引用只在用户点击“清理不可用关联”并保存文件后移除。读取详情或永久删除动作不扇出改写其他 active/trash payload。
+- 保存与导航：关系编辑只进入原 `DocumentEditor` 未保存守卫并使用“保存文件”；双向点击调用既有 `openBusinessRecord`，不形成第二套保存、详情、数据读取或网络链路。
+- 复制、快照与同步：复制文件清空关系；快照和 documents 现有同步 payload 直接保留数组，purged 文件仍最小化为四字段墓碑。无需新依赖、服务端路由、PostgreSQL schema 或 relation 集合。
+- 报表：任务 CSV 反向输出 active 文件标题，文件 CSV 输出 active 任务名称，内部 ID 不进入报表。
+- 回滚：移除可选字段、三项领域纯函数、编辑控件、详情关系区和 CSV 两列即可恢复 v0.7.10；旧记录因字段可选无需数据迁移。
 
 ## v0.7.10 当前台账结果 CSV 导出方案审计
 

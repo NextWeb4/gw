@@ -78,4 +78,19 @@ describe('local snapshot validation', () => {
     expect(parsed.records[0].payload).toEqual(snapshotPayloadForRecord('task', unsafePurgedPayload));
     expect(attachmentIdsFromPayload(parsed.records[0].payload)).toEqual([]);
   });
+
+  it('preserves document-owned task links in snapshots without creating a second relation record', () => {
+    const documentPayload = {
+      id: 'doc-linked',
+      title: '关联测试文件',
+      relatedTaskIds: ['task-2', 'task-1'],
+      updatedAt: '2026-08-01T04:00:00.000Z'
+    };
+    expect(snapshotPayloadForRecord('document', documentPayload)).toEqual(documentPayload);
+    const parsed = parseLocalSnapshot({
+      format: 'hxhwang-gw-local-v1',
+      records: [{ id: documentPayload.id, kind: 'document', payload: documentPayload, updatedAt: documentPayload.updatedAt }]
+    });
+    expect(parsed.records).toEqual([{ id: documentPayload.id, kind: 'document', payload: documentPayload, updatedAt: documentPayload.updatedAt }]);
+  });
 });

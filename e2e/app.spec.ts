@@ -122,6 +122,7 @@ test('copies all six business kinds into guarded drafts without auto-saving or e
     const dialog = page.getByRole('dialog', { name: item.dialog });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText('这是未保存的新记录')).toBeVisible();
+    if (item.nav === '文件收发') await expect(dialog.getByText('0 个可用关联')).toBeVisible();
     await expect(dialog.getByLabel(item.field)).toHaveValue(item.value);
     page.once('dialog', (confirmation) => confirmation.accept());
     await dialog.getByRole('button', { name: '关闭' }).click();
@@ -292,7 +293,7 @@ test('exports the six current ledger views as secure local CSV without changing 
   const taskCsv = await downloadCurrentCsv('任务管理');
   expect(taskCsv.fileName).toMatch(/^hxhwang-gw-任务管理-当前结果-\d{4}-\d{2}-\d{2}\.csv$/);
   expect(taskCsv.content.startsWith('\uFEFF')).toBe(true);
-  expect(taskCsv.content.split('\r\n')[0]).toBe('\uFEFF"任务名称","工作类目","任务来源","交办人","交办日期","截止日期","状态","配合单位","任务阶段","备注","工作小结","附件数量","创建时间","更新时间"');
+  expect(taskCsv.content.split('\r\n')[0]).toBe('\uFEFF"任务名称","工作类目","任务来源","交办人","交办日期","截止日期","状态","关联文件","配合单位","任务阶段","备注","工作小结","附件数量","创建时间","更新时间"');
   expect(taskCsv.content.indexOf('整理省政府办公厅来文并建立关联')).toBeLessThan(taskCsv.content.indexOf('推进全省基层治理年度工作总结'));
   await expect(page.getByLabel('任务管理排序')).toHaveValue('deadline:asc');
   expect(await page.locator('.business-detail-panel h2').textContent()).toBe(selectedTitle);
@@ -354,6 +355,60 @@ test('exports the six current ledger views as secure local CSV without changing 
     expect(box?.height || 0).toBeGreaterThanOrEqual(44);
     expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
   }
+});
+
+test('links documents to active tasks through the existing guarded editor and reuses bidirectional detail navigation', async ({ page }, testInfo) => {
+  const unexpectedRequests: string[] = [];
+  const pageOrigin = new URL(page.url()).origin;
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (!['data:', 'blob:'].includes(url.protocol) && url.origin !== pageOrigin) unexpectedRequests.push(request.url());
+  });
+
+  await page.getByRole('button', { name: '文件收发', exact: true }).click();
+  const detail = page.locator('.business-detail-panel');
+  const linkedTask = detail.getByRole('button', { name: /打开关联任务：整理省政府办公厅来文并建立关联/ });
+  await expect(linkedTask).toBeVisible();
+  if (testInfo.project.name === 'mobile') {
+    const box = await linkedTask.boundingBox();
+    expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+  }
+  await linkedTask.click();
+  await expect(page.getByRole('heading', { level: 1, name: '任务管理' })).toBeVisible();
+  await expect(detail.getByRole('heading', { level: 2 })).toContainText('整理省政府办公厅来文并建立关联');
+  await detail.getByRole('button', { name: /打开关联文件：关于做好2026年全省重点工作的通知/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: '文件收发' })).toBeVisible();
+
+  await detail.getByRole('button', { name: '编辑此记录' }).click();
+  const editor = page.getByRole('dialog', { name: '编辑文件' });
+  await editor.getByLabel('筛选可关联任务').fill('基层治理');
+  const additionalTask = editor.getByRole('checkbox', { name: /推进全省基层治理年度工作总结/ });
+  await additionalTask.check();
+  await expect(editor.getByText('未保存修改')).toBeVisible();
+  if (testInfo.project.name === 'mobile') {
+    const optionBox = await additionalTask.locator('..').boundingBox();
+    expect(optionBox?.height || 0).toBeGreaterThanOrEqual(44);
+  }
+  await editor.getByRole('button', { name: '保存文件' }).click();
+  await expect(detail.getByRole('button', { name: /打开关联任务：推进全省基层治理年度工作总结/ })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: '文件收发', exact: true }).click();
+  const restoredDetail = page.locator('.business-detail-panel');
+  const persistedRelation = restoredDetail.getByRole('button', { name: /打开关联任务：推进全省基层治理年度工作总结/ });
+  await expect(persistedRelation).toBeVisible();
+  await persistedRelation.click();
+  const relatedTaskRow = page.locator('.selectable-row').filter({ hasText: '推进全省基层治理年度工作总结' });
+  page.once('dialog', async (dialog) => { await dialog.accept(); });
+  await relatedTaskRow.getByTitle('删除任务').click();
+  await page.getByRole('button', { name: '文件收发', exact: true }).click();
+  await expect(page.locator('.business-detail-panel').getByRole('button', { name: /打开关联任务：推进全省基层治理年度工作总结/ })).toHaveCount(0);
+  await page.getByRole('button', { name: '回收站', exact: true }).click();
+  page.once('dialog', async (dialog) => { await dialog.accept(); });
+  await page.getByRole('button', { name: '恢复任务：推进全省基层治理年度工作总结' }).click();
+  await page.getByRole('button', { name: '文件收发', exact: true }).click();
+  await expect(page.locator('.business-detail-panel').getByRole('button', { name: /打开关联任务：推进全省基层治理年度工作总结/ })).toBeVisible();
+  expect(unexpectedRequests).toEqual([]);
+  expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test('browses the unified local agenda and opens the original business detail', async ({ page }, testInfo) => {

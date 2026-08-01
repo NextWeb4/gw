@@ -75,6 +75,7 @@ export interface OfficialDocument extends BusinessRecordLifecycle {
   sendScope: string;
   receiptStatus: string;
   remark: string;
+  relatedTaskIds?: string[];
   files: string[];
   createdAt: string;
   updatedAt: string;
@@ -413,6 +414,7 @@ export function duplicateBusinessRecord(kind: BusinessRecordCopyKind, record: Ed
       sendScope: document.sendScope,
       receiptStatus: '待登记',
       remark: document.remark,
+      relatedTaskIds: [],
       files: [...document.files],
       createdAt: copiedAt,
       updatedAt: copiedAt
@@ -518,6 +520,47 @@ export function partitionBusinessRecords<T extends EditableBusinessRecord>(recor
     }
   }
   return { active, trashed, purged };
+}
+
+export function normalizeRelatedRecordIds(ids: unknown): string[] {
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  const values = Array.isArray(ids) ? ids : [];
+  for (const rawId of values) {
+    if (typeof rawId !== 'string') continue;
+    const id = rawId.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    normalized.push(id);
+  }
+  return normalized;
+}
+
+export function relatedTasksForDocument(
+  document: Pick<OfficialDocument, 'relatedTaskIds'>,
+  tasks: readonly (Task | PurgedBusinessRecord)[],
+): Task[] {
+  const activeTasks = new Map<string, Task>();
+  for (const task of tasks) {
+    if (isPurgedBusinessRecord(task) || !isActiveBusinessRecord(task)) continue;
+    activeTasks.set(task.id, task);
+  }
+  return normalizeRelatedRecordIds(document.relatedTaskIds)
+    .map((id) => activeTasks.get(id))
+    .filter((task): task is Task => Boolean(task));
+}
+
+export function relatedDocumentsForTask(
+  taskId: string,
+  documents: readonly (OfficialDocument | PurgedBusinessRecord)[],
+): OfficialDocument[] {
+  const normalizedTaskId = taskId.trim();
+  if (!normalizedTaskId) return [];
+  return documents.filter((document): document is OfficialDocument => (
+    !isPurgedBusinessRecord(document)
+    && isActiveBusinessRecord(document)
+    && normalizeRelatedRecordIds(document.relatedTaskIds).includes(normalizedTaskId)
+  ));
 }
 
 export function mergeContactDirectory(
@@ -969,7 +1012,7 @@ export const sampleDocuments: OfficialDocument[] = [
   {
     id: 'doc_demo_1', title: '关于做好2026年全省重点工作的通知', code: '闽政〔2026〕1号', docType: '收文',
     docDate: '2026-07-18', securityLevel: '公开', fromUnit: '福建省人民政府办公厅', fileCategory: '重点项目', workCategory: '重点项目',
-    handler: '陈致远', sendScope: '厅机关各处室', receiptStatus: '已登记', remark: '待关联省级重点任务。', files: [],
+    handler: '陈致远', sendScope: '厅机关各处室', receiptStatus: '已登记', remark: '已关联省级重点任务。', relatedTaskIds: ['task_demo_2'], files: [],
     createdAt: '2026-07-21T08:00:00.000Z', updatedAt: '2026-07-27T01:02:00.000Z'
   }
 ];

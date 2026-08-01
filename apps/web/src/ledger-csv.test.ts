@@ -33,12 +33,13 @@ describe('current ledger CSV projection', () => {
     const records = [second, first];
     const originalOrder = records.map((record) => record.id);
 
-    const file = buildLedgerCsv('tasks', records, { date: '2026-08-01' });
+    const file = buildLedgerCsv('tasks', records, { date: '2026-08-01', documents: [{ ...sampleDocuments[0], relatedTaskIds: ['second-id'] }] });
     const lines = bodyLines(file.content);
 
     expect(file).toMatchObject({ fileName: 'hxhwang-gw-任务管理-当前结果-2026-08-01.csv', mimeType: 'text/csv;charset=utf-8', rowCount: 2 });
-    expect(lines[0]).toBe('"任务名称","工作类目","任务来源","交办人","交办日期","截止日期","状态","配合单位","任务阶段","备注","工作小结","附件数量","创建时间","更新时间"');
+    expect(lines[0]).toBe('"任务名称","工作类目","任务来源","交办人","交办日期","截止日期","状态","关联文件","配合单位","任务阶段","备注","工作小结","附件数量","创建时间","更新时间"');
     expect(lines[1]).toContain('"第二条可见任务"');
+    expect(lines[1]).toContain('"关于做好2026年全省重点工作的通知"');
     expect(lines[2]).toContain('"\'=HYPERLINK(""https://invalid.local"")"');
     expect(lines[2]).toContain('"乙单位（进行中）；甲单位（已完成）"');
     expect(lines[2]).toContain('"1. 征求意见：丙单位（已通知）"');
@@ -50,7 +51,7 @@ describe('current ledger CSV projection', () => {
   it('defines fixed headers for meetings, documents, researches and seals', () => {
     const cases = [
       [buildLedgerCsv('meetings', sampleMeetings, { date: '2026-08-01' }), '会议主题', '全省重点工作协调推进会'],
-      [buildLedgerCsv('documents', sampleDocuments, { date: '2026-08-01' }), '文件标题', '关于做好2026年全省重点工作的通知'],
+      [buildLedgerCsv('documents', sampleDocuments, { date: '2026-08-01', tasks: sampleTasks }), '文件标题', '关于做好2026年全省重点工作的通知'],
       [buildLedgerCsv('researches', sampleResearches, { date: '2026-08-01' }), '活动日期', '基层服务阵地运行情况调研'],
       [buildLedgerCsv('seals', sampleSeals, { date: '2026-08-01' }), '用章日期', '省直单位工作联系函'],
     ] as const;
@@ -62,6 +63,9 @@ describe('current ledger CSV projection', () => {
       expect(lines[1]).toContain(`"${visibleValue}"`);
       expect(file.content).not.toMatch(/_demo_|legacyPayload|sourceVersion|deletedAt|purgedAt/);
     }
+    const documentCsv = buildLedgerCsv('documents', sampleDocuments, { date: '2026-08-01', tasks: sampleTasks });
+    expect(bodyLines(documentCsv.content)[0]).toContain('"关联任务"');
+    expect(documentCsv.content).toContain('"整理省政府办公厅来文并建立关联"');
   });
 
   it('calculates every exported material balance from the complete active ledger, not the filtered rows', () => {

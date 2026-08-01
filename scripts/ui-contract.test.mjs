@@ -130,6 +130,32 @@ test('six ledgers export only their current visible order through one secure loc
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.ledger-export[^}]*min-height:\s*44px/, 'narrow export actions must retain a 44px touch target');
 });
 
+test('document-task links keep one payload owner and reuse existing save and detail paths', async () => {
+  const [app, domain, ledgerCsv, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('packages/domain/src/index.ts'),
+    read('apps/web/src/ledger-csv.ts'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(domain, /relatedTaskIds\?: string\[]/, 'only official documents may persist related task ids');
+  assert.doesNotMatch(domain, /relatedDocumentIds/, 'tasks must not store a second reverse relation field');
+  assert.match(domain, /export function normalizeRelatedRecordIds/, 'relation normalization must live in one domain pure function');
+  assert.match(domain, /export function relatedTasksForDocument/, 'document detail must resolve active task records through a domain helper');
+  assert.match(domain, /export function relatedDocumentsForTask/, 'task detail must reverse-derive active documents through a domain helper');
+  assert.doesNotMatch(domain, /\bfetch\b|IndexedDB|localStorage|Electron|putRecord|removeRecord|ipc/i, 'relation helpers must remain pure and local');
+  assert.match(app, /<RelatedTaskField/, 'the existing document editor must own the relation control');
+  assert.match(app, /保存文件/, 'relations must persist only through the existing file save action');
+  assert.doesNotMatch(app, /保存关联/, 'the interface must not create a second relation save path');
+  assert.match(app, /清理不可用关联/, 'stale weak references must only be removed through an explicit user action');
+  assert.match(app, /onOpenRelatedRecord=\{openBusinessRecord\}/, 'bidirectional relation links must reuse the existing ledger reset, navigation and detail path');
+  assert.match(ledgerCsv, /关联任务/, 'document CSV must export active task names');
+  assert.match(ledgerCsv, /关联文件/, 'task CSV must export reverse-derived active document titles');
+  assert.doesNotMatch(ledgerCsv, /relatedTaskIds[^\n]*rows|JSON\.stringify/, 'CSV must never expose raw relation ids');
+  assert.match(css, /\.related-record-option/, 'relation choices must have a dedicated compact control style');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.related-record-option[^}]*min-height:\s*44px/, 'narrow relation choices must keep a 44px touch target');
+});
+
 test('unified agenda stays local-only and reuses the existing record detail path', async () => {
   const [app, agenda, agendaView, css] = await Promise.all([
     read('apps/web/src/App.tsx'),

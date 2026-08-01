@@ -3,7 +3,7 @@ import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, defaultCategoryTint, extractTaskFromText,
   duplicateBusinessRecord, extractWeeklyTemplateFromSample, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, listStatisticsMonths, materialStockKey,
   mergeContactDirectory, mergePartnerGroupMembers, moveBusinessRecordToTrash, parseWeeklyTemplate, partitionBusinessRecords, purgeBusinessRecord,
-  resolveCategoryTint, restoreBusinessRecord, sampleDocuments, sampleMaterials, sampleContactDirectory, sampleMeetings, sampleResearches,
+  relatedDocumentsForTask, relatedTasksForDocument, normalizeRelatedRecordIds, resolveCategoryTint, restoreBusinessRecord, sampleDocuments, sampleMaterials, sampleContactDirectory, sampleMeetings, sampleResearches,
   sampleSeals, sampleTasks
 } from './index.js';
 
@@ -119,13 +119,13 @@ describe('business record duplication', () => {
 
   it('preserves reusable business fields for all other ledgers while resetting outcome state', () => {
     const meeting = duplicateBusinessRecord('meeting', { ...sampleMeetings[0], files: ['attachment-meeting'] }, copiedAt);
-    const document = duplicateBusinessRecord('document', { ...sampleDocuments[0], receiptStatus: '已办结', files: ['attachment-document'] }, copiedAt);
+    const document = duplicateBusinessRecord('document', { ...sampleDocuments[0], receiptStatus: '已办结', relatedTaskIds: ['task_demo_1'], files: ['attachment-document'] }, copiedAt);
     const research = duplicateBusinessRecord('research', { ...sampleResearches[0], achievements: '旧活动成果', files: ['attachment-research'] }, copiedAt);
     const seal = duplicateBusinessRecord('seal', { ...sampleSeals[0], files: ['attachment-seal'] }, copiedAt);
     const material = duplicateBusinessRecord('material', { ...sampleMaterials[0], files: ['attachment-material'] }, copiedAt);
 
     expect(meeting).toMatchObject({ subject: sampleMeetings[0].subject, meetingTime: sampleMeetings[0].meetingTime, files: ['attachment-meeting'] });
-    expect(document).toMatchObject({ title: sampleDocuments[0].title, code: sampleDocuments[0].code, receiptStatus: '待登记', files: ['attachment-document'] });
+    expect(document).toMatchObject({ title: sampleDocuments[0].title, code: sampleDocuments[0].code, receiptStatus: '待登记', relatedTaskIds: [], files: ['attachment-document'] });
     expect(research).toMatchObject({ subject: sampleResearches[0].subject, researchTime: sampleResearches[0].researchTime, achievements: '', files: ['attachment-research'] });
     expect(seal).toMatchObject({ docName: sampleSeals[0].docName, sealTime: sampleSeals[0].sealTime, files: ['attachment-seal'] });
     expect(material).toMatchObject({ materialName: sampleMaterials[0].materialName, quantity: sampleMaterials[0].quantity, files: ['attachment-material'] });
@@ -141,6 +141,38 @@ describe('business record duplication', () => {
       expect(copied).not.toHaveProperty('deletedAt');
       expect(copied).not.toHaveProperty('purgedAt');
     }
+  });
+});
+
+describe('document and task relations', () => {
+  const deletedAt = '2026-08-01T02:00:00.000Z';
+
+  it('normalizes relation ids without mutating input or changing the selected order', () => {
+    const source: unknown[] = [' task_demo_2 ', '', 'task_demo_1', 'task_demo_2', '  ', 42, null, 'missing-task'];
+    expect(normalizeRelatedRecordIds(source)).toEqual(['task_demo_2', 'task_demo_1', 'missing-task']);
+    expect(source).toEqual([' task_demo_2 ', '', 'task_demo_1', 'task_demo_2', '  ', 42, null, 'missing-task']);
+  });
+
+  it('rejects non-array relation fields from untrusted snapshots without throwing', () => {
+    expect(normalizeRelatedRecordIds(42)).toEqual([]);
+    expect(normalizeRelatedRecordIds({ taskId: 'task_demo_1' })).toEqual([]);
+    expect(normalizeRelatedRecordIds('task_demo_1')).toEqual([]);
+    expect(normalizeRelatedRecordIds(null)).toEqual([]);
+  });
+
+  it('resolves only active tasks in the document selection order and active documents in ledger order', () => {
+    const trashedTask = moveBusinessRecordToTrash({ ...sampleTasks[0], id: 'task-trash' }, deletedAt);
+    const purgedTask = purgeBusinessRecord(moveBusinessRecordToTrash({ ...sampleTasks[0], id: 'task-purged' }, deletedAt), '2026-08-01T03:00:00.000Z');
+    const document = {
+      ...sampleDocuments[0],
+      relatedTaskIds: ['task_demo_2', 'task-trash', 'task_demo_1', 'task-purged', 'missing-task'],
+    };
+    expect(relatedTasksForDocument(document, [sampleTasks[0], trashedTask, sampleTasks[1], purgedTask]).map((task) => task.id)).toEqual(['task_demo_2', 'task_demo_1']);
+
+    const firstDocument = { ...sampleDocuments[0], id: 'doc-first', relatedTaskIds: ['task_demo_1'] };
+    const trashedDocument = moveBusinessRecordToTrash({ ...sampleDocuments[0], id: 'doc-trash', relatedTaskIds: ['task_demo_1'] }, deletedAt);
+    const secondDocument = { ...sampleDocuments[0], id: 'doc-second', relatedTaskIds: ['task_demo_2', 'task_demo_1'] };
+    expect(relatedDocumentsForTask('task_demo_1', [firstDocument, trashedDocument, secondDocument]).map((item) => item.id)).toEqual(['doc-first', 'doc-second']);
   });
 });
 

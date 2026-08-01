@@ -420,6 +420,15 @@ h1, h2, p { margin-top: 0; }
 .detail-attachments button:disabled { opacity: .48; cursor: not-allowed; }
 .detail-attachments button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
 .detail-attachments button small { color: var(--muted); font-size: 8px; }
+.detail-related-list { display: grid; gap: 7px; white-space: normal; }
+.detail-related-list button { width: 100%; min-width: 0; min-height: 42px; padding: 9px 10px; display: grid; grid-template-columns: 16px minmax(0,1fr) 14px; align-items: center; gap: 8px; color: var(--paper); background: rgba(255,255,255,.025); border: 1px solid var(--line); border-radius: 10px; text-align: left; }
+.detail-related-list button:hover { color: var(--acid); background: var(--acid-soft); border-color: rgba(216,255,63,.3); }
+.detail-related-list button > span { min-width: 0; }
+.detail-related-list button strong, .detail-related-list button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detail-related-list button strong { color: inherit; font-size: 9px; font-weight: 650; }
+.detail-related-list button small { margin-top: 4px; color: var(--muted); font-size: 8px; }
+.detail-related-list > p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.65; }
+.detail-related-list .detail-related-unavailable { padding: 8px 9px; color: #a9ad9f; background: rgba(255,255,255,.025); border-left: 2px solid #72786b; border-radius: 0 8px 8px 0; }
 
 .drawer-backdrop { position: fixed; z-index: 90; inset: 0; display: flex; justify-content: flex-end; background: rgba(3,4,3,.68); backdrop-filter: blur(8px); }
 .drawer { width: min(520px, 100%); height: 100%; color: #1b1d18; background: var(--paper); box-shadow: -30px 0 90px rgba(0,0,0,.5); display: flex; flex-direction: column; animation: slide-in .45s cubic-bezier(.16,1,.3,1); }
@@ -757,6 +766,31 @@ h1, h2, p { margin-top: 0; }
 .smart-import-actions { margin-top: 9px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .smart-import-actions small { color: #6f7860; font-size: 9px; line-height: 1.6; }
 .smart-import-actions .secondary-button { flex: 0 0 auto; min-height: 34px; padding: 0 12px; font-size: 10px; }
+.related-record-field { margin-bottom: 16px; color: #30351f; background: linear-gradient(145deg, rgba(104,125,24,.08), rgba(255,255,255,.42)); border: 1px solid rgba(104,125,24,.2); border-radius: 12px; overflow: hidden; }
+.related-record-field > summary { min-height: 44px; padding: 0 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; }
+.related-record-field > summary::-webkit-details-marker { display: none; }
+.related-record-field > summary > span { display: inline-flex; align-items: center; gap: 7px; color: #46520d; font-size: 10px; font-weight: 700; }
+.related-record-field > summary > small { color: #70765f; font-size: 9px; }
+.related-record-body { padding: 13px; border-top: 1px solid rgba(104,125,24,.16); }
+.related-record-body > p { margin: 0 0 10px; color: #69705c; font-size: 9px; line-height: 1.65; }
+.related-record-selected { margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.related-record-selected button { max-width: 100%; min-height: 32px; padding: 0 8px 0 10px; display: inline-flex; align-items: center; gap: 6px; color: #35410b; background: rgba(216,255,63,.23); border: 1px solid rgba(104,125,24,.2); border-radius: 999px; font-size: 9px; }
+.related-record-selected button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.related-record-unavailable { margin-bottom: 10px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #756c45 !important; background: rgba(182,149,49,.08); border-left: 2px solid #a88b31; border-radius: 0 8px 8px 0; }
+.related-record-unavailable p { margin: 0; font-size: 9px; line-height: 1.55; }
+.related-record-unavailable button { flex: 0 0 auto; min-height: 32px; padding: 0 9px; color: #6d5c23; background: rgba(255,255,255,.62); border: 1px solid rgba(151,123,38,.25); border-radius: 8px; font-size: 9px; }
+.related-record-filter { min-height: 42px; padding: 0 8px 0 11px; display: grid; grid-template-columns: 16px minmax(0,1fr) auto; align-items: center; gap: 7px; color: #68724f; background: #fff; border: 1px solid rgba(20,22,17,.17); border-radius: 10px; }
+.related-record-filter:focus-within { color: #4d5b13; border-color: #687d18; box-shadow: 0 0 0 4px rgba(104,125,24,.09); }
+.related-record-filter input { min-width: 0; padding: 10px 0; color: #191b16; background: transparent; border: 0; outline: 0; font-size: 10px; }
+.related-record-filter .icon-button { width: 30px; min-width: 30px; height: 30px; }
+.related-record-options { max-height: 230px; margin-top: 9px; display: grid; gap: 6px; overflow-y: auto; }
+.related-record-option { min-height: 42px; padding: 8px 10px; display: grid; grid-template-columns: 18px minmax(0,1fr); align-items: center; gap: 9px; color: #23261e; background: rgba(255,255,255,.67); border: 1px solid rgba(20,22,17,.12); border-radius: 9px; cursor: pointer; }
+.related-record-option:hover { background: #fff; border-color: rgba(104,125,24,.34); }
+.related-record-option input { width: 17px; height: 17px; margin: 0; accent-color: #687d18; }
+.related-record-option strong, .related-record-option small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.related-record-option strong { font-size: 10px; }
+.related-record-option small { margin-top: 3px; color: #767b6d; font-size: 8px; }
+.related-record-empty { padding: 20px 10px; color: #7d8177; text-align: center; font-size: 9px; }
 
 /* ---- 通用微交互与可读性打磨（v0.4.0） ---- */
 .primary-button:active, .secondary-button:active { transform: translateY(0) scale(.985); }
@@ -876,6 +910,13 @@ h1, h2, p { margin-top: 0; }
   .quick-capture-action { min-height: 46px; }
   .detail-panel-actions .secondary-button { min-height: 44px; }
   .detail-record-step { width: 44px; min-width: 44px; height: 44px; }
+  .detail-related-list button, .related-record-option { min-height: 44px; }
+  .related-record-filter { min-height: 44px; }
+  .related-record-filter input { font-size: 16px; }
+  .related-record-filter .icon-button { width: 44px; min-width: 44px; height: 44px; }
+  .related-record-selected button { min-height: 44px; }
+  .related-record-unavailable { align-items: stretch; flex-direction: column; }
+  .related-record-unavailable button { min-height: 44px; }
   .ledger-view-controls { align-items: stretch; gap: 8px; }
   .ledger-search { flex-basis: 100%; min-width: 100%; }
   .ledger-search input { font-size: 16px; }
