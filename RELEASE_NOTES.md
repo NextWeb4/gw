@@ -13,6 +13,7 @@
 - 八份客户端发布清单已更新为 `0.7.10`。本版不新增依赖、数据库 schema、私有服务端路由、同步协议、附件格式、AI 边界、API Key 行为或自动联网。
 - 本机完整验证已通过：`pnpm lint`、`pnpm format:check`、`pnpm test`（138 项）、主 E2E（81 通过、7 条件跳过）、互联网 E2E（7/7）、内网 E2E（3/3）、`pnpm build`、`pnpm build:web:internet` 与 `pnpm build:web:intranet`。主 E2E 首轮发现导出按钮的无障碍名称包含“任务管理”，使旧导航定位产生严格模式歧义；改为不含模块名称的“导出当前台账结果”后，相关桌面/移动用例恢复唯一定位。同轮一条既有外出编辑断言在并行资源压力下未观察到更新，聚焦桌面/移动 4/4 通过后，完整主套件 81/81 有效用例重跑通过。
 - 公开构建 25 个文件、10 个 source map；互联网和内网构建各 15 个文件、0 个 source map。三类运行时代码均命中 `0.7.10` 10 次，且不含 `0.7.9` 或 `0.3.1`；私钥、常见长格式模型 Key 与 GitHub PAT 模式均为 0，Git 未跟踪 `.env`。`git diff --check` 通过。
+- [Pages run 30693001522](https://github.com/NextWeb4/gw/actions/runs/30693001522) 与 [Desktop run 30693011820](https://github.com/NextWeb4/gw/actions/runs/30693011820) 均成功，对应功能提交 `9647ee5` 和指向该提交的 annotated tag `v0.7.10`。[线上站点](https://nextweb4.github.io/gw/) 返回 HTTP 200，`Last-Modified` 为 2026-08-01 09:09:31Z，并加载入口 `index-BmkOyhDd.js`；真实 Chromium 桌面/移动均显示 0.7.10，按截止日期升序导出 2 条当前任务结果，下载文件名和屏幕顺序正确，移动按钮为 63×44px，两端零动作请求、外部请求、控制台错误、页面错误或横向溢出。线上截图和指标位于 `cases/gw-visible-ledger-csv/evidence/ledger-csv-live-*` 与 `live-metrics.json`。[Release v0.7.10](https://github.com/NextWeb4/gw/releases/tag/v0.7.10) 的 12 个安装包和 `SHA256SUMS.txt` 共 13 个地址均为 HTTP 200 且非空；1278 字节校验文件包含 12 条格式有效记录，SHA-256 与文件名分别唯一，并精确覆盖 12 个安装资产。
 
 ## v0.7.9
 
