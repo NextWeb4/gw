@@ -38,6 +38,7 @@ import type { AgendaKind } from './agenda';
 import { WorkOverview } from './WorkOverview';
 import { QuickTaskCapture } from './QuickTaskCapture';
 import { RecycleBinView, type RecycleBinEntry, type RecycleRecordKind } from './RecycleBinView';
+import { pruneRecentRecords, rememberRecentRecord, type RecentRecordRef } from './recent-records';
 
 type Tab = 'dashboard' | 'agenda' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'recycle' | 'archive' | 'migration' | 'about';
 type BusinessTab = Extract<Tab, 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials'>;
@@ -151,6 +152,7 @@ function App() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedBusinessRecord, setSelectedBusinessRecord] = useState<{ tab: BusinessTab; id: string } | null>(null);
+  const [recentBusinessRecords, setRecentBusinessRecords] = useState<RecentRecordRef<BusinessTab>[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [meetings, setMeetings] = useState<MeetingRecord[]>([]);
   const [documents, setDocuments] = useState<OfficialDocument[]>([]);
@@ -306,7 +308,22 @@ function App() {
   const sealFilterOptions = useMemo(() => getLedgerFilterOptions('seals', seals), [seals]);
   const materialFilterOptions = useMemo(() => getLedgerFilterOptions('materials', materials), [materials]);
   const recycleEntries = useMemo(() => trashedBusinessRecords.map(recycleEntryFor).sort((left, right) => right.deletedAt.localeCompare(left.deletedAt) || left.title.localeCompare(right.title, 'zh-CN')), [trashedBusinessRecords]);
-  const globalSearchGroups = useMemo<Array<GlobalSearchGroup<Tab>>>(() => [
+  const activeBusinessRecordKeys = useMemo(() => new Set([
+    ...tasks.map((record) => `tasks:${record.id}`),
+    ...meetings.map((record) => `meetings:${record.id}`),
+    ...documents.map((record) => `documents:${record.id}`),
+    ...researches.map((record) => `researches:${record.id}`),
+    ...seals.map((record) => `seals:${record.id}`),
+    ...materials.map((record) => `materials:${record.id}`),
+  ]), [tasks, meetings, documents, researches, seals, materials]);
+  useEffect(() => {
+    setRecentBusinessRecords((current) => {
+      const next = pruneRecentRecords(current, activeBusinessRecordKeys);
+      return next.length === current.length ? current : next;
+    });
+  }, [activeBusinessRecordKeys]);
+  const globalSearchGroups = useMemo<Array<GlobalSearchGroup<Tab>>>(() => {
+    const groups: Array<GlobalSearchGroup<Tab>> = [
     {
       id: 'create', label: '快速新建', items: [
         { id: 'create:task', kind: 'create', tab: 'tasks', title: '新建任务', description: '打开原任务编辑抽屉，核对后显式保存', searchValue: '快速新建 新建任务 创建任务 添加任务', keywords: ['任务', '创建', '添加'], icon: ClipboardList },
@@ -370,8 +387,27 @@ function App() {
         searchValue: `物资 ${material.materialName} ${material.spec} ${material.handler} ${material.fromUnit} ${material.id}`,
         keywords: [material.spec, material.handler, material.fromUnit], icon: Package
       }))
+    }];
+    const activeRecordItems = new Map<string, GlobalSearchItem<Tab>>();
+    for (const group of groups) {
+      for (const item of group.items) {
+        if (item.kind === 'record' && item.recordId) activeRecordItems.set(`${item.tab}:${item.recordId}`, item);
+      }
     }
-  ], [tasks, meetings, documents, researches, seals, materials]);
+    const recentItems = recentBusinessRecords.flatMap((recent) => {
+      const item = activeRecordItems.get(`${recent.tab}:${recent.id}`);
+      if (!item) return [];
+      return [{
+        ...item,
+        id: `recent:${item.id}`,
+        kind: 'recent' as const,
+        description: `最近访问 · ${item.description}`,
+        searchValue: `最近访问 ${recent.tab} ${recent.id}`,
+        keywords: [],
+      }];
+    });
+    return [{ id: 'recent', label: '最近访问', emptyQueryOnly: true, items: recentItems }, ...groups];
+  }, [tasks, meetings, documents, researches, seals, materials, recentBusinessRecords]);
 
   useEffect(() => {
     const toggleGlobalSearch = (event: KeyboardEvent) => {
@@ -964,6 +1000,7 @@ function App() {
   };
   const selectBusinessRecord = (businessTab: BusinessTab, id: string) => {
     setSelectedBusinessRecord({ tab: businessTab, id });
+    setRecentBusinessRecords((current) => rememberRecentRecord(current, { tab: businessTab, id }));
     if (!window.matchMedia('(max-width: 1279px)').matches) return;
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => scrollToBusinessRegion(businessDetailRef.current)));
   };
@@ -982,7 +1019,7 @@ function App() {
         if (item.tab === 'materials') openMaterialEditor(emptyMaterial());
         return;
       }
-      if (item.kind === 'record' && item.recordId) {
+      if ((item.kind === 'record' || item.kind === 'recent') && item.recordId) {
         const businessTab = item.tab as BusinessTab;
         openBusinessRecord(businessTab, item.recordId);
         return;

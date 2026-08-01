@@ -276,6 +276,14 @@ test('global search stays local-only and reuses accessible navigation paths', as
   assert.match(app, /openMaterialEditor\(emptyMaterial\(\)\)/, 'material commands must reuse the original material editor and empty draft factory');
   assert.match(app, /setGlobalSearchOpen\(false\);\s*globalSearchReturnFocusRef\.current = null;\s*window\.requestAnimationFrame/, 'command activation must close the palette before opening an editor without restoring focus to the background trigger');
   assert.match(app, /navigate\(businessTab\);\s*selectBusinessRecord\(businessTab, id\)/, 'record results must reuse the existing navigation and record-selection paths');
+  assert.match(globalSearch, /emptyQueryOnly/, 'session recents must disappear as soon as a real search query is entered');
+  assert.match(globalSearch, /item\.kind === 'recent'[^\n]*'最近'/, 'recent records must have a visible kind label');
+  assert.match(app, /useState<RecentRecordRef<BusinessTab>\[]>\(\[]\)/, 'recent record history must start as React session state');
+  assert.match(app, /rememberRecentRecord\(current, \{ tab: businessTab, id \}\)/, 'every existing business selection path must update one bounded deduplicated recent list');
+  assert.match(app, /pruneRecentRecords\(current, activeBusinessRecordKeys\)/, 'deleted or purged records must be removed from recents rather than reappearing after restore');
+  assert.match(app, /id: 'recent', label: '最近访问', emptyQueryOnly: true/, 'the palette must expose an empty-query-only recent group');
+  assert.match(app, /kind: 'recent'/, 'recent search items must use distinct cmdk values instead of duplicating normal record items');
+  assert.doesNotMatch(app, /putRecord\([^\n]*recent|localStorage[^\n]*recent|sessionStorage[^\n]*recent/i, 'recent record history must never be persisted');
   assert.match(css, /\.global-search-trigger/, 'the topbar must provide a styled visible global-search trigger');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.global-search-trigger[^}]*44px/, 'the narrow global-search trigger must retain a 44px touch target');
 });

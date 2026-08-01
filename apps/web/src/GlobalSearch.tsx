@@ -4,7 +4,7 @@ import { ArrowUpRight, Search, X, type LucideIcon } from 'lucide-react';
 
 export interface GlobalSearchItem<TTab extends string> {
   id: string;
-  kind: 'navigation' | 'record' | 'create';
+  kind: 'navigation' | 'record' | 'create' | 'recent';
   tab: TTab;
   recordId?: string;
   title: string;
@@ -17,6 +17,7 @@ export interface GlobalSearchItem<TTab extends string> {
 export interface GlobalSearchGroup<TTab extends string> {
   id: string;
   label: string;
+  emptyQueryOnly?: boolean;
   items: Array<GlobalSearchItem<TTab>>;
 }
 
@@ -29,6 +30,7 @@ interface GlobalSearchProps<TTab extends string> {
 
 export function GlobalSearch<TTab extends string>({ open, groups, onOpenChange, onSelectItem }: GlobalSearchProps<TTab>) {
   const [query, setQuery] = useState('');
+  const visibleGroups = query.trim() ? groups.filter((group) => !group.emptyQueryOnly) : groups;
 
   useEffect(() => {
     if (!open) setQuery('');
@@ -47,7 +49,7 @@ export function GlobalSearch<TTab extends string>({ open, groups, onOpenChange, 
     </div>
     <Command.List className="global-search-list">
       <Command.Empty className="global-search-empty"><Search size={24} aria-hidden="true" /><strong>没有找到匹配项</strong><span>换一个模块名称、记录标题或当前台账支持的关键词。</span></Command.Empty>
-      {groups.map((group) => group.items.length > 0 && <Command.Group heading={group.label} key={group.id} className="global-search-group">
+      {visibleGroups.map((group) => group.items.length > 0 && <Command.Group heading={group.label} key={group.id} className="global-search-group">
         {group.items.map((item) => {
           const Icon = item.icon;
           return <Command.Item
@@ -59,12 +61,12 @@ export function GlobalSearch<TTab extends string>({ open, groups, onOpenChange, 
           >
             <span className="global-search-item-icon" aria-hidden="true"><Icon size={18} strokeWidth={1.6} /></span>
             <span className="global-search-item-copy"><strong>{item.title}</strong><small>{item.description}</small></span>
-            <span className="global-search-item-kind">{item.kind === 'navigation' ? '导航' : item.kind === 'create' ? '新建' : '记录'}</span>
+            <span className="global-search-item-kind">{item.kind === 'navigation' ? '导航' : item.kind === 'create' ? '新建' : item.kind === 'recent' ? '最近' : '记录'}</span>
             <ArrowUpRight size={15} aria-hidden="true" />
           </Command.Item>;
         })}
       </Command.Group>)}
     </Command.List>
-    <div className="global-search-footer"><span>命令只打开原编辑器，不联网、不自动保存</span><span><kbd>上下键</kbd> 选择 <kbd>Enter</kbd> 打开</span></div>
+    <div className="global-search-footer"><span>最近访问仅保留在当前会话；新建仍需显式保存</span><span><kbd>上下键</kbd> 选择 <kbd>Enter</kbd> 打开</span></div>
   </Command.Dialog>;
 }

@@ -500,6 +500,88 @@ test('opens all six original guarded editors from quick-create commands without 
   if (testInfo.project.name === 'mobile') expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
+test('keeps recent business records ordered, active-only and session-local in the command palette', async ({ page }, testInfo) => {
+  const actionRequests: string[] = [];
+  const recordActionRequest = (request: { url: () => string }) => actionRequests.push(request.url());
+  page.on('request', recordActionRequest);
+
+  const trigger = page.getByRole('button', { name: '打开全局查找' });
+  const recentGroupFor = (dialog: Locator) => dialog.locator('.global-search-group').filter({ hasText: '最近访问' });
+  const taskTitle = '整理省政府办公厅来文并建立关联';
+  const meetingTitle = '全省重点工作协调推进会';
+
+  await trigger.click();
+  let dialog = page.getByRole('dialog', { name: '全局查找' });
+  await expect(recentGroupFor(dialog)).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: '会议管理', exact: true }).click();
+  await page.locator('.selectable-row').filter({ hasText: meetingTitle }).click();
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await page.locator('.selectable-row').filter({ hasText: taskTitle }).click();
+  await page.getByRole('button', { name: '会议管理', exact: true }).click();
+  await page.locator('.selectable-row').filter({ hasText: meetingTitle }).click();
+
+  await trigger.click();
+  dialog = page.getByRole('dialog', { name: '全局查找' });
+  let recentGroup = recentGroupFor(dialog);
+  await expect(recentGroup.locator('.global-search-item')).toHaveCount(2);
+  await expect(recentGroup.locator('.global-search-item').nth(0)).toContainText(meetingTitle);
+  await expect(recentGroup.locator('.global-search-item').nth(1)).toContainText(taskTitle);
+  if (testInfo.project.name === 'mobile') {
+    for (const item of await recentGroup.locator('.global-search-item').all()) {
+      const box = await item.boundingBox();
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+    const dialogBox = await dialog.boundingBox();
+    const navigationBox = await page.locator('.sidebar').boundingBox();
+    expect((dialogBox?.y || 0) + (dialogBox?.height || 0)).toBeLessThanOrEqual(navigationBox?.y || 0);
+  }
+
+  const input = dialog.getByRole('combobox', { name: '全局查找' });
+  await input.fill(taskTitle);
+  await expect(recentGroupFor(dialog)).toHaveCount(0);
+  await expect(dialog.locator('.global-search-group').filter({ hasText: '任务记录' }).locator('.global-search-item').filter({ hasText: taskTitle })).toHaveCount(1);
+  await input.fill('');
+  recentGroup = recentGroupFor(dialog);
+  await recentGroup.locator('.global-search-item').filter({ hasText: taskTitle }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('.business-detail-panel').getByRole('heading', { level: 2 })).toContainText(taskTitle);
+
+  const taskRow = page.locator('.selectable-row').filter({ hasText: taskTitle });
+  page.once('dialog', (confirmation) => confirmation.accept());
+  await taskRow.getByTitle('删除任务').click();
+  await expect(taskRow).toHaveCount(0);
+  await trigger.click();
+  dialog = page.getByRole('dialog', { name: '全局查找' });
+  await expect(recentGroupFor(dialog).getByText(taskTitle, { exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: '回收站', exact: true }).click();
+  page.once('dialog', (confirmation) => confirmation.accept());
+  await page.getByRole('button', { name: `恢复任务：${taskTitle}` }).click();
+  await trigger.click();
+  dialog = page.getByRole('dialog', { name: '全局查找' });
+  await expect(recentGroupFor(dialog).getByText(taskTitle, { exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await page.locator('.selectable-row').filter({ hasText: taskTitle }).click();
+  await trigger.click();
+  dialog = page.getByRole('dialog', { name: '全局查找' });
+  await expect(recentGroupFor(dialog).locator('.global-search-item').nth(0)).toContainText(taskTitle);
+  await page.keyboard.press('Escape');
+
+  expect(actionRequests).toEqual([]);
+  page.off('request', recordActionRequest);
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  await trigger.click();
+  dialog = page.getByRole('dialog', { name: '全局查找' });
+  await expect(recentGroupFor(dialog)).toHaveCount(0);
+  if (testInfo.project.name === 'mobile') expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test('captures a task globally with deterministic preview and the original guarded editor', async ({ page }, testInfo) => {
   const actionRequests: string[] = [];
   page.on('request', (request) => actionRequests.push(request.url()));

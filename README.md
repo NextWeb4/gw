@@ -15,7 +15,7 @@ A local-first system for official-document work, task and file tracking, draftin
 ![Pages](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![Last commit](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![Repository size](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![Version](https://img.shields.io/badge/version-0.7.7-0969da?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.7.8-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@ A local-first system for official-document work, task and file tracking, draftin
 
 HxHwang Gw is a pnpm monorepo that shares one domain model across a public GitHub Pages demonstration, separate Internet and intranet Web builds, and separate Internet and intranet Electron clients. It stores operational data locally first, separates network capabilities at build time, and provides explicit adapters for synchronization and AI requests.
 
-The current release is `0.7.7`. `Ctrl/Cmd+K` now combines local navigation and active-record search with six quick-create commands for tasks, meetings, documents, field activities, seal records, and material records. Each command closes the palette, focuses the first field in the original guarded editor, and still requires the existing validation and explicit Save action; cancellation writes no record. See [`RELEASE_NOTES.md`](RELEASE_NOTES.md) for details.
+The current release is `0.7.8`. An empty `Ctrl/Cmd+K` command palette now starts with up to six recently opened active business records in most-recent-first order. The list stores only ledger and record IDs in React session state, deduplicates repeated visits, disappears while typing a normal search, removes deleted records, and clears on reload. Opening a recent item still uses the existing ledger, selection, and read-only detail path. See [`RELEASE_NOTES.md`](RELEASE_NOTES.md) for details.
 
 Public Pages does not expose private synchronization, but it supports local ledgers, attachments, legacy JSON/snapshots, bring-your-own-key AI, and an explicitly unlocked `127.0.0.1` relay. Page load and password entry do not contact the relay automatically. Business data stays in the current browser's IndexedDB. Use [GitHub Pages](https://nextweb4.github.io/gw/) only with public, fictional, or approved non-sensitive material.
 
@@ -33,7 +33,7 @@ Public Pages does not expose private synchronization, but it supports local ledg
 
 | Area | What is implemented |
 | --- | --- |
-| Work management | Editable task, meeting, document, field-activity, seal, and material ledgers with global quick-task capture, a reusable people/organization directory, stages, summaries, attachments, per-ledger keyword/field filters and sorting, local global search, a unified agenda, and a recoverable recycle bin |
+| Work management | Editable task, meeting, document, field-activity, seal, and material ledgers with global quick-task capture, session-only recent-record navigation, a reusable people/organization directory, stages, summaries, attachments, per-ledger keyword/field filters and sorting, local global search, a unified agenda, and a recoverable recycle bin |
 | Writing | Rich-text drafting, DOCX/HTML/TXT import with sanitization, reusable custom formats, deterministic weekly reports, editable versions, and historical archives |
 | Documents | A shared A4-oriented engine for DOCX and PDF export; browser print is used on the Web and Electron printing on desktop |
 | Migration | Importers for two legacy prototype export shapes plus drag-and-drop JSON/snapshots, with warnings when their shared version marker cannot identify the source reliably |
@@ -60,7 +60,7 @@ All variants remain local-first. Private synchronization begins only after a use
 - Windows for NSIS installers; Linux for AppImage/DEB packaging and final Linux compatibility checks.
 - A Chromium-class browser for the Web builds.
 
-The repository version is `0.7.7`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
+The repository version is `0.7.8`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
 
 ## Install and Run
 

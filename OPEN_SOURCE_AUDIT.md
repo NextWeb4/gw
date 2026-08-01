@@ -1,6 +1,6 @@
 # 开源方案审计
 
-审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3、v0.7.4、v0.7.5、v0.7.6 补充审计：2026-07-31；v0.7.7 补充审计：2026-08-01。公开客户端为本地优先演示模式；服务端仅私有部署。
+审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3、v0.7.4、v0.7.5、v0.7.6 补充审计：2026-07-31；v0.7.7、v0.7.8 补充审计：2026-08-01。公开客户端为本地优先演示模式；服务端仅私有部署。
 
 | 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与项目契合度 / 可能冲突 | 是否采用 / 采用方式 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,6 +24,24 @@
 | Node 24 `fetch`、`crypto`、`node:test` | [Node.js](https://nodejs.org/api/) / MIT | HTTPS 抓取、哈希和策略测试 | 标准运行时内置，不增加供应链或安装体积 | 重定向与体积限制需显式实现 | 随 Node 24 维护 | 只在内容同步脚本和 CI 中使用，不进入浏览器联网路径 | 采用，封装允许清单、逐跳重定向和 2 MB 上限 |
 | Got 15.1.0 | [官方仓库](https://github.com/sindresorhus/got) / MIT | HTTP 重试、钩子、重定向 | HTTP 能力成熟 | 当前仅抓取少量权威来源，引入运行依赖收益不足 | 活跃；npm 元数据 2026-07-02 更新 | 会扩大供应链，不能替代本项目域名策略 | 不采用 |
 | simple-git 3.36.0 | [官方仓库](https://github.com/steveukx/git-js) / MIT | Git 命令封装 | API 易用 | Actions 仅需 add/commit/push 三步 | 活跃；npm 元数据 2026-04-12 更新 | 增加无必要依赖；runner 已提供 Git | 不采用，工作流直接调用 Git |
+
+## v0.7.8 会话级最近访问记录方案审计
+
+问题本质：v0.7.7 已能从 `Ctrl/Cmd+K` 查找十七个模块、六类 active 记录并执行六类快速新建，但重复处理刚刚查看过的记录仍需重新输入标题。缺口不是收藏夹、跨设备历史、最近修改排序、审计日志或新的搜索数据库，而是一个只服务当前工作节奏的有界 MRU 投影。
+
+第一性原理不变量：最近列表只允许保存六类业务的 `{tab, id}`，不得保存标题、正文、备注、附件、查询词、访问时间或 payload；只有显式调用既有记录选择链路才更新，自动显示的首条详情不计入；重复访问移到首位，最多六条，不修改源数组；项目必须从当前 active 数组实时解析标题和描述，软删除、远端 purge 或永久删除后立即物理裁剪引用，恢复后不得自行复活；空查询时显示在第一组，输入查询后整组卸载，避免与普通结果重复；选择最近项继续调用原 `openBusinessRecord`，复用筛选清除、导航、选中态和只读详情。状态只能存在 React 会话，刷新即清空，不得进入 IndexedDB、localStorage、sessionStorage、快照、同步、URL、日志或网络请求。
+
+| 方案名称 | 来源 / 许可证 | 可借鉴逻辑 | 冲突与限制 | 是否采用 / 采用方式 |
+| --- | --- | --- | --- | --- |
+| VS Code Quick Access | [官方 Quick Access 源码](https://github.com/microsoft/vscode/blob/main/src/vs/platform/quickinput/browser/quickAccess.ts)、[许可证](https://github.com/microsoft/vscode/blob/main/LICENSE.txt) / MIT | Quick Access 控制器与 provider 分离，接受结果后更新最近状态；最近顺序是独立投影 | VS Code 的完整历史服务可接入持久化存储，不符合本项目刷新清空边界；不复制源码 | 只借鉴“显式接受后更新 MRU”和独立投影；状态留在 Web 会话层 |
+| GitHub Command Palette | [官方文档源码](https://github.com/github/docs/blob/main/content/get-started/accessibility/github-command-palette.md)、[许可证](https://github.com/github/docs/blob/main/LICENSE) / CC BY 4.0 | 空查询结合当前上下文和最近资源，输入后再细化搜索 | 不复制 GitHub 文案、截图、品牌或布局；项目仍须遵守本机 active 数据边界 | 只借鉴空查询建议与键盘入口，不复制内容资产 |
+| 现有 `cmdk@1.1.1` | [官方仓库](https://github.com/pacocoursey/cmdk)、[许可证](https://github.com/pacocoursey/cmdk/blob/main/LICENSE.md) / MIT | 调用方提供稳定 `value`、分组和关键词，cmdk 负责组合框、过滤和键盘选择 | cmdk 不提供业务 MRU、active 裁剪或持久化边界 | 继续使用；最近项使用独立 `id/value/kind`，查询后由调用方卸载整组 |
+| kbar action 模型 | [官方仓库](https://github.com/timc1/kbar)、[README](https://github.com/timc1/kbar/blob/main/README.md)、[许可证](https://github.com/timc1/kbar/blob/main/LICENSE) / MIT | action 的 `section/priority/perform` 分离，搜索投影不改源 action store | kbar 的 History 是 undo/redo，不是最近访问；新增 beta 依赖会与现有 cmdk 重复 | 仅借鉴投影与执行分离，不新增依赖、不混用 undo/redo 语义 |
+
+- 直接复用：现有 React state、cmdk、六类 active 数组、`selectBusinessRecord`、`openBusinessRecord`、台账筛选重置、导航和只读详情。
+- 新增本机实现：一个无依赖纯函数负责去重、移首与截断，一个纯函数按 active key 裁剪；UI 只从当前 active search item 派生最近项。
+- 不采用：最近命令、频率统计、收藏/置顶、跨会话历史、`updatedAt` 冒充访问时间、浏览器存储、数据库 schema、服务端 API、同步字段、导航后退栈和外部依赖。
+- 证据与许可证：上述官方文档、README、源码入口和许可证均由 `http_probe` 返回 HTTP 200；本版没有复制外部源码、示例文案、视觉、品牌、截图、GIF、资产或数据，也没有新增依赖。
 
 ## v0.7.7 全局查找与六类快速新建命令方案审计
 
