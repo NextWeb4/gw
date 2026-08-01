@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { A4_PAGE, DOCUMENT_AUTHOR, buildPrintableDocument, draftBodyLines, splitDraftLines } from './index.js';
+import { A4_PAGE, DOCUMENT_AUTHOR, buildPrintableDocument, draftBodyLines, encodeCsv, splitDraftLines } from './index.js';
 
 describe('document text normalization', () => {
   it('drops blank lines while preserving Chinese headings', () => {
@@ -21,5 +21,34 @@ describe('document text normalization', () => {
     expect(draftBodyLines({ ...base, contentText: '一、基本情况\n正文' })).toEqual(['一、基本情况', '正文']);
     const printable = buildPrintableDocument({ ...base, contentText: '工作总结\n正文' });
     expect(printable.match(/工作总结/g)).toHaveLength(1);
+  });
+});
+
+describe('CSV encoding', () => {
+  it('writes an Excel-compatible UTF-8 BOM, quoted cells and CRLF rows', () => {
+    const csv = encodeCsv([
+      ['标题', '备注'],
+      ['全省事项,复盘', '他说“完成”，并写下 "已核对"。'],
+      ['多行', '第一行\n第二行'],
+    ]);
+
+    expect(csv.startsWith('\uFEFF')).toBe(true);
+    expect(csv).toBe('\uFEFF"标题","备注"\r\n"全省事项,复盘","他说“完成”，并写下 ""已核对""。"\r\n"多行","第一行\n第二行"\r\n');
+    expect(csv.replace(/^\uFEFF/, '').split('\r\n')).toHaveLength(4);
+  });
+
+  it('neutralizes ASCII, full-width and control-hidden spreadsheet formulas without mutating input', () => {
+    const row = ['=1+1', '+SUM(A1:A2)', '-2+3', '@HYPERLINK("x")', '＝1+1', '＋1', '－1', '＠cmd', '  =trimmed', '\t=tab', '\r=cr', '\n=lf', '普通文本'] as const;
+    const rows = [['值'], row];
+    const snapshot = structuredClone(rows);
+    const csv = encodeCsv(rows);
+
+    for (const value of row.slice(0, -1)) expect(csv).toContain(`"'${value.replace(/"/g, '""')}"`);
+    expect(csv).toContain('"普通文本"');
+    expect(rows).toEqual(snapshot);
+  });
+
+  it('removes NUL characters and serializes primitive empty values deterministically', () => {
+    expect(encodeCsv([['a\0b', null, undefined, 0, false]])).toBe('\uFEFF"ab","","","0","false"\r\n');
   });
 });

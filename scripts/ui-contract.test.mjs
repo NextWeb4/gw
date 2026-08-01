@@ -107,6 +107,29 @@ test('six ledgers share local-only filter and sort controls without changing sto
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.ledger-clear[^}]*min-height:\s*44px/, 'narrow clear action must retain a 44px touch target');
 });
 
+test('six ledgers export only their current visible order through one secure local CSV path', async () => {
+  const [app, ledgerCsv, documents, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/ledger-csv.ts'),
+    read('packages/documents/src/index.ts'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(documents, /export function encodeCsv\(/, 'CSV quoting and formula neutralization must live in the shared document package');
+  assert.match(documents, /\\uFEFF/, 'CSV output must include the UTF-8 BOM used by desktop spreadsheet software');
+  assert.match(ledgerCsv, /buildLedgerCsv/, 'all six ledgers must use one explicit CSV projection module');
+  assert.doesNotMatch(ledgerCsv, /Object\.keys|JSON\.stringify|\bfetch\b|listRecords|IndexedDB|localStorage|Electron|putRecord|removeRecord|ipc/i, 'CSV projection must use fixed local-only field lists without persistence or network access');
+  for (const visibleArray of ['filteredTasks', 'filteredMeetings', 'filteredDocuments', 'filteredResearches', 'filteredSeals', 'filteredMaterials']) {
+    assert.match(app, new RegExp(`buildLedgerCsv\\([^\\n]*${visibleArray}`), `${visibleArray} must be the exported row source`);
+  }
+  assert.match(app, /buildLedgerCsv\('materials',[^\n]*allMaterials:\s*materials/, 'material export must calculate stock from the full active ledger');
+  assert.ok((app.match(/onExport=/g) || []).length >= 6, 'all six views must expose the shared current-result export action');
+  assert.match(app, /downloadBlob\(new Blob\(\[file\.content\]/, 'CSV files must reuse the existing local Blob downloader');
+  assert.match(app, /disabled=\{!visibleCount\}/, 'empty current results must not generate an empty CSV');
+  assert.match(css, /\.ledger-export/, 'the export action must have a dedicated, restrained control style');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.ledger-export[^}]*min-height:\s*44px/, 'narrow export actions must retain a 44px touch target');
+});
+
 test('unified agenda stays local-only and reuses the existing record detail path', async () => {
   const [app, agenda, agendaView, css] = await Promise.all([
     read('apps/web/src/App.tsx'),

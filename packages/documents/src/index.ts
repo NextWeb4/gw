@@ -3,6 +3,24 @@ import type { Draft } from '@hxhwang/domain';
 
 export const A4_PAGE = { width: 11906, height: 16838, margin: { top: 2098, bottom: 1984, left: 1587, right: 1474 } } as const;
 export const DOCUMENT_AUTHOR = 'HaoXiangHwang';
+export type CsvCell = string | number | boolean | null | undefined;
+
+const CSV_FORMULA_PREFIX = /^[=+\-@＝＋－＠]/u;
+const CSV_DANGEROUS_CONTROL_PREFIX = /^[\t\r\n]/u;
+const CSV_LEADING_WHITESPACE_OR_CONTROL = /^[\p{Z}\u0001-\u001f\u007f]+/u;
+
+function csvCellText(cell: CsvCell) {
+  let value = cell === null || cell === undefined ? '' : String(cell);
+  value = value.replace(/\0/g, '');
+  const formulaProbe = value.replace(CSV_LEADING_WHITESPACE_OR_CONTROL, '');
+  if (CSV_DANGEROUS_CONTROL_PREFIX.test(value) || CSV_FORMULA_PREFIX.test(formulaProbe)) value = `'${value}`;
+  return value.replace(/"/g, '""');
+}
+
+export function encodeCsv(rows: readonly (readonly CsvCell[])[]) {
+  const body = rows.map((row) => row.map((cell) => `"${csvCellText(cell)}"`).join(',')).join('\r\n');
+  return `\uFEFF${body}${rows.length ? '\r\n' : ''}`;
+}
 
 export const htmlToText = (html: string) => {
   const container = document.createElement('div');

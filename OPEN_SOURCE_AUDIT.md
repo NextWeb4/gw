@@ -1,6 +1,6 @@
 # 开源方案审计
 
-审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3、v0.7.4、v0.7.5、v0.7.6 补充审计：2026-07-31；v0.7.7、v0.7.8、v0.7.9 补充审计：2026-08-01。公开客户端为本地优先演示模式；服务端仅私有部署。
+审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3、v0.7.4、v0.7.5、v0.7.6 补充审计：2026-07-31；v0.7.7、v0.7.8、v0.7.9、v0.7.10 补充审计：2026-08-01。公开客户端为本地优先演示模式；服务端仅私有部署。
 
 | 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与项目契合度 / 可能冲突 | 是否采用 / 采用方式 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,6 +24,25 @@
 | Node 24 `fetch`、`crypto`、`node:test` | [Node.js](https://nodejs.org/api/) / MIT | HTTPS 抓取、哈希和策略测试 | 标准运行时内置，不增加供应链或安装体积 | 重定向与体积限制需显式实现 | 随 Node 24 维护 | 只在内容同步脚本和 CI 中使用，不进入浏览器联网路径 | 采用，封装允许清单、逐跳重定向和 2 MB 上限 |
 | Got 15.1.0 | [官方仓库](https://github.com/sindresorhus/got) / MIT | HTTP 重试、钩子、重定向 | HTTP 能力成熟 | 当前仅抓取少量权威来源，引入运行依赖收益不足 | 活跃；npm 元数据 2026-07-02 更新 | 会扩大供应链，不能替代本项目域名策略 | 不采用 |
 | simple-git 3.36.0 | [官方仓库](https://github.com/steveukx/git-js) / MIT | Git 命令封装 | API 易用 | Actions 仅需 add/commit/push 三步 | 活跃；npm 元数据 2026-04-12 更新 | 增加无必要依赖；runner 已提供 Git | 不采用，工作流直接调用 Git |
+
+## v0.7.10 当前台账结果 CSV 导出方案审计
+
+问题本质：v0.7.9 已能在当前筛选和排序结果中连续浏览记录，但六类台账仍缺少把“屏幕上这组结果”交付给电子表格的本地输出。直接导出内部对象会泄露生命周期、迁移和附件引用；未经处理的用户文本还可能在 Excel 等软件中被解释为公式。因此本轮必须同时固定当前视图语义、业务字段白名单和 CSV 注入防护。
+
+| 方案名称 | 来源 / 许可证 | 可借鉴逻辑 | 冲突与限制 | 是否采用 / 采用方式 |
+| --- | --- | --- | --- | --- |
+| GitHub Projects 导出当前 View | [官方文档](https://docs.github.com/en/issues/planning-and-tracking-with-projects/managing-your-project/exporting-your-projects-data)、GitHub Docs CC BY 4.0 | 从当前 Project View 导出表格，用户心智明确 | TSV 字段和云端项目模型不适合复制；不引入账号、服务端或项目 schema | 只借鉴“当前视图即导出范围”；导出当前模块已过滤、已排序的 active 数组 |
+| Grist View 导出 | [官方文档](https://support.getgrist.com/exports/)、[grist-core](https://github.com/gristlabs/grist-core) Apache-2.0 | 当前表格/视图可导出 CSV 等办公格式 | Grist 的公式、表格 schema 和插件体系远超本项目；不复制源码、界面或数据模型 | 只借鉴一次性当前视图导出；使用现有统一控制条和本机下载 |
+| OWASP CSV Injection | [社区安全条目](https://owasp.org/www-community/attacks/CSV_Injection)；未核验到该条目的独立许可文件，仅引用安全结论 | `= + - @` 和控制字符可能触发表格公式解释 | 只给单元格加双引号不足以消除公式语义；安全建议不是完整编码器 | 采用安全规则；危险 ASCII/全角前缀和隐藏控制前缀增加文本前缀，再统一引号转义 |
+| Microsoft Excel UTF-8 CSV 指南 | [官方支持文档](https://support.microsoft.com/zh-cn/office/%E5%9C%A8-excel-%E4%B8%AD%E6%AD%A3%E7%A1%AE%E6%89%93%E5%BC%80-csv-utf-8-%E6%96%87%E4%BB%B6-8a935af5-3416-4edd-ba7e-3dfd2bc4a032)；官方内容仅作兼容依据 | 中文 UTF-8 CSV 的桌面表格兼容 | 不复制文案、品牌或素材，也不由该文档定义业务字段 | 只借鉴兼容结论；生成 UTF-8 BOM、CRLF 与 `text/csv;charset=utf-8` |
+| W3C APG Grid 键盘模型 | [官方模式](https://www.w3.org/WAI/ARIA/apg/patterns/grid/)、W3C Software and Document License | 完整 Grid 的方向键、Home/End 与 roving focus 需要成套实现 | 当前可点击行含嵌套编辑/删除按钮，并非 Grid；只追加方向键会形成不完整模型 | 本轮不采用；保留 Enter/Space 行选择，优先补齐完整业务输出 |
+| 现有 TypeScript 纯函数 + Blob + Lucide | 当前项目与锁定依赖 / 项目 UNLICENSED、Lucide ISC | 已有六个 `filtered*` 数组、物资库存纯函数、本机下载适配和统一控制条 | 项目必须自行维护字段白名单、注入防护和跨模块测试 | 采用；共享编码器 + 六类显式投影 + 一个控制条动作 |
+
+- 直接复用：六类 `filtered*` 数组、领域层 `calculateMaterialStock` / `materialStockKey` / `statusLabels`、文档包 `downloadBlob`、浏览器 `Blob` 与现有 Lucide `ArrowDownToLine`。
+- 自研实现：`encodeCsv` 是无依赖纯函数，统一处理 UTF-8 BOM、CRLF、全字段双引号、双引号转义、NUL 移除和公式前缀中和；`ledger-csv.ts` 为六类记录定义固定中文列头和逐字段映射，禁止 `Object.keys(record)` 或 `JSON.stringify(record)`。
+- 数据边界：不输出 ID、`deletedAt`、`purgedAt`、`sourceVersion`、`legacyPayload`、附件 ID/正文/Base64/哈希、API Key、访问码、中转密码或 AI 原文；附件只输出数量。物资库存始终使用全部 active 物资流水，不使用当前筛选数组重新计算。
+- 联网与持久化：无新增依赖、数据库读取、IndexedDB 写入、视图持久化、服务端路由、同步协议或网络请求。CSV 是一次性报表，不是快照、迁移或同步格式。
+- 回滚：移除 `ledger-csv.ts`、`encodeCsv`、统一控制条按钮和相应测试即可恢复 v0.7.9；业务 payload、附件、数据库 schema、同步协议和服务端均无需迁移或回滚。
 
 ## v0.7.9 当前可见记录连续浏览方案审计
 

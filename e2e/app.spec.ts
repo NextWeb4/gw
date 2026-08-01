@@ -276,6 +276,86 @@ test('filters and sorts all six ledgers while preserving session views and full 
   }
 });
 
+test('exports the six current ledger views as secure local CSV without changing their session state', async ({ page }, testInfo) => {
+  const downloadCurrentCsv = async (label: string) => {
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: '导出当前台账结果' }).click();
+    const download = await downloadPromise;
+    const filePath = await download.path();
+    if (!filePath) throw new Error(`${label} CSV 下载路径不可用`);
+    return { fileName: download.suggestedFilename(), content: readFileSync(filePath, 'utf8') };
+  };
+
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await page.getByLabel('任务管理排序').selectOption('deadline:asc');
+  const selectedTitle = await page.locator('.business-detail-panel h2').textContent();
+  const taskCsv = await downloadCurrentCsv('任务管理');
+  expect(taskCsv.fileName).toMatch(/^hxhwang-gw-任务管理-当前结果-\d{4}-\d{2}-\d{2}\.csv$/);
+  expect(taskCsv.content.startsWith('\uFEFF')).toBe(true);
+  expect(taskCsv.content.split('\r\n')[0]).toBe('\uFEFF"任务名称","工作类目","任务来源","交办人","交办日期","截止日期","状态","配合单位","任务阶段","备注","工作小结","附件数量","创建时间","更新时间"');
+  expect(taskCsv.content.indexOf('整理省政府办公厅来文并建立关联')).toBeLessThan(taskCsv.content.indexOf('推进全省基层治理年度工作总结'));
+  await expect(page.getByLabel('任务管理排序')).toHaveValue('deadline:asc');
+  expect(await page.locator('.business-detail-panel h2').textContent()).toBe(selectedTitle);
+
+  await page.getByRole('button', { name: '新建任务' }).click();
+  await page.getByLabel('任务名称').fill('=HYPERLINK("https://invalid.local")');
+  await page.getByRole('button', { name: '保存任务' }).click();
+  await page.getByLabel('任务管理关键词').fill('HYPERLINK');
+  await expect(page.getByText('显示 1 / 3 条任务')).toBeVisible();
+
+  await page.evaluate(() => {
+    const target = window as Window & { __csvIdbWrites?: number };
+    target.__csvIdbWrites = 0;
+    const prototype = IDBObjectStore.prototype as IDBObjectStore & Record<string, unknown>;
+    for (const method of ['add', 'clear', 'delete', 'put'] as const) {
+      const original = prototype[method] as (...args: unknown[]) => IDBRequest;
+      prototype[method] = function patchedIdbWrite(this: IDBObjectStore, ...args: unknown[]) {
+        target.__csvIdbWrites = (target.__csvIdbWrites || 0) + 1;
+        return original.apply(this, args);
+      };
+    }
+  });
+  const actionRequests: string[] = [];
+  const recordActionRequest = (request: { url: () => string }) => actionRequests.push(request.url());
+  page.on('request', recordActionRequest);
+
+  const formulaCsv = await downloadCurrentCsv('任务管理');
+  expect(formulaCsv.content.replace(/^\uFEFF/, '').trimEnd().split('\r\n')).toHaveLength(2);
+  expect(formulaCsv.content).toContain('"\'=HYPERLINK(""https://invalid.local"")"');
+  expect(formulaCsv.content).not.toMatch(/task_demo_|legacyPayload|sourceVersion|deletedAt|purgedAt/);
+  await expect(page.getByLabel('任务管理关键词')).toHaveValue('HYPERLINK');
+  await page.getByLabel('任务管理关键词').fill('不存在的当前结果');
+  const emptyExport = page.getByRole('button', { name: '导出当前台账结果' });
+  await expect(emptyExport).toBeDisabled();
+  await expect(page.getByText('显示 0 / 3 条任务')).toBeVisible();
+
+  const moduleCases = [
+    ['会议管理', '会议主题', '全省重点工作协调推进会'],
+    ['文件收发', '文件标题', '关于做好2026年全省重点工作的通知'],
+    ['外出活动', '活动日期', '基层服务阵地运行情况调研'],
+    ['用章管理', '用章日期', '省直单位工作联系函'],
+    ['物资收发', '物资名称', 'A4 打印纸'],
+  ] as const;
+  for (const [label, firstHeader, value] of moduleCases) {
+    await page.getByRole('button', { name: label, exact: true }).click();
+    const csv = await downloadCurrentCsv(label);
+    expect(csv.fileName).toMatch(new RegExp(`^hxhwang-gw-${label}-当前结果-\\d{4}-\\d{2}-\\d{2}\\.csv$`));
+    expect(csv.content.split('\r\n')[0]).toContain(`"${firstHeader}"`);
+    expect(csv.content).toContain(`"${value}"`);
+  }
+
+  expect(actionRequests).toEqual([]);
+  expect(await page.evaluate(() => (window as Window & { __csvIdbWrites?: number }).__csvIdbWrites)).toBe(0);
+  page.off('request', recordActionRequest);
+  if (testInfo.project.name === 'mobile') {
+    const exportButton = page.getByRole('button', { name: '导出当前台账结果' });
+    const box = await exportButton.boundingBox();
+    expect(box?.width || 0).toBeGreaterThanOrEqual(44);
+    expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});
+
 test('browses the unified local agenda and opens the original business detail', async ({ page }, testInfo) => {
   const unexpectedRequests: string[] = [];
   const pageOrigin = new URL(page.url()).origin;
