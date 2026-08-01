@@ -15,7 +15,7 @@
 ![Pages 状态](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![最近提交](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![仓库大小](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![版本](https://img.shields.io/badge/version-0.7.8-0969da?style=flat-square)
+![版本](https://img.shields.io/badge/version-0.7.9-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@
 
 HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联网/内网 Web 构建和互联网/内网 Electron 客户端之间共享同一套领域模型。系统首先把业务数据保存在本地，在构建时隔离不同联网能力，并通过显式适配器提供同步和 AI 请求。
 
-当前发布版本为 `0.7.8`：空查询打开 `Ctrl/Cmd+K` 时，首先显示最多六条按最近访问排序的 active 业务记录。历史只在 React 会话中保存“模块 + 记录 ID”，重复访问会移到首位，输入正常查询后整组隐藏，软删除后立即裁剪，刷新页面即清空；打开最近项继续复用原台账、选中态和右侧只读详情。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
+当前发布版本为 `0.7.9`：六类业务台账的只读详情新增“上一条 / 下一条当前可见记录”。位置按当前筛选和排序后的可见集合计算，首尾禁用且不循环；切换继续复用原选中态、窄屏详情定位和会话级最近访问，不持久化、不写库、不联网。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
 
 公开 Pages 不显示私有同步，但支持完整本机台账、附件、历史 JSON/快照、用户自备 Key 的兼容 AI，以及用户主动解锁的 `127.0.0.1` 本机中转站；页面加载和填写密码不会自动联系中转服务。所有业务数据只进入当前浏览器 IndexedDB。[GitHub Pages](https://nextweb4.github.io/gw/) 仅适合公开、虚构或获准的非敏感材料。
 
@@ -33,7 +33,7 @@ HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联�
 
 | 领域 | 已实现内容 |
 | --- | --- |
-| 事务管理 | 任务、会议、文件、外出、用章、物资六类可编辑台账，独立维护常用人员/单位目录，并支持全局快速任务记录、会话级最近记录、阶段、小结、附件、模块内关键词/字段筛选/排序、本机全局查找、统一事务日历和可恢复回收站 |
+| 事务管理 | 任务、会议、文件、外出、用章、物资六类可编辑台账，独立维护常用人员/单位目录，并支持全局快速任务记录、会话级最近记录、当前可见顺序的上一条/下一条详情浏览、阶段、小结、附件、模块内关键词/字段筛选/排序、本机全局查找、统一事务日历和可恢复回收站 |
 | 写作 | 富文本起草、经清洗的 DOCX/HTML/TXT 导入、本机自定义格式、确定性周报、可编辑版本和历史档案 |
 | 文档 | DOCX 与 PDF 共用的 A4 导出引擎；Web 使用浏览器打印，桌面端使用 Electron 打印 |
 | 迁移 | 兼容两份历史原型导出结构和拖拽 JSON/快照；当共同版本标识无法可靠辨别来源时给出警告 |
@@ -60,7 +60,7 @@ HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联�
 - NSIS 安装包需要 Windows；AppImage/DEB 打包和最终 Linux 兼容性检查需要 Linux。
 - Web 构建需要 Chromium 类浏览器。
 
-仓库版本为 `0.7.8`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
+仓库版本为 `0.7.9`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
 
 ## 安装与运行
 

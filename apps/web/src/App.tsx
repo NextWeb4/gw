@@ -3,7 +3,7 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import {
-  Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowUpDown, ArrowUpRight, BarChart3, BookOpen, CalendarDays, CalendarRange, Check, ChevronRight, ClipboardList,
+  Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowUpDown, ArrowUpRight, BarChart3, BookOpen, CalendarDays, CalendarRange, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList,
   Bot, Building2, CopyPlus, FileArchive, FileOutput, FileText, FileUp, FolderOpen, Globe2, Info, KeyRound, LayoutDashboard, Library, MapPin,
   ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Stamp, Trash2, Upload, UsersRound, WandSparkles, X
 } from 'lucide-react';
@@ -39,6 +39,7 @@ import { WorkOverview } from './WorkOverview';
 import { QuickTaskCapture } from './QuickTaskCapture';
 import { RecycleBinView, type RecycleBinEntry, type RecycleRecordKind } from './RecycleBinView';
 import { pruneRecentRecords, rememberRecentRecord, type RecentRecordRef } from './recent-records';
+import { getVisibleRecordPosition } from './visible-record-navigation';
 
 type Tab = 'dashboard' | 'agenda' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'recycle' | 'archive' | 'migration' | 'about';
 type BusinessTab = Extract<Tab, 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials'>;
@@ -75,6 +76,31 @@ type HxWindow = Window & { hxhwang?: {
 const desktopBridge = () => (window as HxWindow).hxhwang;
 const distributionMode = __DISTRIBUTION_MODE__;
 const emptyDirectory = (): ContactDirectory => ({ people: [], units: [], updatedAt: nowIso() });
+
+interface BusinessDetailNavigationTarget { id: string; title: string; }
+interface BusinessDetailNavigation {
+  index: number;
+  total: number;
+  previous?: BusinessDetailNavigationTarget;
+  next?: BusinessDetailNavigationTarget;
+}
+
+function visibleNavigationFor<T extends { id: string }>(
+  records: readonly T[],
+  selectedId: string | undefined,
+  getTitle: (record: T) => string,
+): BusinessDetailNavigation | null {
+  const position = getVisibleRecordPosition(records, selectedId);
+  if (!position) return null;
+  const previous = position.index > 0 ? records[position.index - 1] : undefined;
+  const next = position.index + 1 < records.length ? records[position.index + 1] : undefined;
+  return {
+    index: position.index,
+    total: position.total,
+    previous: previous ? { id: previous.id, title: getTitle(previous) } : undefined,
+    next: next ? { id: next.id, title: getTitle(next) } : undefined,
+  };
+}
 
 const navItems: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: '工作台', icon: LayoutDashboard },
@@ -950,6 +976,15 @@ function App() {
   const selectedResearchId = selectedIdFor('researches', filteredResearches);
   const selectedSealId = selectedIdFor('seals', filteredSeals);
   const selectedMaterialId = selectedIdFor('materials', filteredMaterials);
+  const businessDetailNavigation: BusinessDetailNavigation | null = (() => {
+    if (tab === 'tasks') return visibleNavigationFor(filteredTasks, selectedTaskId, (task) => task.name);
+    if (tab === 'meetings') return visibleNavigationFor(filteredMeetings, selectedMeetingId, (meeting) => meeting.subject);
+    if (tab === 'documents') return visibleNavigationFor(filteredDocuments, selectedDocumentId, (document) => document.title);
+    if (tab === 'researches') return visibleNavigationFor(filteredResearches, selectedResearchId, (research) => research.subject);
+    if (tab === 'seals') return visibleNavigationFor(filteredSeals, selectedSealId, (seal) => seal.docName);
+    if (tab === 'materials') return visibleNavigationFor(filteredMaterials, selectedMaterialId, (material) => material.materialName);
+    return null;
+  })();
   const businessDetail: BusinessDetail | null = (() => {
     if (tab === 'tasks') {
       const record = filteredTasks.find((task) => task.id === selectedTaskId);
@@ -1072,7 +1107,7 @@ function App() {
     </aside>
     <main className="main-area" ref={mainAreaRef}>
       <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="topbar-context"><span>HX / {String(activeNavIndex >= 0 ? activeNavIndex + 1 : navItems.length + 1).padStart(2, '0')}</span><strong>{navItems.find((item) => item.id === tab)?.label ?? '关于与设置'}</strong></div><div className="breadcrumbs">本地优先 <span>/</span> 外发必须逐次确认</div><div className="topbar-actions"><button ref={quickCaptureTriggerRef} type="button" className="global-search-trigger quick-capture-trigger" aria-label="快速记录任务" aria-haspopup="dialog" aria-expanded={quickCaptureOpen} title={quickCaptureBlocked ? '当前有查找、编辑或 AI 面板，暂不可用' : '快速记录任务（Shift + A）'} disabled={quickCaptureBlocked} onClick={() => changeQuickCaptureOpen(true)}><Plus size={16} /><span>快速记录</span><kbd>Shift A</kbd></button><button ref={globalSearchTriggerRef} type="button" className="global-search-trigger" aria-label="打开全局查找" aria-haspopup="dialog" aria-expanded={globalSearchOpen} title={globalSearchBlocked ? '当前有记录、编辑或 AI 面板，暂不可用' : '全局查找（Ctrl 或 Command + K）'} disabled={globalSearchBlocked} onClick={() => changeGlobalSearchOpen(true)}><Search size={16} /><span>全局查找</span><kbd>Ctrl K</kbd></button><span className="connection"><Activity size={15} /><span>{connectionLabel}</span><strong>{connectionDetail}</strong></span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
-      <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''}`}><div className="primary-content" ref={primaryContentRef}>{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} compact={aiOverlayOpen} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} history={aiHistory} onSaveHistory={saveAiHistory} onDeleteHistory={deleteAiHistory} onClearHistory={clearAiHistory} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && <BusinessDetailPanel detail={businessDetail} attachments={attachments} panelRef={businessDetailRef} onBackToList={() => scrollToBusinessRegion(primaryContentRef.current)} onEdit={() => editBusinessDetail(businessDetail)} onDuplicate={() => duplicateBusinessDetail(businessDetail)} />}</div>
+      <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''}`}><div className="primary-content" ref={primaryContentRef}>{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} compact={aiOverlayOpen} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} history={aiHistory} onSaveHistory={saveAiHistory} onDeleteHistory={deleteAiHistory} onClearHistory={clearAiHistory} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && businessDetailNavigation && <BusinessDetailPanel detail={businessDetail} navigation={businessDetailNavigation} attachments={attachments} panelRef={businessDetailRef} onNavigateVisibleRecord={(id) => selectBusinessRecord(tab as BusinessTab, id)} onBackToList={() => scrollToBusinessRegion(primaryContentRef.current)} onEdit={() => editBusinessDetail(businessDetail)} onDuplicate={() => duplicateBusinessDetail(businessDetail)} />}</div>
       <footer className="page-footer"><span>HXHWANG GW / {__APP_VERSION__}</span><span>© HaoXiangHwang · <a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a> · <a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer">nextweb4.github.io</a></span></footer>
     </main>
     <GlobalSearch open={globalSearchOpen} groups={globalSearchGroups} onOpenChange={changeGlobalSearchOpen} onSelectItem={selectGlobalSearchItem} />
@@ -1186,7 +1221,7 @@ interface BusinessDetailModel {
   sections: Array<{ title: string; content: React.ReactNode }>;
 }
 
-function BusinessDetailPanel({ detail, attachments, panelRef, onBackToList, onEdit, onDuplicate }: { detail: BusinessDetail; attachments: Attachment[]; panelRef: React.RefObject<HTMLElement | null>; onBackToList: () => void; onEdit: () => void; onDuplicate: () => void }) {
+function BusinessDetailPanel({ detail, navigation, attachments, panelRef, onNavigateVisibleRecord, onBackToList, onEdit, onDuplicate }: { detail: BusinessDetail; navigation: BusinessDetailNavigation; attachments: Attachment[]; panelRef: React.RefObject<HTMLElement | null>; onNavigateVisibleRecord: (id: string) => void; onBackToList: () => void; onEdit: () => void; onDuplicate: () => void }) {
   const show = (value: string | number | undefined) => String(value ?? '').trim() || '未填写';
   const model: BusinessDetailModel = (() => {
     if (detail.kind === 'task') {
@@ -1275,6 +1310,13 @@ function BusinessDetailPanel({ detail, attachments, panelRef, onBackToList, onEd
   const Icon = model.icon;
   return <aside className="panel business-detail-panel" aria-label="记录详情" ref={panelRef}>
     <div className="detail-panel-header"><span className="detail-icon"><Icon size={18} /></span><div><span className="eyebrow">{model.eyebrow}</span><h2><span className="sr-only">记录详情：</span>{model.title}</h2></div><span className={`status-pill ${model.badgeClass}`}>{model.badge}</span></div>
+    <div className="detail-record-navigation">
+      <span aria-live="polite" className="detail-record-position"><small>当前可见</small><strong>{navigation.index + 1}<span aria-hidden="true"> / </span>{navigation.total}</strong></span>
+      <div className="detail-record-steps" role="group" aria-label="浏览当前可见记录">
+        <button type="button" className="icon-button detail-record-step detail-record-step-previous" aria-label={navigation.previous ? `查看上一条可见记录：${navigation.previous.title}` : '没有上一条可见记录'} title={navigation.previous ? `上一条：${navigation.previous.title}` : '已经是第一条可见记录'} disabled={!navigation.previous} onClick={() => navigation.previous && onNavigateVisibleRecord(navigation.previous.id)}><ChevronUp size={17} /></button>
+        <button type="button" className="icon-button detail-record-step detail-record-step-next" aria-label={navigation.next ? `查看下一条可见记录：${navigation.next.title}` : '没有下一条可见记录'} title={navigation.next ? `下一条：${navigation.next.title}` : '已经是最后一条可见记录'} disabled={!navigation.next} onClick={() => navigation.next && onNavigateVisibleRecord(navigation.next.id)}><ChevronDown size={17} /></button>
+      </div>
+    </div>
     <div className="detail-panel-actions"><button type="button" className="secondary-button mobile-detail-back" onClick={onBackToList}><ClipboardList size={15} />返回记录列表</button><button type="button" className="secondary-button" onClick={onEdit}><Pencil size={15} />编辑此记录</button><button type="button" className="secondary-button" onClick={onDuplicate}><CopyPlus size={15} />复制相似记录</button></div>
     <dl className="detail-fields">{model.fields.map((field) => <div key={field.label}><dt>{field.label}</dt><dd>{field.value}</dd></div>)}</dl>
     {model.sections.map((section) => <section className="detail-section" key={section.title}><h3>{section.title}</h3><div>{section.content}</div></section>)}

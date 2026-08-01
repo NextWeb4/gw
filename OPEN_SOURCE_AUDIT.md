@@ -1,6 +1,6 @@
 # 开源方案审计
 
-审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3、v0.7.4、v0.7.5、v0.7.6 补充审计：2026-07-31；v0.7.7、v0.7.8 补充审计：2026-08-01。公开客户端为本地优先演示模式；服务端仅私有部署。
+审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3、v0.7.4、v0.7.5、v0.7.6 补充审计：2026-07-31；v0.7.7、v0.7.8、v0.7.9 补充审计：2026-08-01。公开客户端为本地优先演示模式；服务端仅私有部署。
 
 | 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与项目契合度 / 可能冲突 | 是否采用 / 采用方式 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,6 +24,24 @@
 | Node 24 `fetch`、`crypto`、`node:test` | [Node.js](https://nodejs.org/api/) / MIT | HTTPS 抓取、哈希和策略测试 | 标准运行时内置，不增加供应链或安装体积 | 重定向与体积限制需显式实现 | 随 Node 24 维护 | 只在内容同步脚本和 CI 中使用，不进入浏览器联网路径 | 采用，封装允许清单、逐跳重定向和 2 MB 上限 |
 | Got 15.1.0 | [官方仓库](https://github.com/sindresorhus/got) / MIT | HTTP 重试、钩子、重定向 | HTTP 能力成熟 | 当前仅抓取少量权威来源，引入运行依赖收益不足 | 活跃；npm 元数据 2026-07-02 更新 | 会扩大供应链，不能替代本项目域名策略 | 不采用 |
 | simple-git 3.36.0 | [官方仓库](https://github.com/steveukx/git-js) / MIT | Git 命令封装 | API 易用 | Actions 仅需 add/commit/push 三步 | 活跃；npm 元数据 2026-04-12 更新 | 增加无必要依赖；runner 已提供 Git | 不采用，工作流直接调用 Git |
+
+## v0.7.9 当前可见记录连续浏览方案审计
+
+问题本质：六类台账已经有共享的关键词、结构化筛选、稳定排序、选中态和只读详情，但用户连续核对筛选结果时，每看一条都要回到中间列表重新点选。缺口不是新的数据视图、分页、保存筛选、批量编辑或导航历史，而是在当前有序可见集合中做一次无副作用的相邻选择。
+
+第一性原理不变量：顺序必须严格来自 `filteredTasks`、`filteredMeetings`、`filteredDocuments`、`filteredResearches`、`filteredSeals` 与 `filteredMaterials`，不能重新查询、排序或持久化；当前位置和邻居只能由当前 active 可见数组及选中 ID 纯派生；第一条和最后一条分别禁用对应方向，不循环；点击必须调用既有 `selectBusinessRecord`，保留关键词、筛选、排序、选中态、窄屏详情定位和会话级 MRU，不能调用会清除台账视图的 `openBusinessRecord`；编辑仍进入原抽屉，物资库存仍从全部 active 物资计算。功能不得访问 Fetch、IndexedDB、Electron IPC、私有服务、快照或同步，也不得新增数据库字段、URL 游标、全局快捷键或第二套读取/保存链路。
+
+| 方案名称 | 来源 / 许可证 | 可借鉴逻辑 | 冲突与限制 | 是否采用 / 采用方式 |
+| --- | --- | --- | --- | --- |
+| VS Code Quick Access | [官方 Editor Quick Access 源码](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/browser/parts/editor/editorQuickAccess.ts)、[许可证](https://github.com/microsoft/vscode/blob/main/LICENSE.txt) / MIT | 在当前有序结果集合内保持选择并快速切换，结果投影不修改源数据 | 完整编辑器历史、服务和持久化架构远超本项目需求；不复制源码 | 只借鉴“当前有序结果内移动选择”；本项目独立实现无依赖纯函数 |
+| GitHub Keyboard Shortcuts | [官方文档源码](https://github.com/github/docs/blob/main/content/get-started/accessibility/keyboard-shortcuts.md)、[许可证](https://github.com/github/docs/blob/main/LICENSE) / CC BY 4.0 | 高频上下文操作应可聚焦并用标准键盘激活 | 不复制 GitHub 文案、快捷键表、截图、品牌或布局；本轮不新增冲突性全局键 | 只借鉴键盘可达性；使用原生 button、Tab、Enter/Space、目标标题标签 |
+| Plane Views | [官方 Views 文档](https://docs.plane.so/core-concepts/views.md)、[许可证](https://github.com/makeplane/plane/blob/master/LICENSE.txt) / AGPL-3.0 | View 是底层数据的筛选、排序与布局投影，不应隐式改写记录 | 保存、分享、URL、权限和 AGPL 源码会突破本项目会话级筛选边界 | 只借鉴“视图是只读投影”的概念；不复制源码、文案、视觉或数据模型 |
+| 现有 React 19 + TypeScript 纯函数 + Lucide | 当前项目与锁定依赖 / 项目 UNLICENSED、React MIT、Lucide ISC | 六个已派生数组、统一详情、既有选择/MRU/窄屏定位、可访问图标按钮 | 项目需要自行维护边界、长标题和响应式测试 | 采用；一个纯函数派生位置/邻居，统一详情组件接线六类可见数组 |
+
+- 直接复用：六类 `filtered*` 数组、React 当前选中状态、`selectBusinessRecord`、统一 `BusinessDetailPanel`、最近访问、窄屏 `scrollIntoView` 与 Lucide。
+- 不采用：保存视图、Kanban/拖拽、批量编辑/删除、自定义字段、全局 J/K 键、循环跳转、服务端分页、持久化游标和新状态库。
+- 联网与数据边界：查看位置和相邻切换都只消费当前内存数组；没有 Fetch、IPC、IndexedDB 写入、快照、同步、日志、秘密字段或自动请求。active 之外的 trash/purged 不进入序列。
+- 回滚：移除纯函数、详情导航条和六类接线即可恢复 v0.7.8；业务 payload、数据库 schema、同步协议、附件和历史数据不需要迁移或回滚。
 
 ## v0.7.8 会话级最近访问记录方案审计
 

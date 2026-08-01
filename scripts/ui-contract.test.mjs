@@ -50,6 +50,26 @@ test('desktop ledger layout keeps accessible navigation collapse and a read-only
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.row-actions \.icon-button[^}]*44px/, 'narrow ledger actions must keep a 44px touch target');
 });
 
+test('business detail navigation follows the six current visible ledger orders without new data paths', async () => {
+  const [app, helper, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/visible-record-navigation.ts'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(helper, /getVisibleRecordPosition/, 'one shared pure helper must derive current visible position and neighbors');
+  assert.doesNotMatch(helper, /fetch|putRecord|localStorage|sessionStorage|indexedDB|electron/i, 'visible navigation helper must stay pure and local-only');
+  for (const visibleArray of ['filteredTasks', 'filteredMeetings', 'filteredDocuments', 'filteredResearches', 'filteredSeals', 'filteredMaterials']) {
+    assert.match(app, new RegExp(`visibleNavigationFor\\(${visibleArray}`), `${visibleArray} must define its detail navigation order`);
+  }
+  assert.match(app, /onNavigateVisibleRecord=\{\(id\) => selectBusinessRecord\(tab as BusinessTab, id\)\}/, 'detail steps must reuse the existing selection, MRU and mobile detail path');
+  assert.doesNotMatch(app, /onNavigateVisibleRecord[^\n]*openBusinessRecord/, 'detail steps must not clear the current filter and sort state');
+  assert.match(app, /aria-live="polite"[^>]*className="detail-record-position"/, 'position changes must be announced without taking focus');
+  assert.match(app, /aria-label=\{navigation\.previous[^\n]*查看上一条可见记录/, 'previous control must expose its target title');
+  assert.match(app, /aria-label=\{navigation\.next[^\n]*查看下一条可见记录/, 'next control must expose its target title');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.detail-record-step[^}]*44px/, 'narrow previous and next controls must retain 44px touch targets');
+});
+
 test('copy-similar records stay as guarded drafts in the existing six business editors', async () => {
   const [app, domain, css] = await Promise.all([
     read('apps/web/src/App.tsx'),

@@ -582,6 +582,75 @@ test('keeps recent business records ordered, active-only and session-local in th
   if (testInfo.project.name === 'mobile') expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
+test('steps through the current filtered and sorted task order from the shared detail navigator', async ({ page }, testInfo) => {
+  const actionRequests: string[] = [];
+  const recordActionRequest = (request: { url: () => string }) => actionRequests.push(request.url());
+  page.on('request', recordActionRequest);
+
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await page.getByLabel('任务管理排序').selectOption('deadline:desc');
+  const rows = page.locator('.selectable-row');
+  await expect(rows).toHaveCount(2);
+  const orderedTitles = await rows.locator('.row-title strong').allInnerTexts();
+  const detail = page.locator('.business-detail-panel');
+  const position = detail.locator('.detail-record-position');
+  const previous = detail.locator('.detail-record-step-previous');
+  const next = detail.locator('.detail-record-step-next');
+
+  await expect(detail.getByRole('heading', { level: 2 })).toContainText(orderedTitles[0]);
+  await expect(position).toContainText('1 / 2');
+  await expect(previous).toBeDisabled();
+  await expect(next).toBeEnabled();
+  await expect(next).toHaveAttribute('aria-label', `查看下一条可见记录：${orderedTitles[1]}`);
+  await next.focus();
+  await page.keyboard.press('Enter');
+  await expect(detail.getByRole('heading', { level: 2 })).toContainText(orderedTitles[1]);
+  await expect(position).toContainText('2 / 2');
+  await expect(rows.nth(1)).toHaveClass(/selected/);
+  await expect(previous).toBeEnabled();
+  await expect(next).toBeDisabled();
+
+  await page.getByRole('button', { name: '打开全局查找' }).click();
+  let dialog = page.getByRole('dialog', { name: '全局查找' });
+  const recentGroup = dialog.locator('.global-search-group').filter({ hasText: '最近访问' });
+  await expect(recentGroup.locator('.global-search-item').nth(0)).toContainText(orderedTitles[1]);
+  await page.keyboard.press('Escape');
+
+  await previous.click();
+  await expect(detail.getByRole('heading', { level: 2 })).toContainText(orderedTitles[0]);
+  await expect(position).toContainText('1 / 2');
+  await expect(previous).toBeDisabled();
+
+  await page.getByLabel('任务管理筛选').selectOption('status:progress');
+  await expect(rows).toHaveCount(1);
+  await expect(position).toContainText('1 / 1');
+  await expect(previous).toBeDisabled();
+  await expect(next).toBeDisabled();
+
+  for (const ledger of ['会议管理', '文件收发', '外出活动', '用章管理', '物资收发']) {
+    await page.getByRole('button', { name: ledger, exact: true }).click();
+    await expect(detail).toBeVisible();
+    await expect(position).toContainText('1 / 1');
+    await expect(previous).toBeDisabled();
+    await expect(next).toBeDisabled();
+  }
+
+  if (testInfo.project.name === 'mobile') {
+    for (const button of [previous, next]) {
+      const box = await button.boundingBox();
+      expect(box?.width || 0).toBeGreaterThanOrEqual(44);
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+    const mainBox = await page.locator('.main-area').boundingBox();
+    const navigationBox = await page.locator('.sidebar').boundingBox();
+    expect((mainBox?.y || 0) + (mainBox?.height || 0)).toBeLessThanOrEqual(navigationBox?.y || 0);
+    expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+
+  expect(actionRequests).toEqual([]);
+  page.off('request', recordActionRequest);
+});
+
 test('captures a task globally with deterministic preview and the original guarded editor', async ({ page }, testInfo) => {
   const actionRequests: string[] = [];
   page.on('request', (request) => actionRequests.push(request.url()));

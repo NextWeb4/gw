@@ -380,6 +380,15 @@ h1, h2, p { margin-top: 0; }
 .detail-icon { width: 40px; height: 40px; display: grid; place-items: center; color: var(--acid); background: var(--acid-soft); border: 1px solid rgba(216,255,63,.22); border-radius: 13px; }
 .detail-panel-header h2 { margin: 8px 0 0; overflow-wrap: anywhere; color: var(--paper-bright); font: 500 24px/1.08 var(--display); letter-spacing: -.04em; }
 .detail-panel-header > .status-pill { margin-top: 1px; }
+.detail-record-navigation { min-height: 58px; padding: 9px 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
+.detail-record-position { min-width: 0; display: grid; gap: 5px; color: var(--paper); }
+.detail-record-position small { color: #70756b; font: 700 8px/1 "Aptos Narrow", sans-serif; letter-spacing: 0; text-transform: uppercase; }
+.detail-record-position strong { display: flex; align-items: baseline; color: var(--paper-bright); font: 600 14px/1 "Cascadia Mono", Consolas, monospace; letter-spacing: 0; }
+.detail-record-position strong span { padding: 0 4px; color: #656a60; font-size: 10px; }
+.detail-record-steps { display: flex; align-items: center; gap: 6px; }
+.detail-record-step { width: 38px; min-width: 38px; height: 38px; color: var(--paper-muted); background: rgba(255,255,255,.025); border-color: var(--line); }
+.detail-record-step:hover:not(:disabled) { color: var(--acid); background: var(--acid-soft); border-color: rgba(216,255,63,.32); }
+.detail-record-step:disabled { color: #555a51; cursor: not-allowed; opacity: .48; }
 .detail-panel-actions { padding: 14px 22px; display: grid; gap: 8px; border-bottom: 1px solid var(--line); }
 .detail-panel-actions .secondary-button { width: 100%; }
 .mobile-detail-back { display: none; }
@@ -863,6 +872,7 @@ h1, h2, p { margin-top: 0; }
   .quick-capture-footer .primary-button { grid-column: 1 / -1; }
   .quick-capture-action { min-height: 46px; }
   .detail-panel-actions .secondary-button { min-height: 44px; }
+  .detail-record-step { width: 44px; min-width: 44px; height: 44px; }
   .ledger-view-controls { align-items: stretch; gap: 8px; }
   .ledger-search { flex-basis: 100%; min-width: 100%; }
   .ledger-search input { font-size: 16px; }
