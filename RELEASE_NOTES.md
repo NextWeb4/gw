@@ -11,6 +11,7 @@
 - 八份发布清单均已更新为 `0.7.9`。本版不新增依赖、数据库 schema、私有服务端路由、同步协议、附件格式、AI 边界、API Key 行为或自动联网。
 - 本机完整验证已通过：`pnpm lint`、`pnpm format:check`、`pnpm test`（131 项）、主 E2E（79 通过、7 条件跳过）、互联网 E2E（7/7）、内网 E2E（3/3）、`pnpm build`、`pnpm build:web:internet` 与 `pnpm build:web:intranet`。主 E2E 首轮复用了更新版本号前仍在 4193 运行的 v0.7.8 preview，导致关于页桌面/移动版本断言失败；失败快照确认页面实际为 0.7.8，停掉旧进程并由 Playwright 从新源码独占重建后，聚焦版本用例 2/2 和完整主套件 79/79 有效用例均通过。
 - 公开构建 25 个文件、10 个 source map；互联网和内网构建各 15 个文件、0 个 source map。三类运行时代码均命中 `0.7.9` 10 次，且不含 `0.7.8` 或 `0.3.1`；私钥、常见长格式模型 Key 与 GitHub PAT 模式均为 0，Git 未跟踪 `.env`。`git diff --check` 通过。
+- [Pages run 30689382534](https://github.com/NextWeb4/gw/actions/runs/30689382534) 与 [Desktop run 30689430065](https://github.com/NextWeb4/gw/actions/runs/30689430065) 分别由功能提交 `74d0352` 和指向该提交的 annotated tag `v0.7.9` 触发。[线上站点](https://nextweb4.github.io/gw/) 返回 HTTP 200，`Last-Modified` 为 2026-08-01 07:20:37Z，并加载新入口 `index-BY2dQcva.js`；真实 Chromium 桌面/移动均显示 0.7.9 并完成当前可见 `1 / 2 → 2 / 2`，详情宽 360/366px，移动按钮 44×44px，两端零动作请求、外部请求、控制台错误、页面错误或横向溢出。线上截图为 `test-results/visible-record-navigation-0.7.9/visible-record-navigation-live-{desktop,mobile}-*.png`。[Release v0.7.9](https://github.com/NextWeb4/gw/releases/tag/v0.7.9) 的 12 个安装包和 `SHA256SUMS.txt` 共 13 个地址均为 HTTP 200 且非空；1266 字节校验文件包含 12 条格式有效记录，SHA-256 与文件名分别唯一，并精确覆盖 12 个安装资产。
 
 ## v0.7.8
 
