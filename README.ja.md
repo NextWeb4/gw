@@ -15,7 +15,7 @@
 ![Pages の状態](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![最終コミット](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![リポジトリサイズ](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![バージョン](https://img.shields.io/badge/version-0.7.6-0969da?style=flat-square)
+![バージョン](https://img.shields.io/badge/version-0.7.7-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@
 
 HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラネット Web ビルド、インターネット/イントラネット Electron クライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、ネットワーク機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
 
-現在のリリースは `0.7.6` です。タスク、会議、文書、外出、押印、物資の読み取り専用詳細に「類似レコードをコピー」を追加しました。コピーは既存の編集ドロワー内に未保存の新規下書きとして開き、種類ごとの進捗・結果状態をリセットします。主添付は不変のローカル参照として共有され、キャンセル時は書き込まれず、保存には従来の検証と保存操作が必要です。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
+現在のリリースは `0.7.7` です。`Ctrl/Cmd+K` のローカルコマンドパレットに、タスク、会議、文書、外出、押印、物資の6種類のクイック新規作成を追加しました。コマンドはパレットを閉じて既存の編集ドロワーの先頭項目へフォーカスし、キャンセル時は何も保存しません。保存には従来の検証と明示的な保存操作が必要です。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
 
 公開 Pages はプライベート同期を表示しませんが、ローカル台帳、添付、旧 JSON/スナップショット、ユーザー自身の Key を使う AI、明示的に解除した `127.0.0.1` 中継を利用できます。ページ読込やパスワード入力だけでは中継へ接続しません。業務データは現在のブラウザーの IndexedDB に保存されます。[GitHub Pages](https://nextweb4.github.io/gw/) では公開、架空、または許可済みの非機密資料だけを扱ってください。
 
@@ -60,7 +60,7 @@ HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラ
 - NSIS インストーラーには Windows、AppImage/DEB のパッケージ化と最終 Linux 互換性確認には Linux。
 - Web ビルドには Chromium 系ブラウザー。
 
-リポジトリのバージョンは `0.7.6` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
+リポジトリのバージョンは `0.7.7` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
 
 ## インストールと実行
 

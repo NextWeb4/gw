@@ -157,7 +157,7 @@ test('moves business records through trash, restore and permanent-delete lifecyc
   await row.getByTitle('删除任务').click();
   await expect(row).toHaveCount(0);
   await page.getByRole('button', { name: '打开全局查找' }).click();
-  await page.getByPlaceholder('查找模块、任务、会议、文件或其他本机记录').fill(title);
+  await page.getByRole('dialog', { name: '全局查找' }).getByRole('combobox', { name: '全局查找' }).fill(title);
   await expect(page.getByText('没有找到匹配项')).toBeVisible();
   await page.keyboard.press('Escape');
 
@@ -401,6 +401,103 @@ test('opens local global search from the keyboard and finds navigation and busin
   await page.keyboard.press('Escape');
 
   expect(unexpectedRequests).toEqual([]);
+});
+
+test('opens all six original guarded editors from quick-create commands without saving records', async ({ page }, testInfo) => {
+  test.slow();
+  const actionRequests: string[] = [];
+  const recordActionRequest = (request: { url: () => string }) => actionRequests.push(request.url());
+  page.on('request', recordActionRequest);
+
+  const trigger = page.getByRole('button', { name: '打开全局查找' });
+  const groupLabels = ['任务记录', '会议记录', '文件记录', '外出记录', '用章记录', '物资记录'];
+  const commands = [
+    { query: '新建任务', dialog: '新建任务', tab: 'tasks', focusLabel: '任务名称' },
+    { query: '新建会议', dialog: '新建会议', tab: 'meetings', focusLabel: '会议主题' },
+    { query: '登记文件', dialog: '登记文件', tab: 'documents', focusLabel: '文件标题' },
+    { query: '新建外出活动', dialog: '新建外出活动', tab: 'researches', focusLabel: '活动日期' },
+    { query: '新建用章记录', dialog: '新建用章记录', tab: 'seals', focusLabel: '用章日期' },
+    { query: '新建物资记录', dialog: '新建物资记录', tab: 'materials', focusLabel: '物资名称' }
+  ];
+  const countSearchGroups = async () => {
+    await trigger.click();
+    const search = page.getByRole('dialog', { name: '全局查找' });
+    await expect(search).toBeVisible();
+    const counts: number[] = [];
+    for (const label of groupLabels) counts.push(await search.locator('.global-search-group').filter({ hasText: label }).locator('.global-search-item').count());
+    await page.keyboard.press('Escape');
+    await expect(search).toBeHidden();
+    await expect(trigger).toBeFocused();
+    return counts;
+  };
+  const countsBefore = await countSearchGroups();
+
+  await trigger.click();
+  const keyboardSearch = page.getByRole('dialog', { name: '全局查找' });
+  await keyboardSearch.getByRole('combobox', { name: '全局查找' }).fill('快速新建');
+  const taskAction = keyboardSearch.locator('.global-search-item').filter({ hasText: '新建任务' });
+  const meetingAction = keyboardSearch.locator('.global-search-item').filter({ hasText: '新建会议' });
+  await expect(taskAction).toHaveAttribute('data-selected', 'true');
+  await page.keyboard.press('ArrowDown');
+  await expect(meetingAction).toHaveAttribute('data-selected', 'true');
+  await page.keyboard.press('Enter');
+  const keyboardMeetingEditor = page.getByRole('dialog', { name: '新建会议' });
+  await expect(keyboardMeetingEditor.getByLabel('会议主题', { exact: true })).toBeFocused();
+  await keyboardMeetingEditor.getByTitle('关闭').focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(keyboardMeetingEditor.getByRole('button', { name: '保存会议' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(keyboardMeetingEditor.getByTitle('关闭')).toBeFocused();
+  await keyboardMeetingEditor.getByTitle('关闭').click();
+  await expect(keyboardMeetingEditor).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  for (const [index, command] of commands.entries()) {
+    await trigger.click();
+    const search = page.getByRole('dialog', { name: '全局查找' });
+    await search.getByRole('combobox', { name: '全局查找' }).fill(command.query);
+    await expect(search.getByText('快速新建', { exact: true })).toBeVisible();
+    const action = search.locator('.global-search-item').filter({ hasText: command.query });
+    await expect(action).toHaveCount(1);
+    if (testInfo.project.name === 'mobile') {
+      const actionBox = await action.boundingBox();
+      expect(actionBox?.height || 0).toBeGreaterThanOrEqual(44);
+      if (index === 0) {
+        const searchBox = await search.boundingBox();
+        const navigationBox = await page.locator('.sidebar').boundingBox();
+        expect((searchBox?.y || 0) + (searchBox?.height || 0)).toBeLessThanOrEqual(navigationBox?.y || 0);
+      }
+    }
+    await page.keyboard.press('Enter');
+    await expect(search).toBeHidden();
+
+    const editor = page.getByRole('dialog', { name: command.dialog });
+    await expect(editor).toBeVisible();
+    await expect(page.locator('.shell')).toHaveAttribute('data-tab', command.tab);
+    await expect(editor.getByLabel(command.focusLabel, { exact: true })).toBeFocused();
+    await expect(trigger).toBeDisabled();
+    await page.keyboard.press('Control+K');
+    await expect(page.getByRole('dialog', { name: '全局查找' })).toBeHidden();
+
+    if (index === 0) {
+      await editor.getByLabel('任务名称').fill('命令面板未保存守卫验证');
+      page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('未保存修改'); await dialog.dismiss(); });
+      await editor.getByTitle('关闭').click();
+      await expect(editor).toBeVisible();
+      page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('未保存修改'); await dialog.accept(); });
+    }
+    await editor.getByTitle('关闭').click();
+    await expect(editor).toBeHidden();
+    await expect(trigger).toBeEnabled();
+    await expect(trigger).toBeFocused();
+  }
+
+  expect(actionRequests).toEqual([]);
+  page.off('request', recordActionRequest);
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  expect(await countSearchGroups()).toEqual(countsBefore);
+  if (testInfo.project.name === 'mobile') expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test('captures a task globally with deterministic preview and the original guarded editor', async ({ page }, testInfo) => {

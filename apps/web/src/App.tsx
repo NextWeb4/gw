@@ -200,6 +200,7 @@ function App() {
   const globalSearchReturnFocusRef = useRef<HTMLElement | null>(null);
   const quickCaptureTriggerRef = useRef<HTMLButtonElement>(null);
   const quickCaptureReturnFocusRef = useRef<HTMLElement | null>(null);
+  const editorReturnFocusRef = useRef<HTMLElement | null>(null);
   const activeMobileNavRef = useRef<HTMLButtonElement>(null);
   const isDesktop = Boolean(desktopBridge());
   const businessEditorOpen = Boolean(taskEditor || meetingEditor || documentEditor || researchEditor || sealEditor || materialEditor);
@@ -306,6 +307,16 @@ function App() {
   const materialFilterOptions = useMemo(() => getLedgerFilterOptions('materials', materials), [materials]);
   const recycleEntries = useMemo(() => trashedBusinessRecords.map(recycleEntryFor).sort((left, right) => right.deletedAt.localeCompare(left.deletedAt) || left.title.localeCompare(right.title, 'zh-CN')), [trashedBusinessRecords]);
   const globalSearchGroups = useMemo<Array<GlobalSearchGroup<Tab>>>(() => [
+    {
+      id: 'create', label: '快速新建', items: [
+        { id: 'create:task', kind: 'create', tab: 'tasks', title: '新建任务', description: '打开原任务编辑抽屉，核对后显式保存', searchValue: '快速新建 新建任务 创建任务 添加任务', keywords: ['任务', '创建', '添加'], icon: ClipboardList },
+        { id: 'create:meeting', kind: 'create', tab: 'meetings', title: '新建会议', description: '打开原会议编辑抽屉，核对后显式保存', searchValue: '快速新建 新建会议 创建会议 添加会议', keywords: ['会议', '创建', '添加'], icon: CalendarDays },
+        { id: 'create:document', kind: 'create', tab: 'documents', title: '登记文件', description: '打开原文件登记抽屉，核对后显式保存', searchValue: '快速新建 登记文件 新建文件 创建文件 收文 发文', keywords: ['文件', '登记', '收文', '发文'], icon: FileText },
+        { id: 'create:research', kind: 'create', tab: 'researches', title: '新建外出活动', description: '打开原外出活动抽屉，核对后显式保存', searchValue: '快速新建 新建外出活动 创建调研 外勤 活动', keywords: ['外出', '调研', '外勤', '活动'], icon: MapPin },
+        { id: 'create:seal', kind: 'create', tab: 'seals', title: '新建用章记录', description: '打开原用章记录抽屉，核对后显式保存', searchValue: '快速新建 新建用章记录 创建盖章 印章', keywords: ['用章', '盖章', '印章'], icon: Stamp },
+        { id: 'create:material', kind: 'create', tab: 'materials', title: '新建物资记录', description: '打开原物资收发抽屉，核对后显式保存', searchValue: '快速新建 新建物资记录 创建物资 入库 领用', keywords: ['物资', '入库', '领用'], icon: Package }
+      ]
+    },
     {
       id: 'navigation', label: '导航模块', items: globalNavItems.map((item, index) => ({
         id: `navigation:${item.id}`, kind: 'navigation', tab: item.id, title: item.label,
@@ -417,33 +428,40 @@ function App() {
     setPendingAttachmentJobs(0);
   };
   const copyDraftMatches = (kind: BusinessDetail['kind'], id: string) => copyDraft?.kind === kind && copyDraft.id === id;
+  const captureEditorReturnFocus = () => { editorReturnFocusRef.current = document.activeElement instanceof HTMLElement && document.activeElement.isConnected ? document.activeElement : null; };
   const openTaskEditor = (task: Task, initialImportText = '', copied = false) => {
+    captureEditorReturnFocus();
     clearPendingAttachments();
     setCopyDraft(copied ? { kind: 'task', id: task.id } : null);
     setTaskEditorImportText(initialImportText);
     setTaskEditor(task);
   };
   const openMeetingEditor = (meeting: MeetingRecord, copied = false) => {
+    captureEditorReturnFocus();
     clearPendingAttachments();
     setCopyDraft(copied ? { kind: 'meeting', id: meeting.id } : null);
     setMeetingEditor(meeting);
   };
   const openDocumentEditor = (document: OfficialDocument, copied = false) => {
+    captureEditorReturnFocus();
     clearPendingAttachments();
     setCopyDraft(copied ? { kind: 'document', id: document.id } : null);
     setDocumentEditor(document);
   };
   const openResearchEditor = (research: ResearchRecord, copied = false) => {
+    captureEditorReturnFocus();
     clearPendingAttachments();
     setCopyDraft(copied ? { kind: 'research', id: research.id } : null);
     setResearchEditor(research);
   };
   const openSealEditor = (seal: SealRecord, copied = false) => {
+    captureEditorReturnFocus();
     clearPendingAttachments();
     setCopyDraft(copied ? { kind: 'seal', id: seal.id } : null);
     setSealEditor(seal);
   };
   const openMaterialEditor = (material: MaterialRecord, copied = false) => {
+    captureEditorReturnFocus();
     clearPendingAttachments();
     setCopyDraft(copied ? { kind: 'material', id: material.id } : null);
     setMaterialEditor(material);
@@ -950,13 +968,27 @@ function App() {
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => scrollToBusinessRegion(businessDetailRef.current)));
   };
   const selectGlobalSearchItem = (item: GlobalSearchItem<Tab>) => {
-    if (item.kind === 'record' && item.recordId) {
-      const businessTab = item.tab as BusinessTab;
-      const id = item.recordId;
-      openBusinessRecord(businessTab, id);
-      return;
-    }
-    navigate(item.tab);
+    setGlobalSearchOpen(false);
+    globalSearchReturnFocusRef.current = null;
+    window.requestAnimationFrame(() => {
+      if (item.kind === 'create') {
+        globalSearchTriggerRef.current?.focus();
+        navigate(item.tab);
+        if (item.tab === 'tasks') openTaskEditor(emptyTask());
+        if (item.tab === 'meetings') openMeetingEditor(emptyMeeting());
+        if (item.tab === 'documents') openDocumentEditor(emptyDocument());
+        if (item.tab === 'researches') openResearchEditor(emptyResearch());
+        if (item.tab === 'seals') openSealEditor(emptySeal());
+        if (item.tab === 'materials') openMaterialEditor(emptyMaterial());
+        return;
+      }
+      if (item.kind === 'record' && item.recordId) {
+        const businessTab = item.tab as BusinessTab;
+        openBusinessRecord(businessTab, item.recordId);
+        return;
+      }
+      navigate(item.tab);
+    });
   };
   const openBusinessRecord = (businessTab: BusinessTab | AgendaKind, id: string) => {
     resetLedgerView(businessTab);
@@ -1008,12 +1040,12 @@ function App() {
     </main>
     <GlobalSearch open={globalSearchOpen} groups={globalSearchGroups} onOpenChange={changeGlobalSearchOpen} onSelectItem={selectGlobalSearchItem} />
     <QuickTaskCapture open={quickCaptureOpen} today={localDateInput(new Date())} onCancel={() => changeQuickCaptureOpen(false)} onCreateBlank={createBlankTaskFromCapture} onContinue={continueQuickCapture} />
-    {taskEditor && <TaskEditor task={taskEditor} initialImportText={taskEditorImportText} isNew={!tasks.some((task) => task.id === taskEditor.id)} forceDirty={copyDraftMatches('task', taskEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} partnerGroups={partnerGroups} onSaveGroup={savePartnerGroup} onDeleteGroup={deletePartnerGroup} onRemember={rememberDirectoryValue} onChange={setTaskEditor} onAttach={(files) => void addAttachments(files, taskEditor.files, (ids) => setTaskEditor({ ...taskEditor, files: ids }))} onSave={() => void saveTask(taskEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setTaskEditor(null); setTaskEditorImportText(''); }} setToast={setToast} />}
-    {meetingEditor && <MeetingEditor meeting={meetingEditor} isNew={!meetings.some((meeting) => meeting.id === meetingEditor.id)} forceDirty={copyDraftMatches('meeting', meetingEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setMeetingEditor} onAttach={(files) => void addAttachments(files, meetingEditor.files, (ids) => setMeetingEditor({ ...meetingEditor, files: ids }))} onSave={() => void saveMeeting(meetingEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setMeetingEditor(null); }} />}
-    {documentEditor && <DocumentEditor document={documentEditor} isNew={!documents.some((document) => document.id === documentEditor.id)} forceDirty={copyDraftMatches('document', documentEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setDocumentEditor} onAttach={(files) => void addAttachments(files, documentEditor.files, (ids) => setDocumentEditor({ ...documentEditor, files: ids }))} onSave={() => void saveDocument(documentEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setDocumentEditor(null); }} />}
-    {researchEditor && <ResearchEditor research={researchEditor} isNew={!researches.some((research) => research.id === researchEditor.id)} forceDirty={copyDraftMatches('research', researchEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onChange={setResearchEditor} onAttach={(files) => void addAttachments(files, researchEditor.files, (ids) => setResearchEditor({ ...researchEditor, files: ids }))} onSave={() => void saveResearch(researchEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setResearchEditor(null); }} />}
-    {sealEditor && <SealEditor seal={sealEditor} isNew={!seals.some((seal) => seal.id === sealEditor.id)} forceDirty={copyDraftMatches('seal', sealEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setSealEditor} onAttach={(files) => void addAttachments(files, sealEditor.files, (ids) => setSealEditor({ ...sealEditor, files: ids }))} onSave={() => void saveSeal(sealEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setSealEditor(null); }} />}
-    {materialEditor && <MaterialEditor material={materialEditor} isNew={!materials.some((material) => material.id === materialEditor.id)} forceDirty={copyDraftMatches('material', materialEditor.id)} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setMaterialEditor} onAttach={(files) => void addAttachments(files, materialEditor.files, (ids) => setMaterialEditor({ ...materialEditor, files: ids }))} onSave={() => void saveMaterial(materialEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setMaterialEditor(null); }} />}
+    {taskEditor && <TaskEditor task={taskEditor} initialImportText={taskEditorImportText} isNew={!tasks.some((task) => task.id === taskEditor.id)} forceDirty={copyDraftMatches('task', taskEditor.id)} returnFocusTarget={editorReturnFocusRef.current} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} partnerGroups={partnerGroups} onSaveGroup={savePartnerGroup} onDeleteGroup={deletePartnerGroup} onRemember={rememberDirectoryValue} onChange={setTaskEditor} onAttach={(files) => void addAttachments(files, taskEditor.files, (ids) => setTaskEditor({ ...taskEditor, files: ids }))} onSave={() => void saveTask(taskEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setTaskEditor(null); setTaskEditorImportText(''); }} setToast={setToast} />}
+    {meetingEditor && <MeetingEditor meeting={meetingEditor} isNew={!meetings.some((meeting) => meeting.id === meetingEditor.id)} forceDirty={copyDraftMatches('meeting', meetingEditor.id)} returnFocusTarget={editorReturnFocusRef.current} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setMeetingEditor} onAttach={(files) => void addAttachments(files, meetingEditor.files, (ids) => setMeetingEditor({ ...meetingEditor, files: ids }))} onSave={() => void saveMeeting(meetingEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setMeetingEditor(null); }} />}
+    {documentEditor && <DocumentEditor document={documentEditor} isNew={!documents.some((document) => document.id === documentEditor.id)} forceDirty={copyDraftMatches('document', documentEditor.id)} returnFocusTarget={editorReturnFocusRef.current} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setDocumentEditor} onAttach={(files) => void addAttachments(files, documentEditor.files, (ids) => setDocumentEditor({ ...documentEditor, files: ids }))} onSave={() => void saveDocument(documentEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setDocumentEditor(null); }} />}
+    {researchEditor && <ResearchEditor research={researchEditor} isNew={!researches.some((research) => research.id === researchEditor.id)} forceDirty={copyDraftMatches('research', researchEditor.id)} returnFocusTarget={editorReturnFocusRef.current} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onChange={setResearchEditor} onAttach={(files) => void addAttachments(files, researchEditor.files, (ids) => setResearchEditor({ ...researchEditor, files: ids }))} onSave={() => void saveResearch(researchEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setResearchEditor(null); }} />}
+    {sealEditor && <SealEditor seal={sealEditor} isNew={!seals.some((seal) => seal.id === sealEditor.id)} forceDirty={copyDraftMatches('seal', sealEditor.id)} returnFocusTarget={editorReturnFocusRef.current} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setSealEditor} onAttach={(files) => void addAttachments(files, sealEditor.files, (ids) => setSealEditor({ ...sealEditor, files: ids }))} onSave={() => void saveSeal(sealEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setSealEditor(null); }} />}
+    {materialEditor && <MaterialEditor material={materialEditor} isNew={!materials.some((material) => material.id === materialEditor.id)} forceDirty={copyDraftMatches('material', materialEditor.id)} returnFocusTarget={editorReturnFocusRef.current} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setMaterialEditor} onAttach={(files) => void addAttachments(files, materialEditor.files, (ids) => setMaterialEditor({ ...materialEditor, files: ids }))} onSave={() => void saveMaterial(materialEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setMaterialEditor(null); }} />}
     {toast.text && <div className="toast" role="status"><Check size={16} />{toast.text}</div>}
   </div>;
 }
@@ -1347,7 +1379,7 @@ function CopyDraftNotice({ detail }: { detail: string }) {
 
 const taskStatusOptions = (Object.entries(statusLabels) as Array<[Status, string]>).map(([value, label]) => ({ value, label }));
 
-function TaskEditor({ task, isNew, forceDirty, initialImportText, directory, attachments, attachmentBusy, partnerGroups, onSaveGroup, onDeleteGroup, onRemember, onChange, onAttach, onSave, onClose, setToast }: { task: Task; isNew: boolean; forceDirty: boolean; initialImportText: string; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; partnerGroups: PartnerGroup[]; onSaveGroup: (name: string, members: string[]) => Promise<void>; onDeleteGroup: (group: PartnerGroup) => Promise<void>; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (task: Task) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void; setToast: (text: string) => void }) {
+function TaskEditor({ task, isNew, forceDirty, initialImportText, returnFocusTarget, directory, attachments, attachmentBusy, partnerGroups, onSaveGroup, onDeleteGroup, onRemember, onChange, onAttach, onSave, onClose, setToast }: { task: Task; isNew: boolean; forceDirty: boolean; initialImportText: string; returnFocusTarget: HTMLElement | null; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; partnerGroups: PartnerGroup[]; onSaveGroup: (name: string, members: string[]) => Promise<void>; onDeleteGroup: (group: PartnerGroup) => Promise<void>; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (task: Task) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void; setToast: (text: string) => void }) {
   const update = <K extends keyof Task,>(key: K, value: Task[K]) => onChange({ ...task, [key]: value });
   const [summaryTemplate, setSummaryTemplate] = useState<WorkSummaryTemplateId>('progress');
   const [importText, setImportText] = useState(initialImportText);
@@ -1359,7 +1391,7 @@ function TaskEditor({ task, isNew, forceDirty, initialImportText, directory, att
     onChange(applyTaskTextExtraction(task, result));
     setToast(`已按本机规则填入：${result.recognized.join('、')}，请人工核对`);
   };
-  return <Drawer title={forceDirty ? '复制任务为新记录' : isNew ? '新建任务' : '编辑任务'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+  return <Drawer title={forceDirty ? '复制任务为新记录' : isNew ? '新建任务' : '编辑任务'} dirty={closeGuard.dirty} returnFocusTarget={returnFocusTarget} onClose={closeGuard.requestClose}>
     {forceDirty && <CopyDraftNotice detail="已保留原字段和主附件引用；任务状态、配合单位状态、阶段状态与工作小结已重置，请核对日期后保存。" />}
     <details className="smart-import" open={smartImportOpen} onToggle={(event) => setSmartImportOpen(event.currentTarget.open)}>
       <summary><WandSparkles size={14} />智能识别填单（粘贴通知文字）</summary>
@@ -1381,10 +1413,10 @@ function TaskEditor({ task, isNew, forceDirty, initialImportText, directory, att
   </Drawer>;
 }
 
-function MeetingEditor({ meeting, isNew, forceDirty, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { meeting: MeetingRecord; isNew: boolean; forceDirty: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (meeting: MeetingRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
+function MeetingEditor({ meeting, isNew, forceDirty, returnFocusTarget, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { meeting: MeetingRecord; isNew: boolean; forceDirty: boolean; returnFocusTarget: HTMLElement | null; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (meeting: MeetingRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
   const update = <K extends keyof MeetingRecord,>(key: K, value: MeetingRecord[K]) => onChange({ ...meeting, [key]: value });
   const closeGuard = useUnsavedChangesGuard({ meeting, attachmentBusy }, onClose, forceDirty);
-  return <Drawer title={forceDirty ? '复制会议为新记录' : isNew ? '新建会议' : '编辑会议'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+  return <Drawer title={forceDirty ? '复制会议为新记录' : isNew ? '新建会议' : '编辑会议'} dirty={closeGuard.dirty} returnFocusTarget={returnFocusTarget} onClose={closeGuard.requestClose}>
     {forceDirty && <CopyDraftNotice detail="已保留会议对象、时间、地点、备注和本机附件引用；请核对本次会议日期后再保存。" />}
     <Field label="会议主题" value={meeting.subject} onChange={(value) => update('subject', value)} placeholder="例如：重点工作部署会" />
     <div className="form-grid"><ReusableField label="发送对象" value={meeting.sendTo} suggestions={directory.units} onChange={(value) => update('sendTo', value)} onRemember={() => void onRemember('units', meeting.sendTo)} /><ReusableField label="接收方" value={meeting.receiver} suggestions={directory.people} onChange={(value) => update('receiver', value)} onRemember={() => void onRemember('people', meeting.receiver)} /></div>
@@ -1397,10 +1429,10 @@ function MeetingEditor({ meeting, isNew, forceDirty, directory, attachments, att
   </Drawer>;
 }
 
-function DocumentEditor({ document, isNew, forceDirty, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { document: OfficialDocument; isNew: boolean; forceDirty: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (document: OfficialDocument) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
+function DocumentEditor({ document, isNew, forceDirty, returnFocusTarget, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { document: OfficialDocument; isNew: boolean; forceDirty: boolean; returnFocusTarget: HTMLElement | null; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (document: OfficialDocument) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
   const update = <K extends keyof OfficialDocument,>(key: K, value: OfficialDocument[K]) => onChange({ ...document, [key]: value });
   const closeGuard = useUnsavedChangesGuard({ document, attachmentBusy }, onClose, forceDirty);
-  return <Drawer title={forceDirty ? '复制文件为新记录' : isNew ? '登记文件' : '编辑文件'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+  return <Drawer title={forceDirty ? '复制文件为新记录' : isNew ? '登记文件' : '编辑文件'} dirty={closeGuard.dirty} returnFocusTarget={returnFocusTarget} onClose={closeGuard.requestClose}>
     {forceDirty && <CopyDraftNotice detail="已保留原字段和本机附件引用，登记状态已重置为“待登记”；请重点核对成文日期与发文字号。" />}
     <Field label="文件标题" value={document.title} onChange={(v) => update('title', v)} placeholder="例如：关于做好年度重点工作的通知" />
     <div className="form-grid"><SelectField label="文件类型" value={document.docType} options={['收文', '发文', '其他']} onChange={(v) => update('docType', v as OfficialDocument['docType'])} /><DateField label="成文日期" value={document.docDate} onChange={(v) => update('docDate', v)} /></div>
@@ -1417,14 +1449,14 @@ function DocumentEditor({ document, isNew, forceDirty, directory, attachments, a
 
 const researchDirections: ResearchDirection[] = ['外出调研', '外出开会', '外出活动', '慰问活动', '上级来访'];
 
-function ResearchEditor({ research, isNew, forceDirty, directory, attachments, attachmentBusy, onChange, onAttach, onSave, onClose }: { research: ResearchRecord; isNew: boolean; forceDirty: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onChange: (research: ResearchRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
+function ResearchEditor({ research, isNew, forceDirty, returnFocusTarget, directory, attachments, attachmentBusy, onChange, onAttach, onSave, onClose }: { research: ResearchRecord; isNew: boolean; forceDirty: boolean; returnFocusTarget: HTMLElement | null; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onChange: (research: ResearchRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
   const update = <K extends keyof ResearchRecord,>(key: K, value: ResearchRecord[K]) => onChange({ ...research, [key]: value });
   const closeGuard = useUnsavedChangesGuard({ research, attachmentBusy }, onClose, forceDirty);
   const appendParticipant = (person: string) => {
     const current = research.participants.split(/[、，,;；\n]/).map((value) => value.trim()).filter(Boolean);
     update('participants', [...new Set([...current, person])].join('、'));
   };
-  return <Drawer title={forceDirty ? '复制外出活动为新记录' : isNew ? '新建外出活动' : '编辑外出活动'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+  return <Drawer title={forceDirty ? '复制外出活动为新记录' : isNew ? '新建外出活动' : '编辑外出活动'} dirty={closeGuard.dirty} returnFocusTarget={returnFocusTarget} onClose={closeGuard.requestClose}>
     {forceDirty && <CopyDraftNotice detail="已保留活动安排、摘要、备注和本机附件引用，旧成果记录已清空；请核对日期与参与人员。" />}
     <div className="form-grid"><DateField label="活动日期" value={research.researchTime} onChange={(value) => update('researchTime', value)} allowEmpty /><SelectField label="活动类型" value={research.direction} options={researchDirections} onChange={(value) => update('direction', value as ResearchDirection)} /></div>
     <Field label="活动主题" value={research.subject} onChange={(value) => update('subject', value)} placeholder="例如：基层治理调研" />
@@ -1439,10 +1471,10 @@ function ResearchEditor({ research, isNew, forceDirty, directory, attachments, a
   </Drawer>;
 }
 
-function SealEditor({ seal, isNew, forceDirty, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { seal: SealRecord; isNew: boolean; forceDirty: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (seal: SealRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
+function SealEditor({ seal, isNew, forceDirty, returnFocusTarget, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { seal: SealRecord; isNew: boolean; forceDirty: boolean; returnFocusTarget: HTMLElement | null; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (seal: SealRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
   const update = <K extends keyof SealRecord,>(key: K, value: SealRecord[K]) => onChange({ ...seal, [key]: value });
   const closeGuard = useUnsavedChangesGuard({ seal, attachmentBusy }, onClose, forceDirty);
-  return <Drawer title={forceDirty ? '复制用章记录为新记录' : isNew ? '新建用章记录' : '编辑用章记录'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+  return <Drawer title={forceDirty ? '复制用章记录为新记录' : isNew ? '新建用章记录' : '编辑用章记录'} dirty={closeGuard.dirty} returnFocusTarget={returnFocusTarget} onClose={closeGuard.requestClose}>
     {forceDirty && <CopyDraftNotice detail="已保留用章人、审批人、文件信息、备注和本机附件引用；请核对本次用章日期与文件名称。" />}
     <DateField label="用章日期" value={seal.sealTime} onChange={(value) => update('sealTime', value)} allowEmpty />
     <div className="form-grid"><ReusableField label="用章人" value={seal.userName} suggestions={directory.people} onChange={(value) => update('userName', value)} onRemember={() => void onRemember('people', seal.userName)} /><ReusableField label="审批人" value={seal.approver} suggestions={directory.people} onChange={(value) => update('approver', value)} onRemember={() => void onRemember('people', seal.approver)} /></div>
@@ -1455,10 +1487,10 @@ function SealEditor({ seal, isNew, forceDirty, directory, attachments, attachmen
   </Drawer>;
 }
 
-function MaterialEditor({ material, isNew, forceDirty, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { material: MaterialRecord; isNew: boolean; forceDirty: boolean; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (material: MaterialRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
+function MaterialEditor({ material, isNew, forceDirty, returnFocusTarget, directory, attachments, attachmentBusy, onRemember, onChange, onAttach, onSave, onClose }: { material: MaterialRecord; isNew: boolean; forceDirty: boolean; returnFocusTarget: HTMLElement | null; directory: ContactDirectory; attachments: Attachment[]; attachmentBusy: boolean; onRemember: (kind: 'people' | 'units', value: string) => Promise<void>; onChange: (material: MaterialRecord) => void; onAttach: (files: FileList) => void; onSave: () => void; onClose: () => void }) {
   const update = <K extends keyof MaterialRecord,>(key: K, value: MaterialRecord[K]) => onChange({ ...material, [key]: value });
   const closeGuard = useUnsavedChangesGuard({ material, attachmentBusy }, onClose, forceDirty);
-  return <Drawer title={forceDirty ? '复制物资记录为新记录' : isNew ? '新建物资记录' : '编辑物资记录'} dirty={closeGuard.dirty} onClose={closeGuard.requestClose}>
+  return <Drawer title={forceDirty ? '复制物资记录为新记录' : isNew ? '新建物资记录' : '编辑物资记录'} dirty={closeGuard.dirty} returnFocusTarget={returnFocusTarget} onClose={closeGuard.requestClose}>
     {forceDirty && <CopyDraftNotice detail="已保留物资、数量、收发类型、经手信息、备注和本机附件引用；保存前请核对数量与日期。" />}
     <div className="form-grid"><Field label="物资名称" value={material.materialName} onChange={(value) => update('materialName', value)} /><Field label="规格" value={material.spec} onChange={(value) => update('spec', value)} /></div>
     <div className="form-grid"><NumberField label="数量" value={material.quantity} min={1} onChange={(value) => update('quantity', value)} /><SelectField label="收发类型" value={material.type} options={[{ value: 'in', label: '入库' }, { value: 'out', label: '领用' }]} onChange={(value) => update('type', value as MaterialRecord['type'])} /></div>
@@ -1529,13 +1561,39 @@ function useUnsavedChangesGuard(value: unknown, onDiscard: () => void, forceDirt
   };
   return { dirty, requestClose };
 }
-function Drawer({ title, dirty = false, onClose, children }: { title: string; dirty?: boolean; onClose: () => void; children: React.ReactNode }) {
+function Drawer({ title, dirty = false, returnFocusTarget, onClose, children }: { title: string; dirty?: boolean; returnFocusTarget: HTMLElement | null; onClose: () => void; children: React.ReactNode }) {
+  const drawerRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const drawer = drawerRef.current;
+      if (!drawer) return;
+      const firstVisibleControl = Array.from(drawer.querySelectorAll<HTMLElement>('.drawer-body input:not([type="file"]):not([disabled]), .drawer-body textarea:not([disabled]), .drawer-body select:not([disabled]), .drawer-body button:not([disabled])'))
+        .find((control) => control.offsetParent !== null && !control.closest('details:not([open])'));
+      (firstVisibleControl || drawer).focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.requestAnimationFrame(() => { if (returnFocusTarget?.isConnected) returnFocusTarget.focus(); });
+    };
+  }, []);
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => { if (event.key !== 'Escape') return; event.preventDefault(); onClose(); };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
+      if (event.key !== 'Tab') return;
+      const drawer = drawerRef.current;
+      if (!drawer) return;
+      const controls = Array.from(drawer.querySelectorAll<HTMLElement>('input:not([type="file"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled])'))
+        .filter((control) => control.offsetParent !== null && !control.closest('details:not([open])'));
+      if (!controls.length) { event.preventDefault(); drawer.focus(); return; }
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !drawer.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
-  return <div className="drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside className="drawer" role="dialog" aria-modal="true" aria-label={title}><div className="drawer-header"><div className="drawer-title"><h2>{title}</h2>{dirty && <span className="drawer-unsaved-status" aria-live="polite">未保存修改</span>}</div><button className="icon-button" title="关闭" onClick={onClose}><X size={18} /></button></div><div className="drawer-body">{children}</div></aside></div>;
+  return <div className="drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside ref={drawerRef} tabIndex={-1} className="drawer" role="dialog" aria-modal="true" aria-label={title}><div className="drawer-header"><div className="drawer-title"><h2>{title}</h2>{dirty && <span className="drawer-unsaved-status" aria-live="polite">未保存修改</span>}</div><button className="icon-button" title="关闭" onClick={onClose}><X size={18} /></button></div><div className="drawer-body">{children}</div></aside></div>;
 }
 function Field({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; type?: string }) { return <label className="field"><span>{label}</span><input type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} /></label>; }
 function NumberField({ label, value, min, onChange }: { label: string; value: number; min?: number; onChange: (value: number) => void }) {

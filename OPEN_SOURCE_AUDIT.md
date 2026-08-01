@@ -1,6 +1,6 @@
 # 开源方案审计
 
-审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3、v0.7.4、v0.7.5、v0.7.6 补充审计：2026-07-31。公开客户端为本地优先演示模式；服务端仅私有部署。
+审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3、v0.7.4、v0.7.5、v0.7.6 补充审计：2026-07-31；v0.7.7 补充审计：2026-08-01。公开客户端为本地优先演示模式；服务端仅私有部署。
 
 | 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与项目契合度 / 可能冲突 | 是否采用 / 采用方式 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,6 +24,25 @@
 | Node 24 `fetch`、`crypto`、`node:test` | [Node.js](https://nodejs.org/api/) / MIT | HTTPS 抓取、哈希和策略测试 | 标准运行时内置，不增加供应链或安装体积 | 重定向与体积限制需显式实现 | 随 Node 24 维护 | 只在内容同步脚本和 CI 中使用，不进入浏览器联网路径 | 采用，封装允许清单、逐跳重定向和 2 MB 上限 |
 | Got 15.1.0 | [官方仓库](https://github.com/sindresorhus/got) / MIT | HTTP 重试、钩子、重定向 | HTTP 能力成熟 | 当前仅抓取少量权威来源，引入运行依赖收益不足 | 活跃；npm 元数据 2026-07-02 更新 | 会扩大供应链，不能替代本项目域名策略 | 不采用 |
 | simple-git 3.36.0 | [官方仓库](https://github.com/steveukx/git-js) / MIT | Git 命令封装 | API 易用 | Actions 仅需 add/commit/push 三步 | 活跃；npm 元数据 2026-04-12 更新 | 增加无必要依赖；runner 已提供 Git | 不采用，工作流直接调用 Git |
+
+## v0.7.7 全局查找与六类快速新建命令方案审计
+
+问题本质：项目已有 `Ctrl/Cmd+K`、可访问的 cmdk 组合框、十七个导航结果、六类 active 记录结果，以及六套成熟的 `empty*` 草稿工厂、编辑抽屉、附件会话、必填校验、日期校验、未保存守卫和显式保存入口。缺口不是新的数据模型、通用自动化引擎、第二套表单或自动保存，而是让用户在任意非模态页面用同一个键盘入口表达“新建哪类业务”，然后回到原业务链路继续核对。
+
+第一性原理不变量：六个动作必须使用稳定 ID，并与导航、记录通过显式 `kind` 区分；搜索值要包含“快速新建、新建、创建、登记”和业务同义词，但不得包含 API Key、访问码、密码、附件正文或未脱敏 AI 原文；动作选择必须先卸载命令面板并取消后台触发器的焦点恢复，再在下一帧导航到目标模块、调用对应 `empty*()` 与 `open*Editor()`，使焦点落到原抽屉第一个可编辑字段；不得直接调用 `save*`、`putRecord`、IndexedDB、Fetch、Electron IPC、同步、附件持久化或新建第二套表单。用户未修改时可直接关闭，修改后必须继续经过原未保存守卫；取消不得改变六类记录数量。编辑抽屉、快速记录或 AI 面板打开时仍必须禁用命令面板；普通 Escape 关闭命令面板时焦点回到原触发元素；移动端动作行不得小于 44px，页面不得横向溢出。
+
+| 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 / 冲突 | 维护与适配证据 | 是否采用 / 采用方式 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 现有 `cmdk@1.1.1` + 项目 action 类型 | [cmdk 官方仓库](https://github.com/pacocoursey/cmdk)、[包清单](https://raw.githubusercontent.com/pacocoursey/cmdk/main/cmdk/package.json) / MIT | `Command.Dialog/Input/Group/Item`、显式 `value` 与 `keywords`、组合框和列表键盘语义 | 零新增依赖；本项目已验证 Ctrl/Command+K、分组、过滤、Enter/Escape、移动端和模态互斥 | cmdk 只负责呈现与选择，业务动作和关闭/打开时序仍须由项目定义 | 2026-08-01 `http_probe`：包清单 HTTP 200，版本 1.1.1，React peer 为 18/19；与本项目锁定版本和 React 19 一致 | 采用；扩展 `kind: create`，增加稳定 action ID/value/keywords 与“快速新建”分组，业务执行留在 `App` |
+| kbar action 模型 | [官方仓库](https://github.com/timc1/kbar)、[Action 类型](https://github.com/timc1/kbar/blob/main/src/types.ts)、[包清单](https://raw.githubusercontent.com/timc1/kbar/main/package.json) / MIT | `id/name/keywords/section/perform` 统一动作，键盘搜索和执行 | 证明导航与命令可共享稳定 action 数据模型，`perform` 只表达意图 | 引入后会与现有 cmdk、快捷键和焦点状态重复；Fuse、虚拟列表、嵌套 action 超出六项平面列表需求 | 2026-08-01 `http_probe`：根包清单 HTTP 200，版本 0.1.0-beta.47，开发/peer 时代主要为 React 16/17 | 只借鉴稳定 action 组织方式；不新增依赖，不复制 ActionImpl、InternalEvents、搜索实现、示例文案或视觉 |
+| Radix Dialog / FocusScope | [Dialog 官方文档](https://www.radix-ui.com/primitives/docs/components/dialog)、[FocusScope 源码](https://github.com/radix-ui/primitives/blob/main/packages/react/focus-scope/src/focus-scope.tsx) / MIT | 模态焦点范围、挂载与卸载自动聚焦、Escape 与 portal 基础 | 是 cmdk Dialog 已使用的焦点基础，能解释关闭面板与打开抽屉必须拆分生命周期 | 若本地再造第二个 Dialog/focus trap 会叠加焦点恢复和事件传播 | 2026-08-01 `http_probe`：官方 Dialog 文档 HTTP 200；cmdk 包清单声明依赖 `@radix-ui/react-dialog` | 仅作为时序依据；不复制源码，不新增 Radix 直接依赖 |
+| 新增独立命令框架或自动保存动作 | 自研 / 不适用 | 新表单、后台 action store、直接持久化 | 表面上入口更短 | 会复制六套编辑、校验、附件和保存逻辑，破坏人工核对、未保存保护与本地数据边界 | 不适用 | 不采用 |
+
+- 直接复用：现有 cmdk、`GlobalSearch`、`navigate`、六个 `empty*`、六个 `open*Editor`、原抽屉、未保存守卫、附件会话、保存校验与模态互斥。
+- 只借鉴设计：kbar 的稳定 action 数据模型；Radix 的卸载焦点语义。未复制任何外部源码、示例文案、视觉、品牌、GIF、资产或数据。
+- 不采用：kbar 新依赖、Fuse/虚拟列表、嵌套命令、命令历史持久化、最近动作、每命令独立快捷键、自动保存、后台创建、第二套表单、第二套附件与数据访问路径。
+- 许可证边界：本版无新增依赖。cmdk 继续按既有 MIT 依赖使用；kbar 与 Radix 仅作公开 API 和交互思想参考。若后续复制实质源码，必须重新审计并保留相应 MIT notice。
+- 联网与回滚：命令面板继续只消费 `App` 内存中的 active 数据和静态动作，不新增请求。回滚只需移除 `create` 类型、动作分组、选择分支、焦点回归与对应文档测试，无数据库、快照、同步、服务端或附件迁移。
 
 ## v0.7.6 六类业务“复制相似记录”方案审计
 

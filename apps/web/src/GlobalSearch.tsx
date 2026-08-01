@@ -4,7 +4,7 @@ import { ArrowUpRight, Search, X, type LucideIcon } from 'lucide-react';
 
 export interface GlobalSearchItem<TTab extends string> {
   id: string;
-  kind: 'navigation' | 'record';
+  kind: 'navigation' | 'record' | 'create';
   tab: TTab;
   recordId?: string;
   title: string;
@@ -37,12 +37,12 @@ export function GlobalSearch<TTab extends string>({ open, groups, onOpenChange, 
   return <Command.Dialog open={open} onOpenChange={onOpenChange} label="全局查找" contentClassName="global-search-dialog">
     <div className="global-search-heading">
       <span className="global-search-mark" aria-hidden="true"><Search size={19} strokeWidth={1.7} /></span>
-      <div><span>LOCAL INDEX / CMD K</span><strong>全局查找</strong></div>
+      <div><span>LOCAL COMMANDS / CMD K</span><strong>查找与快速新建</strong></div>
       <button type="button" className="icon-button" aria-label="关闭全局查找" title="关闭全局查找" onClick={() => onOpenChange(false)}><X size={18} /></button>
     </div>
     <div className="global-search-input-row">
       <Search size={18} aria-hidden="true" />
-      <Command.Input value={query} onValueChange={setQuery} placeholder="查找模块、任务、会议、文件或其他本机记录" autoFocus />
+      <Command.Input value={query} onValueChange={setQuery} placeholder="查找模块和记录，或输入“新建”执行命令" autoFocus />
       <kbd>Esc</kbd>
     </div>
     <Command.List className="global-search-list">
@@ -54,17 +54,17 @@ export function GlobalSearch<TTab extends string>({ open, groups, onOpenChange, 
             key={item.id}
             value={item.searchValue}
             keywords={item.keywords}
-            className="global-search-item"
-            onSelect={() => { onSelectItem(item); onOpenChange(false); }}
+            className={`global-search-item global-search-item-${item.kind}`}
+            onSelect={() => onSelectItem(item)}
           >
             <span className="global-search-item-icon" aria-hidden="true"><Icon size={18} strokeWidth={1.6} /></span>
             <span className="global-search-item-copy"><strong>{item.title}</strong><small>{item.description}</small></span>
-            <span className="global-search-item-kind">{item.kind === 'navigation' ? '导航' : '记录'}</span>
+            <span className="global-search-item-kind">{item.kind === 'navigation' ? '导航' : item.kind === 'create' ? '新建' : '记录'}</span>
             <ArrowUpRight size={15} aria-hidden="true" />
           </Command.Item>;
         })}
       </Command.Group>)}
     </Command.List>
-    <div className="global-search-footer"><span>只查找当前设备已加载的数据，不联网、不保存搜索词</span><span><kbd>上下键</kbd> 选择 <kbd>Enter</kbd> 打开</span></div>
+    <div className="global-search-footer"><span>命令只打开原编辑器，不联网、不自动保存</span><span><kbd>上下键</kbd> 选择 <kbd>Enter</kbd> 打开</span></div>
   </Command.Dialog>;
 }
