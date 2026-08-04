@@ -1891,16 +1891,134 @@ test('imports TXT, sanitized HTML and DOCX, then reuses a saved custom format', 
   await importer.setInputFiles({ name: '导入文档.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from(await docx.arrayBuffer()) });
   await expect(page.getByLabel('文稿标题')).toHaveValue('导入 DOCX 标题');
   await expect(page.locator('.ProseMirror')).toContainText('DOCX 正文');
+  await page.getByRole('button', { name: '保存版本' }).click();
+  await expect(page.getByRole('status')).toHaveText(/文稿版本已保存/);
 
   await page.getByLabel('文稿标题').fill('端到端自定义格式');
   await page.getByRole('button', { name: '保存自定义格式' }).click();
   await expect(page.getByRole('status')).toHaveText(/已保存为自定义格式/);
+  await expect(page.getByLabel('文稿标题')).toHaveValue('端到端自定义格式');
+  await expect(page.locator('.ProseMirror')).toContainText('DOCX 正文');
   await page.reload();
   await page.getByRole('button', { name: '公文写作' }).click();
   await page.getByLabel('搜索写作模板').fill('端到端自定义格式');
-  await page.getByRole('button', { name: /端到端自定义格式/ }).click();
+  let customTemplate = page.locator('.template-option-row').filter({ hasText: '端到端自定义格式' });
+  await customTemplate.locator('.template-option').click();
   await expect(page.locator('.ProseMirror')).toContainText('DOCX 正文');
   await expect(page.getByText(/本机自定义/).first()).toBeVisible();
+
+  const actionRequests: string[] = [];
+  const recordActionRequest = (request: { url: () => string }) => actionRequests.push(request.url());
+  await page.getByLabel('文稿标题').fill('重命名期间未保存标题');
+  await page.locator('.ProseMirror').fill('重命名期间未保存正文');
+  const titleBeforeRename = await page.getByLabel('文稿标题').inputValue();
+  const bodyBeforeRename = await page.locator('.ProseMirror').innerText();
+  const versionBeforeRename = await page.locator('.toolbar-hint').innerText();
+  page.on('request', recordActionRequest);
+  await customTemplate.getByRole('button', { name: '重命名自定义格式：端到端自定义格式' }).click();
+  let renameInput = page.getByRole('textbox', { name: '自定义格式新名称', exact: true });
+  await renameInput.fill('取消的格式名称');
+  await page.getByRole('button', { name: '取消重命名自定义格式：端到端自定义格式' }).click();
+  await expect(customTemplate.getByText('端到端自定义格式', { exact: true })).toBeVisible();
+  await expect(customTemplate.getByRole('button', { name: '重命名自定义格式：端到端自定义格式' })).toBeFocused();
+
+  await customTemplate.getByRole('button', { name: '重命名自定义格式：端到端自定义格式' }).click();
+  renameInput = page.getByRole('textbox', { name: '自定义格式新名称', exact: true });
+  await renameInput.fill('Escape 取消的格式名称');
+  await page.getByRole('button', { name: '保存自定义格式新名称：端到端自定义格式' }).focus();
+  await page.keyboard.press('Escape');
+  await expect(customTemplate.getByText('端到端自定义格式', { exact: true })).toBeVisible();
+  await expect(customTemplate.getByRole('button', { name: '重命名自定义格式：端到端自定义格式' })).toBeFocused();
+
+  await customTemplate.getByRole('button', { name: '重命名自定义格式：端到端自定义格式' }).click();
+  renameInput = page.getByRole('textbox', { name: '自定义格式新名称', exact: true });
+  await renameInput.fill('已重命名自定义格式');
+  await renameInput.press('Enter');
+  await expect(page.getByRole('status')).toHaveText(/已重命名/);
+  customTemplate = page.locator('.template-option-row').filter({ hasText: '已重命名自定义格式' });
+  await expect(customTemplate).toBeVisible();
+  await expect(page.getByLabel('文稿标题')).toHaveValue(titleBeforeRename);
+  expect(await page.locator('.ProseMirror').innerText()).toBe(bodyBeforeRename);
+  expect(await page.locator('.toolbar-hint').innerText()).toBe(versionBeforeRename);
+  page.off('request', recordActionRequest);
+  expect(actionRequests).toEqual([]);
+
+  await page.reload();
+  await page.getByRole('button', { name: '公文写作' }).click();
+  await page.getByLabel('搜索写作模板').fill('已重命名自定义格式');
+  customTemplate = page.locator('.template-option-row').filter({ hasText: '已重命名自定义格式' });
+  await page.getByRole('button', { name: '数据迁移' }).click();
+  const renamedSnapshotDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出快照' }).click();
+  const renamedSnapshotPath = await (await renamedSnapshotDownload).path();
+  if (!renamedSnapshotPath) throw new Error('重命名格式快照路径不可用');
+  const renamedSnapshot = JSON.parse(readFileSync(renamedSnapshotPath, 'utf8')) as { records: Array<{ id: string; kind: string; payload: Record<string, unknown> }> };
+  const renamedSetting = renamedSnapshot.records.find((record) => record.kind === 'setting' && record.payload.name === '已重命名自定义格式');
+  expect(renamedSetting?.id).toBe(`custom-template:${String(renamedSetting?.payload.id)}`);
+  expect(renamedSetting?.payload.contentText).toContain('DOCX 正文');
+
+  await page.getByRole('button', { name: '公文写作' }).click();
+  await page.getByLabel('搜索写作模板').fill('已重命名自定义格式');
+  customTemplate = page.locator('.template-option-row').filter({ hasText: '已重命名自定义格式' });
+  await customTemplate.locator('.template-option').click();
+  await expect(page.locator('.ProseMirror')).toContainText('DOCX 正文');
+  await page.getByRole('button', { name: '保存版本' }).click();
+  await expect(page.getByRole('status')).toHaveText(/文稿版本已保存/);
+  await page.getByLabel('文稿标题').fill('删除期间未保存标题');
+  await page.locator('.ProseMirror').fill('删除期间未保存正文');
+  const titleBeforeDelete = await page.getByLabel('文稿标题').inputValue();
+  const bodyBeforeDelete = await page.locator('.ProseMirror').innerText();
+  const versionBeforeDelete = await page.locator('.toolbar-hint').innerText();
+
+  actionRequests.length = 0;
+  page.on('request', recordActionRequest);
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await customTemplate.getByRole('button', { name: '删除自定义格式：已重命名自定义格式' }).click();
+  await expect(customTemplate).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
+  await customTemplate.getByRole('button', { name: '删除自定义格式：已重命名自定义格式' }).click();
+  await expect(customTemplate).toHaveCount(0);
+  await expect(page.getByLabel('文稿标题')).toHaveValue(titleBeforeDelete);
+  expect(await page.locator('.ProseMirror').innerText()).toBe(bodyBeforeDelete);
+  expect(await page.locator('.toolbar-hint').innerText()).toBe(versionBeforeDelete);
+  await expect(page.getByLabel('搜索写作模板')).toBeFocused();
+  await expect(page.getByLabel('搜索写作模板')).toHaveValue('');
+  page.off('request', recordActionRequest);
+  expect(actionRequests).toEqual([]);
+
+  await page.getByRole('button', { name: '数据迁移' }).click();
+  const deletedSnapshotDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出快照' }).click();
+  const deletedSnapshotPath = await (await deletedSnapshotDownload).path();
+  if (!deletedSnapshotPath) throw new Error('删除格式后的快照路径不可用');
+  const deletedSnapshot = JSON.parse(readFileSync(deletedSnapshotPath, 'utf8')) as { records: Array<{ kind: string; payload: Record<string, unknown> }> };
+  expect(deletedSnapshot.records.some((record) => record.kind === 'setting' && record.payload.name === '已重命名自定义格式')).toBe(false);
+
+  await page.reload();
+  await page.getByRole('button', { name: '公文写作' }).click();
+  await page.getByLabel('搜索写作模板').fill('已重命名自定义格式');
+  await expect(page.getByText('未找到匹配模板')).toBeVisible();
+  await page.getByLabel('搜索写作模板').fill('会议纪要');
+  await expect(page.getByRole('button', { name: /会议纪要（一事一议）/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /重命名自定义格式：会议纪要/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /删除自定义格式：会议纪要/ })).toHaveCount(0);
+});
+
+test('keeps custom template actions touch-safe on mobile', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile', 'Responsive custom-template management is verified on the mobile project.');
+  await page.getByRole('button', { name: '公文写作' }).click();
+  await page.getByLabel('文稿标题').fill('移动端自定义格式');
+  await page.getByRole('button', { name: '保存自定义格式' }).click();
+  await page.getByLabel('搜索写作模板').fill('移动端自定义格式');
+  const row = page.locator('.template-option-row').filter({ hasText: '移动端自定义格式' });
+  const rename = row.getByRole('button', { name: '重命名自定义格式：移动端自定义格式' });
+  const remove = row.getByRole('button', { name: '删除自定义格式：移动端自定义格式' });
+  for (const action of [rename, remove]) {
+    const box = await action.boundingBox();
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+  }
+  expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test('generates, edits, persists and exports a weekly report', async ({ page }, testInfo) => {

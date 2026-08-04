@@ -68,6 +68,14 @@ export async function removeRecord(id: string): Promise<void> {
   if (doc) await doc.remove();
 }
 
+export async function removeRecordOfKind(kind: Kind, id: string): Promise<void> {
+  const collection = await getDb();
+  const doc = await collection.findOne(id).exec();
+  if (!doc) return;
+  if (doc.kind !== kind) throw new Error(`记录 ID ${id} 属于 ${doc.kind}，拒绝按 ${kind} 类型删除`);
+  await doc.remove();
+}
+
 export function attachmentIdsFromPayload(payload: unknown) {
   const ids = new Set<string>();
   const visit = (value: unknown) => {
@@ -209,13 +217,21 @@ export function parseLocalSnapshot(snapshot: unknown): { records: SnapshotRecord
     if (typeof record.kind !== 'string' || !allowedKinds.has(record.kind as Kind)) { warnings.push(`跳过未知类型记录：${record.id}`); continue; }
     if (!record.payload || typeof record.payload !== 'object' || Array.isArray(record.payload)) { warnings.push(`跳过无效 payload：${record.id}`); continue; }
     const kind = record.kind as Kind;
+    const payload = record.payload as Record<string, unknown>;
+    if (kind === 'setting' && payload.type === 'custom-writing-template') {
+      const templateId = payload.id;
+      if (typeof templateId !== 'string' || !templateId || record.id !== `custom-template:${templateId}`) {
+        warnings.push(`跳过自定义格式身份不匹配：${record.id}`);
+        continue;
+      }
+    }
     const seenKind = seenKinds.get(record.id);
     if (seenKind) {
       warnings.push(seenKind === kind ? `跳过重复记录 ID：${record.id}` : `跳过跨类型 ID 冲突：${record.id}（${seenKind}/${kind}）`);
       continue;
     }
     seenKinds.set(record.id, kind);
-    records.push({ id: record.id, kind, payload: snapshotPayloadForRecord(kind, record.payload as RecordPayload), updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : undefined });
+    records.push({ id: record.id, kind, payload: snapshotPayloadForRecord(kind, payload as RecordPayload), updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : undefined });
   }
   return { records, warnings };
 }

@@ -156,6 +156,23 @@ test('document-task links keep one payload owner and reuse existing save and det
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.related-record-option[^}]*min-height:\s*44px/, 'narrow relation choices must keep a 44px touch target');
 });
 
+test('custom writing templates can be renamed and deleted without exposing licensed templates', async () => {
+  const [app, domain, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('packages/domain/src/index.ts'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(domain, /export function renameCustomWritingTemplate/, 'name changes must use one domain pure function');
+  assert.doesNotMatch(domain, /putRecord|removeRecord|IndexedDB|fetch|ipc/i, 'template renaming must remain a pure domain transformation');
+  assert.match(app, /removeRecordOfKind\('setting', `custom-template:\$\{template\.id\}`\)/, 'deletion must verify and target the existing local setting record');
+  assert.match(app, /重命名自定义格式：/, 'custom templates must expose an accessible rename action');
+  assert.match(app, /删除自定义格式：/, 'custom templates must expose an accessible delete action');
+  assert.match(app, /if \(!custom\) return <button/, 'licensed templates must stay read-only without management actions');
+  assert.match(app, /currentDraft\.templateId === template\.id[^\n]+templateId: ''/, 'deleting the selected template must only clear its weak draft reference');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.template-option-action[^}]*44px/, 'narrow template actions must retain 44px touch targets');
+});
+
 test('unified agenda stays local-only and reuses the existing record detail path', async () => {
   const [app, agenda, agendaView, css] = await Promise.all([
     read('apps/web/src/App.tsx'),

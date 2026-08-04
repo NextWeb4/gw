@@ -93,4 +93,42 @@ describe('local snapshot validation', () => {
     });
     expect(parsed.records).toEqual([{ id: documentPayload.id, kind: 'document', payload: documentPayload, updatedAt: documentPayload.updatedAt }]);
   });
+
+  it('preserves a renamed custom template under its stable setting record id', () => {
+    const payload = {
+      type: 'custom-writing-template',
+      id: 'custom-template-stable',
+      name: '已重命名格式',
+      custom: true,
+      contentHtml: '<p>原正文</p>',
+      contentText: '原正文',
+      outline: ['原结构'],
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-04T05:00:00.000Z',
+    };
+    const record = { id: `custom-template:${payload.id}`, kind: 'setting', payload, updatedAt: payload.updatedAt };
+    const parsed = parseLocalSnapshot({ format: 'hxhwang-gw-local-v1', records: [record] });
+    expect(parsed.records).toEqual([record]);
+    expect(snapshotPayloadForRecord('setting', payload)).toBe(payload);
+  });
+
+  it('skips custom templates whose outer setting id does not match the payload id', () => {
+    const payload = {
+      type: 'custom-writing-template',
+      id: 'custom-template-target',
+      name: '身份错配格式',
+      custom: true,
+      contentHtml: '<p>正文</p>',
+      contentText: '正文',
+      outline: ['结构'],
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-04T05:00:00.000Z',
+    };
+    const parsed = parseLocalSnapshot({
+      format: 'hxhwang-gw-local-v1',
+      records: [{ id: 'unrelated-setting-id', kind: 'setting', payload, updatedAt: payload.updatedAt }],
+    });
+    expect(parsed.records).toEqual([]);
+    expect(parsed.warnings).toEqual(['跳过自定义格式身份不匹配：unrelated-setting-id']);
+  });
 });

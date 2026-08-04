@@ -178,6 +178,15 @@ export interface CustomWritingTemplate extends WritingTemplate {
   updatedAt: string;
 }
 
+export const CUSTOM_WRITING_TEMPLATE_NAME_LIMIT = 80;
+
+export function renameCustomWritingTemplate(template: CustomWritingTemplate, name: string, updatedAt = nowIso()): CustomWritingTemplate {
+  const normalizedName = name.trim();
+  if (!normalizedName) throw new Error('自定义格式名称不能为空');
+  if (normalizedName.length > CUSTOM_WRITING_TEMPLATE_NAME_LIMIT) throw new Error(`自定义格式名称不能超过 ${CUSTOM_WRITING_TEMPLATE_NAME_LIMIT} 个字符`);
+  return { ...template, name: normalizedName, updatedAt };
+}
+
 export interface ContactDirectory {
   people: string[];
   units: string[];

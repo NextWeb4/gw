@@ -10,7 +10,7 @@ import {
 import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, DEFAULT_WEEKLY_TEMPLATE, extractTaskFromText,
   duplicateBusinessRecord, extractWeeklyTemplateFromSample, listStatisticsMonths, mergePartnerGroupMembers, moveBusinessRecordToTrash, nowIso, parseWeeklyTemplate, partitionBusinessRecords,
-  normalizeRelatedRecordIds, purgeBusinessRecord, relatedDocumentsForTask, relatedTasksForDocument, resolveCategoryTint, restoreBusinessRecord,
+  normalizeRelatedRecordIds, purgeBusinessRecord, relatedDocumentsForTask, relatedTasksForDocument, renameCustomWritingTemplate, resolveCategoryTint, restoreBusinessRecord,
   weeklySectionSourceLabels,
   type AiFieldChange, type AiGuidancePreset, type AiHistoryEntry, type AiSkill, type ArchiveRecord, type Attachment, type CategoryStyle, type CategoryTint, type Draft, type KnowledgePack, type MaterialRecord, type PartnerGroup,
   type MeetingRecord, type MigrationReport, type PurgedBusinessRecord, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, mergeContactDirectory, statusLabels,
@@ -21,7 +21,7 @@ import {
 } from '@hxhwang/domain';
 import {
   attachmentIdsFromPayload, exportLocalSnapshot, getRecord, importLocalSnapshot, listRecords, putRecord, removeAttachmentsIfUnreferenced,
-  putPurgedBusinessRecord, removeRecord, seedDemoData, type BusinessKind, type Kind
+  putPurgedBusinessRecord, removeRecord, removeRecordOfKind, seedDemoData, type BusinessKind, type Kind
 } from '@hxhwang/local-data';
 import { migrateLegacyExport, type MigrationBundle } from '@hxhwang/migration';
 import { AI_MAX_CONTENT_LENGTH, AI_MAX_GUIDANCE_LENGTH, AI_PROVIDER_PRESETS, DirectAiClient, extractOpenAiText, PrivateSyncClient, RelayAiClient, type RelayProviderDescriptor } from '@hxhwang/sync-client';
@@ -623,8 +623,32 @@ function App() {
   };
   const saveCustomTemplate = async (template: CustomWritingTemplate) => {
     await putRecord('setting', `custom-template:${template.id}`, { type: 'custom-writing-template', ...template });
-    await reload();
+    setCustomTemplates((current) => [...current.filter((item) => item.id !== template.id), template]);
     setToast('已保存为自定义格式');
+  };
+  const renameCustomTemplate = async (template: CustomWritingTemplate, name: string) => {
+    try {
+      const renamed = renameCustomWritingTemplate(template, name);
+      await putRecord('setting', `custom-template:${template.id}`, { type: 'custom-writing-template', ...renamed });
+      setCustomTemplates((current) => current.map((item) => item.id === renamed.id ? renamed : item));
+      setToast(`自定义格式「${renamed.name}」已重命名`);
+      return true;
+    } catch (error) {
+      setToast(error instanceof Error ? `重命名失败：${error.message}` : '重命名失败');
+      return false;
+    }
+  };
+  const deleteCustomTemplate = async (template: CustomWritingTemplate) => {
+    if (!window.confirm(`确认删除自定义格式「${template.name}」？删除后无法撤销，当前文稿内容不会改变。`)) return false;
+    try {
+      await removeRecordOfKind('setting', `custom-template:${template.id}`);
+      setCustomTemplates((current) => current.filter((item) => item.id !== template.id));
+      setToast('自定义格式已删除');
+      return true;
+    } catch (error) {
+      setToast(error instanceof Error ? `删除失败：${error.message}` : '删除失败');
+      return false;
+    }
   };
   const saveAiSkill = async (name: string, content: string) => {
     const trimmedName = name.trim();
@@ -1088,7 +1112,7 @@ function App() {
     if (tab === 'seals') return <SealView seals={filteredSeals} totalCount={seals.length} view={ledgerViews.seals} filterOptions={sealFilterOptions} onViewChange={(patch) => updateLedgerView('seals', patch)} onReset={() => resetLedgerView('seals')} onExport={() => exportLedgerCsv(() => buildLedgerCsv('seals', filteredSeals, { date: localDateInput(new Date()) }))} selectedId={selectedSealId} onSelect={(id) => selectBusinessRecord('seals', id)} onNew={() => openSealEditor(emptySeal())} onEdit={(seal) => openSealEditor(seal)} onDelete={deleteSeal} />;
     if (tab === 'materials') return <MaterialView materials={filteredMaterials} allMaterials={materials} totalCount={materials.length} view={ledgerViews.materials} filterOptions={materialFilterOptions} onViewChange={(patch) => updateLedgerView('materials', patch)} onReset={() => resetLedgerView('materials')} onExport={() => exportLedgerCsv(() => buildLedgerCsv('materials', filteredMaterials, { date: localDateInput(new Date()), allMaterials: materials }))} selectedId={selectedMaterialId} onSelect={(id) => selectBusinessRecord('materials', id)} onNew={() => openMaterialEditor(emptyMaterial())} onEdit={(material) => openMaterialEditor(material)} onDelete={deleteMaterial} />;
     if (tab === 'directory') return <DirectoryManager directory={directory} onSave={replaceDirectory} setToast={setToast} />;
-    if (tab === 'writing') return <WritingStudio draft={draft} setDraft={setDraft} customTemplates={customTemplates} onSaveCustomTemplate={saveCustomTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
+    if (tab === 'writing') return <WritingStudio draft={draft} setDraft={setDraft} customTemplates={customTemplates} onSaveCustomTemplate={saveCustomTemplate} onRenameCustomTemplate={renameCustomTemplate} onDeleteCustomTemplate={deleteCustomTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
     if (tab === 'weekly') return <WeeklyView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} reports={weeklyReports} templates={weeklyTemplates} onSave={saveWeeklyReport} onDelete={deleteWeeklyReport} onSaveTemplate={saveWeeklyTemplate} onDeleteTemplate={deleteWeeklyTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
     if (tab === 'stats') return <StatsView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} categoryTints={categoryTints} onSetCategoryTint={setCategoryTint} />;
     if (tab === 'ai') return null;
@@ -1827,13 +1851,25 @@ function bytesToBase64(bytes: Uint8Array) { let binary = ''; for (let offset = 0
 function formatBytes(size: number) { if (size < 1024) return `${size} B`; if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`; return `${(size / 1024 / 1024).toFixed(1)} MB`; }
 function downloadStoredAttachment(attachment: Attachment) { if (attachment.data === undefined) return; const binary = atob(attachment.data); const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0)); downloadBlob(new Blob([bytes], { type: attachment.mimeType }), attachment.name); }
 
-function WritingStudio({ draft, setDraft, customTemplates, onSaveCustomTemplate, onAiAssist, setToast }: { draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>; customTemplates: CustomWritingTemplate[]; onSaveCustomTemplate: (template: CustomWritingTemplate) => Promise<void>; onAiAssist: (request?: AiAssistRequest) => void; setToast: (text: string) => void }) {
+function WritingStudio({ draft, setDraft, customTemplates, onSaveCustomTemplate, onRenameCustomTemplate, onDeleteCustomTemplate, onAiAssist, setToast }: { draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>; customTemplates: CustomWritingTemplate[]; onSaveCustomTemplate: (template: CustomWritingTemplate) => Promise<void>; onRenameCustomTemplate: (template: CustomWritingTemplate, name: string) => Promise<boolean>; onDeleteCustomTemplate: (template: CustomWritingTemplate) => Promise<boolean>; onAiAssist: (request?: AiAssistRequest) => void; setToast: (text: string) => void }) {
   const pack = knowledgePack as KnowledgePack;
   const templates: Array<WritingTemplate | CustomWritingTemplate> = [...customTemplates, ...(pack.templates as WritingTemplate[])];
   const [templateQuery, setTemplateQuery] = useState('');
+  const [renamingTemplateId, setRenamingTemplateId] = useState('');
+  const [renamingTemplateName, setRenamingTemplateName] = useState('');
+  const [renameReturnTemplateId, setRenameReturnTemplateId] = useState('');
+  const templateSearchRef = useRef<HTMLInputElement>(null);
+  const templateRenameActionRef = useRef<HTMLButtonElement>(null);
   const editor = useEditor({ extensions: [StarterKit, Placeholder.configure({ placeholder: '从第一段开始，把事实、数据和动作写下来……' })], content: draft.contentHtml || `<p>一、基本情况</p><p>围绕年度重点工作，系统梳理工作进展、主要做法和实际成效。</p><p>二、主要做法</p><p>坚持目标导向，细化任务清单，明确责任分工和完成时限。</p><p>三、下一步安排</p><p>持续跟踪重点事项，及时补充数据和佐证材料。</p>`, onUpdate: ({ editor: current }) => setDraft((currentDraft) => ({ ...currentDraft, contentHtml: current.getHTML(), contentText: current.getText(), updatedAt: nowIso() })) });
   useEffect(() => { if (editor && draft.contentHtml && editor.getHTML() !== draft.contentHtml) editor.commands.setContent(draft.contentHtml); }, [editor, draft.contentHtml]);
-  const selectedTemplate = templates.find((template) => template.id === draft.templateId) || templates[0];
+  useEffect(() => {
+    if (renamingTemplateId || !renameReturnTemplateId) return;
+    window.requestAnimationFrame(() => {
+      templateRenameActionRef.current?.focus();
+      setRenameReturnTemplateId('');
+    });
+  }, [renamingTemplateId, renameReturnTemplateId]);
+  const selectedTemplate = templates.find((template) => template.id === draft.templateId);
   const lines = (draft.contentText || editor?.getText() || '').split(/\r?\n/).filter(Boolean);
   const longLines = lines.filter((line) => line.length > 45);
   const visibleTemplates = templates.filter((template) => `${template.name} ${template.documentType}`.toLowerCase().includes(templateQuery.trim().toLowerCase()));
@@ -1845,6 +1881,28 @@ function WritingStudio({ draft, setDraft, customTemplates, onSaveCustomTemplate,
       return;
     }
     const [outlineTitle, ...outlineBody] = template.outline; const title = outlineTitle && outlineTitle !== '标题' ? outlineTitle : template.name; const content = outlineBody.map((item, index) => `${['一', '二', '三', '四', '五'][index] || index + 1}、${item}`).join('\n'); const contentHtml = content.split('\n').map((line) => `<p>${line}</p>`).join(''); editor?.commands.setContent(contentHtml); setDraft((currentDraft) => ({ ...currentDraft, title, documentType: template.documentType, templateId: template.id, contentHtml, contentText: content, updatedAt: nowIso() }));
+  };
+  const beginTemplateRename = (template: CustomWritingTemplate) => {
+    setRenameReturnTemplateId(template.id);
+    setRenamingTemplateId(template.id);
+    setRenamingTemplateName(template.name);
+  };
+  const cancelTemplateRename = () => {
+    setRenamingTemplateId('');
+    setRenamingTemplateName('');
+  };
+  const submitTemplateRename = async (template: CustomWritingTemplate) => {
+    const nextName = renamingTemplateName.trim();
+    if (!await onRenameCustomTemplate(template, nextName)) return;
+    setTemplateQuery(nextName);
+    cancelTemplateRename();
+  };
+  const removeCustomTemplate = async (template: CustomWritingTemplate) => {
+    if (!await onDeleteCustomTemplate(template)) return;
+    if (renamingTemplateId === template.id) cancelTemplateRename();
+    setDraft((currentDraft) => currentDraft.templateId === template.id ? { ...currentDraft, templateId: '' } : currentDraft);
+    setTemplateQuery('');
+    window.requestAnimationFrame(() => templateSearchRef.current?.focus());
   };
   const importDocument = async (file?: File) => {
     if (!file) return;
@@ -1880,13 +1938,27 @@ function WritingStudio({ draft, setDraft, customTemplates, onSaveCustomTemplate,
         <div className="panel-heading"><div><span className="eyebrow">模板</span><h2>结构选择</h2></div></div>
         <label className="template-search">
           <Search size={15} />
-          <input aria-label="搜索写作模板" value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} placeholder="搜索文种或模板" />
+          <input ref={templateSearchRef} aria-label="搜索写作模板" value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} placeholder="搜索文种或模板" />
         </label>
         <div className="template-list">
           {visibleTemplates.map((template) => {
             const custom = 'custom' in template;
             const source = custom ? { kind: '本机自定义', version: template.sourceVersion || '本机' } : sourceLabel(template.sourceId || 'unit-template-demo');
-            return <button className={`template-option ${selectedTemplate?.id === template.id ? 'selected' : ''}`} key={template.id} onClick={() => applyTemplate(template)}><span>{template.name}</span><small>{source.kind} · {template.sourceVersion || source.version}</small></button>;
+            if (!custom) return <button className={`template-option ${selectedTemplate?.id === template.id ? 'selected' : ''}`} key={template.id} onClick={() => applyTemplate(template)}><span>{template.name}</span><small>{source.kind} · {template.sourceVersion || source.version}</small></button>;
+            const renaming = renamingTemplateId === template.id;
+            return <div className="template-option-row" key={template.id}>
+              {renaming ? <form className="template-option-rename" onSubmit={(event) => { event.preventDefault(); void submitTemplateRename(template); }} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); cancelTemplateRename(); } }}>
+                <input aria-label="自定义格式新名称" value={renamingTemplateName} maxLength={80} autoFocus onChange={(event) => setRenamingTemplateName(event.target.value)} />
+                <button type="submit" className="template-option-action" aria-label={`保存自定义格式新名称：${template.name}`} title="保存新名称"><Check size={15} /></button>
+                <button type="button" className="template-option-action" aria-label={`取消重命名自定义格式：${template.name}`} title="取消重命名" onClick={cancelTemplateRename}><X size={15} /></button>
+              </form> : <>
+                <button className={`template-option ${selectedTemplate?.id === template.id ? 'selected' : ''}`} onClick={() => applyTemplate(template)}><span>{template.name}</span><small>{source.kind} · {template.sourceVersion || source.version}</small></button>
+                <div className="template-option-actions">
+                  <button ref={renameReturnTemplateId === template.id ? templateRenameActionRef : undefined} type="button" className="template-option-action" aria-label={`重命名自定义格式：${template.name}`} title="重命名自定义格式" onClick={() => beginTemplateRename(template)}><Pencil size={15} /></button>
+                  <button type="button" className="template-option-action danger-icon" aria-label={`删除自定义格式：${template.name}`} title="删除自定义格式" onClick={() => void removeCustomTemplate(template)}><Trash2 size={15} /></button>
+                </div>
+              </>}
+            </div>;
           })}
           {!visibleTemplates.length && <div className="template-empty">未找到匹配模板</div>}
         </div>

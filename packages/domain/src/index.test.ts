@@ -3,7 +3,7 @@ import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, defaultCategoryTint, extractTaskFromText,
   duplicateBusinessRecord, extractWeeklyTemplateFromSample, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, listStatisticsMonths, materialStockKey,
   mergeContactDirectory, mergePartnerGroupMembers, moveBusinessRecordToTrash, parseWeeklyTemplate, partitionBusinessRecords, purgeBusinessRecord,
-  relatedDocumentsForTask, relatedTasksForDocument, normalizeRelatedRecordIds, resolveCategoryTint, restoreBusinessRecord, sampleDocuments, sampleMaterials, sampleContactDirectory, sampleMeetings, sampleResearches,
+  relatedDocumentsForTask, relatedTasksForDocument, normalizeRelatedRecordIds, renameCustomWritingTemplate, resolveCategoryTint, restoreBusinessRecord, sampleDocuments, sampleMaterials, sampleContactDirectory, sampleMeetings, sampleResearches,
   sampleSeals, sampleTasks
 } from './index.js';
 
@@ -70,6 +70,34 @@ describe('business record lifecycle', () => {
     expect(statistics.taskTotal).toBe(0);
     expect(statistics.materialIn).toBe(0);
     expect(stock.get(materialStockKey(sampleMaterials[0]))).toBe(sampleMaterials[0].quantity);
+  });
+});
+
+describe('custom writing template management', () => {
+  const template = {
+    id: 'custom-template-test',
+    name: '原格式名称',
+    documentType: '工作通知',
+    outline: ['原格式名称', '正文结构'],
+    custom: true as const,
+    contentHtml: '<p>不可变正文</p>',
+    contentText: '不可变正文',
+    createdAt: '2026-08-01T01:00:00.000Z',
+    updatedAt: '2026-08-01T01:00:00.000Z',
+    sourceId: 'local-custom-template',
+    sourceVersion: '本机自定义',
+  };
+
+  it('renames only the user-facing name and update timestamp', () => {
+    const renamed = renameCustomWritingTemplate(template, '  新格式名称  ', '2026-08-04T05:00:00.000Z');
+    expect(renamed).toEqual({ ...template, name: '新格式名称', updatedAt: '2026-08-04T05:00:00.000Z' });
+    expect(template.name).toBe('原格式名称');
+    expect(renamed.outline).toBe(template.outline);
+  });
+
+  it('rejects empty and excessive custom template names', () => {
+    expect(() => renameCustomWritingTemplate(template, '   ')).toThrow(/不能为空/);
+    expect(() => renameCustomWritingTemplate(template, '格'.repeat(81))).toThrow(/80/);
   });
 });
 
