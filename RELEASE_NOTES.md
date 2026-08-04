@@ -10,6 +10,7 @@
 - LibreOffice Template Manager（MPL-2.0）、BookStack Page Templates（MIT）和 Joplin Templates plugin（MIT）仅用于核验“内置模板只读、用户模板使用既有生命周期、套用后文稿不反向联动”的成熟行为；未复制外部源码、界面、文案、模板、视觉或业务数据，也未新增第三方依赖。
 - 失败优先阶段先观察到领域 2 项、UI 合约 1 项和聚焦 Chromium 1 项预期失败。独立审查随后复现并修复三项缺陷：全局 `reload()` 覆盖未保存文稿、焦点位于图标时 Escape 无效、错配快照身份可能触发跨类型删除；格式新增、重命名和删除现在只局部更新模板列表，当前未保存标题、正文和版本均保持不变。
 - 最终本机 `pnpm lint`、`pnpm format:check`、148 项单元/契约、主 E2E 84 通过/8 条件跳过、互联网 7/7、内网 3/3、`pnpm build`、`pnpm build:web:internet` 与 `pnpm build:web:intranet` 全部通过。独立 Playwright 在 1440×900 与 390×844 验证桌面 222px 模板栏、移动 44×44px 管理按钮、未保存文稿保持、键盘取消、零动作请求、零外联、零控制台/页面错误及无横向溢出；三类构建分别为 25/15/15 个文件，均命中 `0.7.12` 10 次且旧版本、指定六位密码、私钥、常见长格式 Key/PAT 为 0。Pages 与 Release 线上结果以交付验证矩阵的最终记录为准。
+- 功能提交 `13593bc` 与 annotated tag `v0.7.12` 已推送。[Pages run 30907443436](https://github.com/NextWeb4/gw/actions/runs/30907443436) 和 [Desktop run 30907478733](https://github.com/NextWeb4/gw/actions/runs/30907478733) 均绑定完整 SHA `13593bc2a01f4b359c9fa78c728e66c413a4b8e4` 并成功；Windows/Linux 四组打包与 Debian 10/12 八项安装启动门禁全部通过。线上 Pages HTTP 200，入口 `index-DCwF7eYM.js` 为 321,440 字节并命中 `0.7.12` 10 次、旧版本与秘密模式 0 次；桌面/移动真实 Chromium 完整管理流程继续零请求、零错误、无溢出。[Release v0.7.12](https://github.com/NextWeb4/gw/releases/tag/v0.7.12) 的 12 个安装包和 `SHA256SUMS.txt` 共 13 个公开地址全部 HTTP 200 且非空；1278 字节校验文件含 12 条有效记录，哈希和文件名均唯一并精确覆盖安装资产。
 
 ## v0.7.11
 
