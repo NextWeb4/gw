@@ -12,6 +12,7 @@
 - 失败优先阶段先观察到领域 3 项、Web CSV 2 项和 UI 合约 1 项预期失败。实现后客户端 `pnpm lint`、`pnpm format:check`、142 项单元/契约、主 E2E 83 通过/7 条件跳过、互联网 7/7、内网 3/3、`pnpm build`、`pnpm build:web:internet` 与 `pnpm build:web:intranet` 全部通过。私有服务端 lint/格式、34 项集成测试与 build 通过；2 项 PostgreSQL 用例因未提供 `DATABASE_URL` 跳过，因此不声称真实 PostgreSQL 已验证。
 - 独立 Python Playwright 在 1440×900 与 390×844 下完成键盘建立/放弃关联、双向详情跳转和几何检查：桌面主列表宽 762px、详情栏 360px、关联按钮约 314×54px；移动内容宽 366px、关联按钮约 320×54px、任务复选项 45px、筛选框 46px，主内容底边 760px、固定底栏顶边 770px。两视口均零动作请求、零外联、零控制台错误、零页面错误和零横向溢出；截图与 `ui-metrics.json` 位于 `cases/gw-task-document-links/evidence/`。
 - 八份发布 manifest 均为 `0.7.11`。公开构建 25 个文件、10 个 source map；互联网和内网构建各 15 个文件、0 个 source map。三类构建均命中 `0.7.11` 10 次，`0.7.10`、`0.3.1`、指定六位密码、私钥、常见长格式模型 Key 与 GitHub PAT 模式均为 0；Git 未跟踪 `.env`，`git diff --check` 通过。
+- 功能提交 `f6b8a10` 与 annotated tag `v0.7.11` 已推送。[Pages run 30709453193](https://github.com/NextWeb4/gw/actions/runs/30709453193) 和 [Desktop run 30709552249](https://github.com/NextWeb4/gw/actions/runs/30709552249) 均绑定完整 SHA `f6b8a1019a254b2ffa8c9a76321b67bd7b5791b7` 并成功完成。线上 Pages HTTP 200，`Last-Modified` 为 2026-08-01 17:08:35Z，入口为 `index-7uA6mrST.js` 且命中 `0.7.11` 10 次、旧版本 0 次；桌面/移动真实 Chromium 均完成关系双向跳转、编辑后取消回滚及几何检查，零动作请求、零外联、零控制台/页面错误且无横向溢出，线上截图与 `ui-metrics-online.json` 位于 case evidence 目录。[Release v0.7.11](https://github.com/NextWeb4/gw/releases/tag/v0.7.11) 的 12 个安装包与 `SHA256SUMS.txt` 共 13 个公开地址全部 HTTP 200 且非空；1278 字节校验文件含 12 条有效记录，哈希和文件名均唯一并精确覆盖安装资产。
 
 ## v0.7.10
 
