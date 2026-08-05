@@ -15,7 +15,7 @@
 ![Pages の状態](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![最終コミット](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![リポジトリサイズ](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![バージョン](https://img.shields.io/badge/version-0.7.12-0969da?style=flat-square)
+![バージョン](https://img.shields.io/badge/version-0.7.13-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@
 
 HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラネット Web ビルド、インターネット/イントラネット Electron クライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、ネットワーク機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
 
-現在のリリースは `0.7.12` です。ローカルのカスタム文書形式をテンプレート一覧内で名前変更し、明示的な確認後に削除できます。名前変更ではテンプレート ID、本文、構造、作成日時、および既に適用した文書を保持し、削除も現在編集中の文書を変更しません。ライセンス済みナレッジパックのテンプレートは引き続き読み取り専用で、管理操作を表示しません。既存のローカル setting、スナップショット、テンプレート一覧を再利用し、データベース schema、同期コレクション、通信経路は追加していません。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
+現在のリリースは `0.7.13` です。メイン下書きと保存済み週報は、上限付きの端末内バージョン履歴を共有します。既存の「バージョンを保存」を押すたびに元の保存経路で内容を保存してから履歴を記録し、共通ダイアログでは現在の作業コピーと選択した履歴を読み取り専用のプレーンテキストで比較できます。復元は保存済みレコードを直接上書きせず、現在の ID とバージョンを保ったまま元のエディターへ内容を読み込みます。永続化には元の「バージョンを保存」をもう一度押す必要があります。履歴は対象ごとに 20 件、全体で 100 件、1 件 1,000,000 文字、合計 10,000,000 文字までです。ローカルスナップショットには含まれますが、プライベート同期、全体検索、AI リクエスト資料、すべての通信経路から除外されます。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
 
 公開 Pages はプライベート同期を表示しませんが、ローカル台帳、添付、旧 JSON/スナップショット、ユーザー自身の Key を使う AI、明示的に解除した `127.0.0.1` 中継を利用できます。ページ読込やパスワード入力だけでは中継へ接続しません。業務データは現在のブラウザーの IndexedDB に保存されます。[GitHub Pages](https://nextweb4.github.io/gw/) では公開、架空、または許可済みの非機密資料だけを扱ってください。
 
@@ -34,10 +34,10 @@ HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラ
 | 分野 | 実装内容 |
 | --- | --- |
 | 業務管理 | タスク、会議、文書、外出、押印、物資の編集可能な6台帳、グローバルなクイックタスク入力、セッション内の最近項目、現在の可視順を移動する前/次の詳細操作、現在結果の安全な CSV 出力、再利用可能な担当者/組織、段階、要約、添付、台帳内キーワード/項目フィルター/並べ替え、ローカル全体検索、統合業務カレンダー、復元可能なごみ箱 |
-| 文書作成 | リッチテキスト下書き、サニタイズ済み DOCX/HTML/TXT 取込、ローカルカスタム書式、決定的な週報、編集可能な版 |
+| 文書作成 | リッチテキスト下書き、サニタイズ済み DOCX/HTML/TXT 取込、ローカルカスタム書式、決定的な週報、読み取り専用比較と非破壊復元を備えた上限付きローカル履歴 |
 | 文書 | DOCX/PDF 共通の A4 指向エンジン。Web はブラウザー印刷、デスクトップは Electron 印刷を使用 |
 | 移行 | 2 種類の旧プロトタイプ書き出し形式と JSON/スナップショットのドラッグ＆ドロップに対応し、出所を特定できない場合は警告 |
-| ローカルデータ | IndexedDB ベースのリポジトリ、スナップショット、添付参照、検索可能な AI 履歴、6台帳のソフト削除/復元、最小同期トゥームストーン、明示的な書き出し |
+| ローカルデータ | IndexedDB ベースのリポジトリ、文書履歴を含むスナップショット、添付参照、検索可能な AI 履歴、6台帳のソフト削除/復元、最小同期トゥームストーン、明示的な書き出し |
 | エディション別サービス | 公開 Pages/インターネット版はセッション内 API Key と OpenAI 互換 URL、イントラネット版は認証済み同期と内部 AI ゲートウェイのみを使用 |
 
 旧 Skill、設定、週報、未マッピングの元フィールドは読み取り専用のプレーンテキストで保持され、取り込んだ HTML やスクリプト文字列は実行されません。
@@ -60,7 +60,7 @@ HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラ
 - NSIS インストーラーには Windows、AppImage/DEB のパッケージ化と最終 Linux 互換性確認には Linux。
 - Web ビルドには Chromium 系ブラウザー。
 
-リポジトリのバージョンは `0.7.12` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
+リポジトリのバージョンは `0.7.13` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
 
 ## インストールと実行
 

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, defaultCategoryTint, extractTaskFromText,
-  duplicateBusinessRecord, extractWeeklyTemplateFromSample, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, listStatisticsMonths, materialStockKey,
+  createDocumentRevision, documentRevisionContentLength, duplicateBusinessRecord, extractWeeklyTemplateFromSample, generateTaskWorkSummary, isDocumentRevision, isValidIsoDate, isValidIsoDateTime, listStatisticsMonths, materialStockKey,
   mergeContactDirectory, mergePartnerGroupMembers, moveBusinessRecordToTrash, parseWeeklyTemplate, partitionBusinessRecords, purgeBusinessRecord,
-  relatedDocumentsForTask, relatedTasksForDocument, normalizeRelatedRecordIds, renameCustomWritingTemplate, resolveCategoryTint, restoreBusinessRecord, sampleDocuments, sampleMaterials, sampleContactDirectory, sampleMeetings, sampleResearches,
-  sampleSeals, sampleTasks
+  pruneDocumentRevisions, relatedDocumentsForTask, relatedTasksForDocument, normalizeRelatedRecordIds, renameCustomWritingTemplate, resolveCategoryTint, restoreBusinessRecord, restoreDraftRevision, restoreWeeklyRevision,
+  sampleDocuments, sampleMaterials, sampleContactDirectory, sampleMeetings, sampleResearches, sampleSeals, sampleTasks,
+  DOCUMENT_REVISION_MAX_CONTENT_LENGTH, type DocumentRevision, type Draft, type WeeklyReport
 } from './index.js';
 
 const statisticsInput = {
@@ -98,6 +99,63 @@ describe('custom writing template management', () => {
   it('rejects empty and excessive custom template names', () => {
     expect(() => renameCustomWritingTemplate(template, '   ')).toThrow(/不能为空/);
     expect(() => renameCustomWritingTemplate(template, '格'.repeat(81))).toThrow(/80/);
+  });
+});
+
+describe('draft and weekly document revision history', () => {
+  const savedAt = '2026-08-05T01:00:00.000Z';
+  const draft: Draft = {
+    id: 'draft_main', title: '当前公文', documentType: '工作报告', contentHtml: '<p>第一版正文</p>', contentText: '第一版正文',
+    templateId: 'work-report', version: 3, updatedAt: savedAt,
+  };
+  const weekly: WeeklyReport = {
+    id: 'weekly-test', title: '测试周报', startDate: '2026-08-03', endDate: '2026-08-09', contentText: '周报第一版',
+    taskIds: ['task-1'], documentIds: ['doc-1'], meetingIds: ['meeting-1'], researchIds: ['research-1'], sealIds: ['seal-1'], materialIds: ['material-1'],
+    version: 2, createdAt: '2026-08-05T00:00:00.000Z', updatedAt: savedAt,
+  };
+
+  it('creates immutable full snapshots for both supported targets', () => {
+    const draftRevision = createDocumentRevision('draft', draft, 'document-revision_draft', savedAt);
+    const weeklyRevision = createDocumentRevision('weekly', weekly, 'document-revision_weekly', savedAt);
+    expect(draftRevision).toEqual({ type: 'document-revision', id: 'document-revision_draft', targetKind: 'draft', targetId: draft.id, version: 3, createdAt: savedAt, snapshot: draft });
+    expect(weeklyRevision).toEqual({ type: 'document-revision', id: 'document-revision_weekly', targetKind: 'weekly', targetId: weekly.id, version: 2, createdAt: savedAt, snapshot: weekly });
+    expect(draftRevision.snapshot).not.toBe(draft);
+    expect(weeklyRevision.snapshot).not.toBe(weekly);
+    expect(weeklyRevision.snapshot.taskIds).not.toBe(weekly.taskIds);
+    expect(documentRevisionContentLength(draftRevision)).toBe(JSON.stringify(draft).length);
+    expect(createDocumentRevision('draft', { ...draft, extraSecret: '不得进入历史' } as Draft, 'document-revision_extra', savedAt)).not.toHaveProperty('snapshot.extraSecret');
+    expect(isDocumentRevision({ ...draftRevision, extraSecret: '不得导入历史' })).toBe(false);
+    expect(isDocumentRevision({ ...draftRevision, snapshot: { ...draftRevision.snapshot, extraSecret: '不得导入历史' } })).toBe(false);
+  });
+
+  it('restores content into the current identity and version without mutating either source', () => {
+    const oldDraft = createDocumentRevision('draft', { ...draft, title: '旧公文', contentHtml: '<p>旧正文</p>', contentText: '旧正文', version: 1 }, 'document-revision_old-draft', '2026-08-05T00:10:00.000Z');
+    const oldWeekly = createDocumentRevision('weekly', { ...weekly, title: '旧周报', contentText: '旧周报正文', taskIds: ['task-old'], version: 1 }, 'document-revision_old-weekly', '2026-08-05T00:20:00.000Z');
+    const restoredDraft = restoreDraftRevision(draft, oldDraft, '2026-08-05T02:00:00.000Z');
+    const restoredWeekly = restoreWeeklyRevision(weekly, oldWeekly, '2026-08-05T02:00:00.000Z');
+    expect(restoredDraft).toEqual({ ...oldDraft.snapshot, id: draft.id, version: draft.version, updatedAt: '2026-08-05T02:00:00.000Z' });
+    expect(restoredWeekly).toEqual({ ...oldWeekly.snapshot, id: weekly.id, version: weekly.version, createdAt: weekly.createdAt, updatedAt: '2026-08-05T02:00:00.000Z' });
+    expect(restoredWeekly.taskIds).not.toBe(oldWeekly.snapshot.taskIds);
+    expect(draft.title).toBe('当前公文');
+    expect(weekly.title).toBe('测试周报');
+    expect(() => restoreDraftRevision(draft, oldWeekly, savedAt)).toThrow(/类型/);
+  });
+
+  it('enforces per-revision, per-target, global and total-content bounds without sorting the source in place', () => {
+    expect(() => createDocumentRevision('draft', { ...draft, contentHtml: '', contentText: '文'.repeat(DOCUMENT_REVISION_MAX_CONTENT_LENGTH + 1) }, 'document-revision_huge', savedAt)).toThrow(/历史上限/);
+    const revisions: DocumentRevision[] = Array.from({ length: 6 }, (_, index) => createDocumentRevision(
+      'draft',
+      { ...draft, id: index < 4 ? 'draft-a' : 'draft-b', title: `版本${index}`, contentHtml: '', contentText: '正文', version: index + 1, updatedAt: `2026-08-05T00:0${index}:00.000Z` },
+      `document-revision_${index}`,
+      `2026-08-05T00:0${index}:00.000Z`,
+    ));
+    const originalOrder = revisions.map((revision) => revision.id);
+    const result = pruneDocumentRevisions(revisions, { perTargetLimit: 2, globalLimit: 3, totalContentLimit: 1_000 });
+    expect(result.retained.map((revision) => revision.id)).toEqual(['document-revision_5', 'document-revision_4', 'document-revision_3']);
+    expect(result.removed.map((revision) => revision.id).sort()).toEqual(['document-revision_0', 'document-revision_1', 'document-revision_2']);
+    const twoRevisionLimit = documentRevisionContentLength(revisions[5]) + documentRevisionContentLength(revisions[4]);
+    expect(pruneDocumentRevisions(revisions, { perTargetLimit: 6, globalLimit: 6, totalContentLimit: twoRevisionLimit }).retained.map((revision) => revision.id)).toEqual(['document-revision_5', 'document-revision_4']);
+    expect(revisions.map((revision) => revision.id)).toEqual(originalOrder);
   });
 });
 

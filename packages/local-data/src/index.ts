@@ -2,13 +2,16 @@ import { addRxPlugin, createRxDatabase, type RxCollection, type RxDatabase } fro
 import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 import type {
-  ArchiveRecord, Attachment, Draft, MaterialRecord, MeetingRecord, OfficialDocument, PurgedBusinessRecord, ResearchRecord, SealRecord, Task, WeeklyReport
+  ArchiveRecord, Attachment, DocumentRevision, Draft, MaterialRecord, MeetingRecord, OfficialDocument, PurgedBusinessRecord, ResearchRecord, SealRecord, Task, WeeklyReport
 } from '@hxhwang/domain';
-import { isPurgedBusinessRecord, mergeContactDirectory, minimizePurgedBusinessRecord, sampleContactDirectory, sampleDocuments, sampleMaterials, sampleMeetings, sampleResearches, sampleSeals, sampleTasks } from '@hxhwang/domain';
+import {
+  isDocumentRevision, isPurgedBusinessRecord, mergeContactDirectory, minimizePurgedBusinessRecord, pruneDocumentRevisions,
+  sampleContactDirectory, sampleDocuments, sampleMaterials, sampleMeetings, sampleResearches, sampleSeals, sampleTasks
+} from '@hxhwang/domain';
 
 export type Kind = 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material' | 'attachment' | 'draft' | 'weekly' | 'archive' | 'setting';
 export type BusinessKind = Extract<Kind, 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material'>;
-type RecordPayload = Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord | PurgedBusinessRecord | Attachment | Draft | WeeklyReport | ArchiveRecord | Record<string, unknown>;
+type RecordPayload = Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord | PurgedBusinessRecord | Attachment | Draft | WeeklyReport | ArchiveRecord | DocumentRevision | Record<string, unknown>;
 interface StoredRecord { id: string; kind: Kind; payload: RecordPayload; updatedAt: string; }
 interface SnapshotRecord { id: string; kind: Kind; payload: RecordPayload; updatedAt?: string; }
 const allowedKinds = new Set<Kind>(['task', 'meeting', 'document', 'research', 'seal', 'material', 'attachment', 'draft', 'weekly', 'archive', 'setting']);
@@ -31,6 +34,48 @@ type LocalCollections = { records: RxCollection<StoredRecord> };
 type LocalDatabase = RxDatabase<LocalCollections>;
 type DatabaseGlobal = typeof globalThis & { __hxhwangLocalDatabase?: Promise<LocalDatabase> };
 const databaseGlobal = globalThis as DatabaseGlobal;
+let recordMutationTail: Promise<void> = Promise.resolve();
+
+function serializeRecordMutation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = recordMutationTail.then(operation);
+  recordMutationTail = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+const isObjectRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+function isCanonicalIsoTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 50) return false;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value;
+}
+
+function isDocumentRevisionCandidate(id: string, payload: RecordPayload) {
+  return id.startsWith('document-revision_') || (isObjectRecord(payload) && payload.type === 'document-revision');
+}
+
+function isCanonicalDocumentRevisionRecord(id: string, payload: RecordPayload, updatedAt: unknown): payload is DocumentRevision {
+  if (!isDocumentRevision(payload) || id !== payload.id) return false;
+  return payload.targetId === payload.snapshot.id
+    && payload.version === payload.snapshot.version
+    && payload.createdAt === payload.snapshot.updatedAt
+    && updatedAt === payload.createdAt
+    && isCanonicalIsoTimestamp(payload.createdAt);
+}
+
+function recordIdentityError(kind: Kind, id: string, payload: RecordPayload, updatedAt?: unknown) {
+  if (kind === 'draft' && (!isObjectRecord(payload) || payload.id !== id)) return `主草稿身份不匹配：${id}`;
+  if (kind === 'weekly' && (!isObjectRecord(payload) || payload.id !== id)) return `周报身份不匹配：${id}`;
+  if (kind === 'setting' && isDocumentRevisionCandidate(id, payload) && !isCanonicalDocumentRevisionRecord(id, payload, updatedAt)) {
+    return `文稿历史身份不匹配：${id}`;
+  }
+  return undefined;
+}
+
+function storedUpdatedAt(kind: Kind, payload: RecordPayload, preferred?: unknown) {
+  if (kind === 'setting' && isDocumentRevision(payload)) return payload.createdAt;
+  return isCanonicalIsoTimestamp(preferred) ? preferred : new Date().toISOString();
+}
 
 async function getDb() {
   const database = databaseGlobal.__hxhwangLocalDatabase ??= createRxDatabase<LocalCollections>({ name: 'hxhwang_gw_local', storage: getRxStorageDexie(), multiInstance: false })
@@ -55,25 +100,54 @@ export async function getRecord<T extends RecordPayload>(id: string): Promise<T 
   return doc?.payload as T | undefined;
 }
 
-export async function putRecord<T extends RecordPayload>(kind: Kind, id: string, payload: T): Promise<void> {
+export async function getRecordOfKind<T extends RecordPayload>(kind: Kind, id: string): Promise<T | undefined> {
   const collection = await getDb();
-  const existing = await collection.findOne(id).exec();
-  if (existing && existing.kind !== kind) throw new Error(`记录 ID ${id} 已被 ${existing.kind} 类型占用，拒绝覆盖为 ${kind}`);
-  await collection.upsert({ id, kind, payload, updatedAt: new Date().toISOString() });
+  const doc = await collection.findOne(id).exec();
+  if (!doc) return undefined;
+  if (doc.kind !== kind) throw new Error(`记录 ID ${id} 属于 ${doc.kind}，拒绝按 ${kind} 类型读取`);
+  return doc.payload as T;
 }
 
-export async function removeRecord(id: string): Promise<void> {
-  const collection = await getDb();
+async function putRecordUnlocked<T extends RecordPayload>(collection: RxCollection<StoredRecord>, kind: Kind, id: string, payload: T, preferredUpdatedAt?: unknown) {
+  const updatedAt = storedUpdatedAt(kind, payload, preferredUpdatedAt);
+  const identityError = recordIdentityError(kind, id, payload, updatedAt);
+  if (identityError) throw new Error(identityError);
+  const existing = await collection.findOne(id).exec();
+  if (existing && existing.kind !== kind) throw new Error(`记录 ID ${id} 已被 ${existing.kind} 类型占用，拒绝覆盖为 ${kind}`);
+  await collection.upsert({ id, kind, payload, updatedAt });
+}
+
+export function putRecord<T extends RecordPayload>(kind: Kind, id: string, payload: T): Promise<void> {
+  return serializeRecordMutation(async () => {
+    const collection = await getDb();
+    await putRecordUnlocked(collection, kind, id, payload);
+  });
+}
+
+async function removeRecordUnlocked(collection: RxCollection<StoredRecord>, id: string) {
   const doc = await collection.findOne(id).exec();
   if (doc) await doc.remove();
 }
 
-export async function removeRecordOfKind(kind: Kind, id: string): Promise<void> {
-  const collection = await getDb();
+async function removeRecordOfKindUnlocked(collection: RxCollection<StoredRecord>, kind: Kind, id: string) {
   const doc = await collection.findOne(id).exec();
   if (!doc) return;
   if (doc.kind !== kind) throw new Error(`记录 ID ${id} 属于 ${doc.kind}，拒绝按 ${kind} 类型删除`);
   await doc.remove();
+}
+
+export function removeRecord(id: string): Promise<void> {
+  return serializeRecordMutation(async () => {
+    const collection = await getDb();
+    await removeRecordUnlocked(collection, id);
+  });
+}
+
+export function removeRecordOfKind(kind: Kind, id: string): Promise<void> {
+  return serializeRecordMutation(async () => {
+    const collection = await getDb();
+    await removeRecordOfKindUnlocked(collection, kind, id);
+  });
 }
 
 export function attachmentIdsFromPayload(payload: unknown) {
@@ -97,30 +171,32 @@ export function attachmentIdsFromPayload(payload: unknown) {
   return [...ids];
 }
 
-export async function removeAttachmentsIfUnreferenced(candidateIds: string[]) {
+export function removeAttachmentsIfUnreferenced(candidateIds: string[]) {
   const candidates = new Set(candidateIds.filter(Boolean));
-  if (!candidates.size) return [];
-  const collection = await getDb();
-  const docs = await collection.find().exec();
-  const referenced = new Set<string>();
-  for (const doc of docs) {
-    const record = doc.toJSON() as StoredRecord;
-    if (!attachmentReferencingKinds.has(record.kind)) continue;
-    for (const id of attachmentIdsFromPayload(record.payload)) referenced.add(id);
-  }
-  const removed: string[] = [];
-  for (const id of candidates) {
-    if (referenced.has(id)) continue;
-    const attachment = await collection.findOne(id).exec();
-    if (attachment?.toJSON().kind !== 'attachment') continue;
-    await attachment.remove();
-    removed.push(id);
-  }
-  return removed;
+  if (!candidates.size) return Promise.resolve([] as string[]);
+  return serializeRecordMutation(async () => {
+    const collection = await getDb();
+    const docs = await collection.find().exec();
+    const referenced = new Set<string>();
+    for (const doc of docs) {
+      const record = doc.toJSON() as StoredRecord;
+      if (!attachmentReferencingKinds.has(record.kind)) continue;
+      for (const id of attachmentIdsFromPayload(record.payload)) referenced.add(id);
+    }
+    const removed: string[] = [];
+    for (const id of candidates) {
+      if (referenced.has(id)) continue;
+      const attachment = await collection.findOne(id).exec();
+      if (attachment?.toJSON().kind !== 'attachment') continue;
+      await attachment.remove();
+      removed.push(id);
+    }
+    return removed;
+  });
 }
 
 export async function putPurgedBusinessRecord(kind: BusinessKind, id: string, payload: PurgedBusinessRecord) {
-  const previous = await getRecord<RecordPayload>(id);
+  const previous = await getRecordOfKind<RecordPayload>(kind, id);
   const attachmentIds = attachmentIdsFromPayload(previous);
   await putRecord(kind, id, minimizePurgedBusinessRecord(payload));
   return removeAttachmentsIfUnreferenced(attachmentIds);
@@ -141,7 +217,7 @@ export function shouldRefreshDemoRecord(id: string, existing?: { updatedAt?: str
 }
 
 export async function seedDemoData(): Promise<void> {
-  const seedMarker = await getRecord<Record<string, unknown>>('demo-seed-v3');
+  const seedMarker = await getRecordOfKind<Record<string, unknown>>('setting', 'demo-seed-v3');
   if (seedMarker) return;
   const groups: Array<[Kind, Array<{ id: string }>]> = [
     ['task', sampleTasks],
@@ -153,11 +229,11 @@ export async function seedDemoData(): Promise<void> {
   ];
   for (const [kind, samples] of groups) {
     for (const sample of samples) {
-      const existing = await getRecord<{ id: string; updatedAt?: string } & Record<string, unknown>>(sample.id);
+      const existing = await getRecordOfKind<{ id: string; updatedAt?: string } & Record<string, unknown>>(kind, sample.id);
       if (shouldRefreshDemoRecord(sample.id, existing)) await putRecord(kind, sample.id, sample as RecordPayload);
     }
   }
-  const existingDirectory = await getRecord<Record<string, unknown>>('contact-directory');
+  const existingDirectory = await getRecordOfKind<Record<string, unknown>>('setting', 'contact-directory');
   if (!existingDirectory) {
     const [tasks, meetings, documents, researches, seals, materials] = await Promise.all([
       listRecords<Task>('task'), listRecords<MeetingRecord>('meeting'), listRecords<OfficialDocument>('document'),
@@ -178,10 +254,12 @@ export async function seedDemoData(): Promise<void> {
   await putRecord('setting', 'demo-seed-v3', { type: 'demo-seed', version: 3, seededAt: new Date().toISOString() });
 }
 
-export async function clearAllData(): Promise<void> {
-  const collection = await getDb();
-  const docs = await collection.find().exec();
-  await Promise.all(docs.map((doc: any) => doc.remove()));
+export function clearAllData(): Promise<void> {
+  return serializeRecordMutation(async () => {
+    const collection = await getDb();
+    const docs = await collection.find().exec();
+    await Promise.all(docs.map((doc: any) => doc.remove()));
+  });
 }
 
 export async function exportLocalSnapshot() {
@@ -218,6 +296,11 @@ export function parseLocalSnapshot(snapshot: unknown): { records: SnapshotRecord
     if (!record.payload || typeof record.payload !== 'object' || Array.isArray(record.payload)) { warnings.push(`跳过无效 payload：${record.id}`); continue; }
     const kind = record.kind as Kind;
     const payload = record.payload as Record<string, unknown>;
+    const identityError = recordIdentityError(kind, record.id, payload, record.updatedAt);
+    if (identityError) {
+      warnings.push(`跳过${identityError}`);
+      continue;
+    }
     if (kind === 'setting' && payload.type === 'custom-writing-template') {
       const templateId = payload.id;
       if (typeof templateId !== 'string' || !templateId || record.id !== `custom-template:${templateId}`) {
@@ -236,14 +319,37 @@ export function parseLocalSnapshot(snapshot: unknown): { records: SnapshotRecord
   return { records, warnings };
 }
 
-export async function importLocalSnapshot(snapshot: unknown): Promise<{ imported: number; byKind: Record<Kind, number>; warnings: string[] }> {
+export function importLocalSnapshot(snapshot: unknown): Promise<{ imported: number; byKind: Record<Kind, number>; warnings: string[] }> {
   const { records, warnings } = parseLocalSnapshot(snapshot);
-  let imported = 0;
-  const byKind: Record<Kind, number> = { task: 0, meeting: 0, document: 0, research: 0, seal: 0, material: 0, attachment: 0, draft: 0, weekly: 0, archive: 0, setting: 0 };
-  for (const record of records) {
-    await putRecord(record.kind, record.id, record.payload);
-    imported++;
-    byKind[record.kind]++;
-  }
-  return { imported, byKind, warnings };
+  return serializeRecordMutation(async () => {
+    const collection = await getDb();
+    const existingDocs = await collection.find().exec();
+    const existingKinds = new Map(existingDocs.map((doc) => [doc.id, doc.kind] as const));
+    const conflicts = records.filter((record) => {
+      const existingKind = existingKinds.get(record.id);
+      return existingKind !== undefined && existingKind !== record.kind;
+    });
+    if (conflicts.length) {
+      const conflict = conflicts[0];
+      throw new Error(`本地快照记录 ID ${conflict.id} 已被 ${existingKinds.get(conflict.id)} 类型占用，拒绝覆盖为 ${conflict.kind}`);
+    }
+
+    let imported = 0;
+    const byKind: Record<Kind, number> = { task: 0, meeting: 0, document: 0, research: 0, seal: 0, material: 0, attachment: 0, draft: 0, weekly: 0, archive: 0, setting: 0 };
+    for (const record of records) {
+      await putRecordUnlocked(collection, record.kind, record.id, record.payload, record.updatedAt);
+      imported++;
+      byKind[record.kind]++;
+    }
+
+    const settingDocs = await collection.find({ selector: { kind: 'setting' } }).exec();
+    const revisions = settingDocs
+      .map((doc) => doc.toJSON() as StoredRecord)
+      .filter((record): record is StoredRecord & { payload: DocumentRevision } => isCanonicalDocumentRevisionRecord(record.id, record.payload, record.updatedAt))
+      .map((record) => record.payload);
+    const pruned = pruneDocumentRevisions(revisions);
+    for (const revision of pruned.removed) await removeRecordOfKindUnlocked(collection, 'setting', revision.id);
+    if (pruned.removed.length) warnings.push(`已按本机版本历史上限裁剪 ${pruned.removed.length} 条最旧记录`);
+    return { imported, byKind, warnings };
+  });
 }

@@ -173,6 +173,26 @@ test('custom writing templates can be renamed and deleted without exposing licen
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.template-option-action[^}]*44px/, 'narrow template actions must retain 44px touch targets');
 });
 
+test('draft and weekly revision history stays local, bounded and restores through existing editors', async () => {
+  const [app, dialog, domain, localData, css, privateServices] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/DocumentRevisionDialog.tsx'),
+    read('packages/domain/src/index.ts'),
+    read('packages/local-data/src/index.ts'),
+    read('apps/web/src/styles.css'),
+    read('apps/web/src/private-services.ts'),
+  ]);
+  assert.match(domain, /export function createDocumentRevision/, 'both editors must use one domain snapshot constructor');
+  assert.match(domain, /export function pruneDocumentRevisions/, 'retention must be one deterministic pure function');
+  assert.match(localData, /payload\.type === 'document-revision'/, 'snapshot import must recognize revision settings');
+  assert.match(app, /type === 'document-revision'/, 'revision settings must load through the existing local settings path');
+  assert.match(app, /removeRecordOfKind\('setting', revision\.id\)/, 'history deletion must verify the actual record kind');
+  assert.match(dialog, /<dialog[\s\S]*当前内容[\s\S]*该版本内容/, 'the shared dialog must provide a read-only current-versus-history comparison');
+  assert.doesNotMatch(dialog, /dangerouslySetInnerHTML|fetch\(|putRecord|removeRecord|indexedDB|hxhwang/i, 'the dialog must remain presentation-only and text-safe');
+  assert.doesNotMatch(privateServices, /document-revision|DocumentRevision/, 'local revision history must not enter private sync');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.document-revision-action[^}]*min-height:\s*(?:4[4-9]|[5-9]\d)px/, 'mobile revision actions must retain at least a 44px touch target');
+});
+
 test('unified agenda stays local-only and reuses the existing record detail path', async () => {
   const [app, agenda, agendaView, css] = await Promise.all([
     read('apps/web/src/App.tsx'),

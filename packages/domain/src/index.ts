@@ -321,6 +321,40 @@ export interface WeeklyReport {
   updatedAt: string;
 }
 
+export const DOCUMENT_REVISION_MAX_CONTENT_LENGTH = 1_000_000;
+export const DOCUMENT_REVISION_PER_TARGET_LIMIT = 20;
+export const DOCUMENT_REVISION_GLOBAL_LIMIT = 100;
+export const DOCUMENT_REVISION_TOTAL_CONTENT_LIMIT = 10_000_000;
+
+export type DocumentRevisionTargetKind = 'draft' | 'weekly';
+
+interface DocumentRevisionBase {
+  type: 'document-revision';
+  id: string;
+  targetKind: DocumentRevisionTargetKind;
+  targetId: string;
+  version: number;
+  createdAt: string;
+}
+
+export interface DraftDocumentRevision extends DocumentRevisionBase {
+  targetKind: 'draft';
+  snapshot: Draft;
+}
+
+export interface WeeklyDocumentRevision extends DocumentRevisionBase {
+  targetKind: 'weekly';
+  snapshot: WeeklyReport;
+}
+
+export type DocumentRevision = DraftDocumentRevision | WeeklyDocumentRevision;
+
+export interface DocumentRevisionRetentionOptions {
+  perTargetLimit?: number;
+  globalLimit?: number;
+  totalContentLimit?: number;
+}
+
 export interface ArchiveRecord {
   id: string;
   type: ArchiveType;
@@ -360,6 +394,114 @@ export interface KnowledgePack {
 export const nowIso = () => new Date().toISOString();
 
 export const createId = (prefix: string) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+const cloneDraftSnapshot = (draft: Draft): Draft => ({
+  id: draft.id,
+  title: draft.title,
+  documentType: draft.documentType,
+  contentHtml: draft.contentHtml,
+  contentText: draft.contentText,
+  templateId: draft.templateId,
+  version: draft.version,
+  updatedAt: draft.updatedAt,
+});
+
+const cloneWeeklySnapshot = (report: WeeklyReport): WeeklyReport => ({
+  id: report.id,
+  title: report.title,
+  startDate: report.startDate,
+  endDate: report.endDate,
+  contentText: report.contentText,
+  taskIds: [...report.taskIds],
+  documentIds: [...report.documentIds],
+  ...(report.meetingIds ? { meetingIds: [...report.meetingIds] } : {}),
+  ...(report.researchIds ? { researchIds: [...report.researchIds] } : {}),
+  ...(report.sealIds ? { sealIds: [...report.sealIds] } : {}),
+  ...(report.materialIds ? { materialIds: [...report.materialIds] } : {}),
+  version: report.version,
+  createdAt: report.createdAt,
+  updatedAt: report.updatedAt,
+});
+
+export function createDocumentRevision(targetKind: 'draft', snapshot: Draft, revisionId?: string, createdAt?: string): DraftDocumentRevision;
+export function createDocumentRevision(targetKind: 'weekly', snapshot: WeeklyReport, revisionId?: string, createdAt?: string): WeeklyDocumentRevision;
+export function createDocumentRevision(targetKind: DocumentRevisionTargetKind, snapshot: Draft | WeeklyReport, revisionId = createId('document-revision'), createdAt = snapshot.updatedAt): DocumentRevision {
+  if (!snapshot.id || !Number.isInteger(snapshot.version) || snapshot.version < 1) throw new Error('只能为已保存记录创建版本历史');
+  const revision = targetKind === 'draft'
+    ? { type: 'document-revision' as const, id: revisionId, targetKind, targetId: snapshot.id, version: snapshot.version, createdAt, snapshot: cloneDraftSnapshot(snapshot as Draft) }
+    : { type: 'document-revision' as const, id: revisionId, targetKind, targetId: snapshot.id, version: snapshot.version, createdAt, snapshot: cloneWeeklySnapshot(snapshot as WeeklyReport) };
+  if (documentRevisionContentLength(revision) > DOCUMENT_REVISION_MAX_CONTENT_LENGTH) throw new Error(`当前内容超过 ${DOCUMENT_REVISION_MAX_CONTENT_LENGTH} 字符的版本历史上限`);
+  return revision;
+}
+
+export function documentRevisionContentLength(revision: DocumentRevision) {
+  return JSON.stringify(revision.snapshot).length;
+}
+
+const isObjectRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const isStringArray = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
+const hasOnlyKeys = (value: Record<string, unknown>, allowed: readonly string[]) => Object.keys(value).every((key) => allowed.includes(key));
+
+function isDraftRevisionSnapshot(value: unknown): value is Draft {
+  if (!isObjectRecord(value) || !hasOnlyKeys(value, ['id', 'title', 'documentType', 'contentHtml', 'contentText', 'templateId', 'version', 'updatedAt'])) return false;
+  return ['id', 'title', 'documentType', 'contentHtml', 'contentText', 'templateId', 'updatedAt'].every((key) => typeof value[key] === 'string')
+    && Number.isInteger(value.version) && Number(value.version) >= 1;
+}
+
+function isWeeklyRevisionSnapshot(value: unknown): value is WeeklyReport {
+  if (!isObjectRecord(value) || !hasOnlyKeys(value, ['id', 'title', 'startDate', 'endDate', 'contentText', 'taskIds', 'documentIds', 'meetingIds', 'researchIds', 'sealIds', 'materialIds', 'version', 'createdAt', 'updatedAt'])) return false;
+  if (!['id', 'title', 'startDate', 'endDate', 'contentText', 'createdAt', 'updatedAt'].every((key) => typeof value[key] === 'string')) return false;
+  if (!Number.isInteger(value.version) || Number(value.version) < 1 || !isStringArray(value.taskIds) || !isStringArray(value.documentIds)) return false;
+  return ['meetingIds', 'researchIds', 'sealIds', 'materialIds'].every((key) => value[key] === undefined || isStringArray(value[key]));
+}
+
+export function isDocumentRevision(value: unknown): value is DocumentRevision {
+  if (!isObjectRecord(value) || !hasOnlyKeys(value, ['type', 'id', 'targetKind', 'targetId', 'version', 'createdAt', 'snapshot'])) return false;
+  if (value.type !== 'document-revision' || typeof value.id !== 'string' || !value.id.startsWith('document-revision_')) return false;
+  if ((value.targetKind !== 'draft' && value.targetKind !== 'weekly') || typeof value.targetId !== 'string' || !value.targetId) return false;
+  if (!Number.isInteger(value.version) || Number(value.version) < 1 || typeof value.createdAt !== 'string') return false;
+  const snapshotValid = value.targetKind === 'draft' ? isDraftRevisionSnapshot(value.snapshot) : isWeeklyRevisionSnapshot(value.snapshot);
+  if (!snapshotValid) return false;
+  const revision = value as unknown as DocumentRevision;
+  return revision.targetId === revision.snapshot.id
+    && revision.version === revision.snapshot.version
+    && documentRevisionContentLength(revision) <= DOCUMENT_REVISION_MAX_CONTENT_LENGTH;
+}
+
+export function restoreDraftRevision(current: Draft, revision: DocumentRevision, restoredAt = nowIso()): Draft {
+  if (revision.targetKind !== 'draft') throw new Error('版本类型不是主草稿');
+  if (revision.targetId !== current.id) throw new Error('版本目标与当前主草稿不一致');
+  return { ...cloneDraftSnapshot(revision.snapshot), id: current.id, version: current.version, updatedAt: restoredAt };
+}
+
+export function restoreWeeklyRevision(current: WeeklyReport, revision: DocumentRevision, restoredAt = nowIso()): WeeklyReport {
+  if (revision.targetKind !== 'weekly') throw new Error('版本类型不是周报');
+  if (revision.targetId !== current.id) throw new Error('版本目标与当前周报不一致');
+  return { ...cloneWeeklySnapshot(revision.snapshot), id: current.id, version: current.version, createdAt: current.createdAt, updatedAt: restoredAt };
+}
+
+export function pruneDocumentRevisions(revisions: readonly DocumentRevision[], options: DocumentRevisionRetentionOptions = {}) {
+  const perTargetLimit = Math.max(0, Math.floor(options.perTargetLimit ?? DOCUMENT_REVISION_PER_TARGET_LIMIT));
+  const globalLimit = Math.max(0, Math.floor(options.globalLimit ?? DOCUMENT_REVISION_GLOBAL_LIMIT));
+  const totalContentLimit = Math.max(0, Math.floor(options.totalContentLimit ?? DOCUMENT_REVISION_TOTAL_CONTENT_LIMIT));
+  const unique = new Map<string, DocumentRevision>();
+  for (const revision of revisions) if (isDocumentRevision(revision)) unique.set(revision.id, revision);
+  const sorted = [...unique.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id));
+  const retained: DocumentRevision[] = [];
+  const retainedIds = new Set<string>();
+  const targetCounts = new Map<string, number>();
+  let contentLength = 0;
+  for (const revision of sorted) {
+    const targetKey = `${revision.targetKind}:${revision.targetId}`;
+    const nextLength = documentRevisionContentLength(revision);
+    if ((targetCounts.get(targetKey) || 0) >= perTargetLimit || retained.length >= globalLimit || contentLength + nextLength > totalContentLimit) continue;
+    retained.push(revision);
+    retainedIds.add(revision.id);
+    targetCounts.set(targetKey, (targetCounts.get(targetKey) || 0) + 1);
+    contentLength += nextLength;
+  }
+  return { retained, removed: sorted.filter((revision) => !retainedIds.has(revision.id)) };
+}
 
 export type BusinessRecordCopyKind = 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material';
 

@@ -5,22 +5,22 @@ import Placeholder from '@tiptap/extension-placeholder';
 import {
   Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowUpDown, ArrowUpRight, BarChart3, BookOpen, CalendarDays, CalendarRange, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList,
   Bot, Building2, CopyPlus, FileArchive, FileOutput, FileText, FileUp, FolderOpen, Globe2, Info, KeyRound, LayoutDashboard, Library, Link2, MapPin,
-  ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Stamp, Trash2, Upload, UsersRound, WandSparkles, X
+  History, ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Stamp, Trash2, Upload, UsersRound, WandSparkles, X
 } from 'lucide-react';
 import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, DEFAULT_WEEKLY_TEMPLATE, extractTaskFromText,
-  duplicateBusinessRecord, extractWeeklyTemplateFromSample, listStatisticsMonths, mergePartnerGroupMembers, moveBusinessRecordToTrash, nowIso, parseWeeklyTemplate, partitionBusinessRecords,
+  createDocumentRevision, duplicateBusinessRecord, extractWeeklyTemplateFromSample, isDocumentRevision, listStatisticsMonths, mergePartnerGroupMembers, moveBusinessRecordToTrash, nowIso, parseWeeklyTemplate, partitionBusinessRecords, pruneDocumentRevisions,
   normalizeRelatedRecordIds, purgeBusinessRecord, relatedDocumentsForTask, relatedTasksForDocument, renameCustomWritingTemplate, resolveCategoryTint, restoreBusinessRecord,
-  weeklySectionSourceLabels,
+  restoreDraftRevision, restoreWeeklyRevision, weeklySectionSourceLabels,
   type AiFieldChange, type AiGuidancePreset, type AiHistoryEntry, type AiSkill, type ArchiveRecord, type Attachment, type CategoryStyle, type CategoryTint, type Draft, type KnowledgePack, type MaterialRecord, type PartnerGroup,
   type MeetingRecord, type MigrationReport, type PurgedBusinessRecord, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, mergeContactDirectory, statusLabels,
-  type ContactDirectory, type CustomWritingTemplate, type OfficialDocument, type PartnerStatus, type ResearchDirection, type ResearchRecord,
+  type ContactDirectory, type CustomWritingTemplate, type DocumentRevision, type OfficialDocument, type PartnerStatus, type ResearchDirection, type ResearchRecord,
   type SealRecord, type Status, type Task, type TaskStage, type WeeklyReport, type WeeklySectionSource, type WeeklyTemplate,
   type WeeklyTemplateSection, type WorkStatisticsInput, type WorkSummaryTemplateId, type WritingTemplate,
   workSummaryTemplateLabels
 } from '@hxhwang/domain';
 import {
-  attachmentIdsFromPayload, exportLocalSnapshot, getRecord, importLocalSnapshot, listRecords, putRecord, removeAttachmentsIfUnreferenced,
+  attachmentIdsFromPayload, exportLocalSnapshot, getRecordOfKind, importLocalSnapshot, listRecords, putRecord, removeAttachmentsIfUnreferenced,
   putPurgedBusinessRecord, removeRecord, removeRecordOfKind, seedDemoData, type BusinessKind, type Kind
 } from '@hxhwang/local-data';
 import { migrateLegacyExport, type MigrationBundle } from '@hxhwang/migration';
@@ -34,6 +34,7 @@ import { createInitialLedgerViewStates, deriveLedgerRecords, getLedgerFilterOpti
 import { buildLedgerCsv, type LedgerCsvFile } from './ledger-csv';
 import { syncPrivateWorkspace } from './private-services';
 import { GlobalSearch, type GlobalSearchGroup, type GlobalSearchItem } from './GlobalSearch';
+import { DocumentRevisionDialog } from './DocumentRevisionDialog';
 import { AgendaView } from './AgendaView';
 import type { AgendaKind } from './agenda';
 import { WorkOverview } from './WorkOverview';
@@ -77,6 +78,8 @@ type HxWindow = Window & { hxhwang?: {
 const desktopBridge = () => (window as HxWindow).hxhwang;
 const distributionMode = __DISTRIBUTION_MODE__;
 const emptyDirectory = (): ContactDirectory => ({ people: [], units: [], updatedAt: nowIso() });
+const initialDraftHtml = '<p>一、基本情况</p><p>围绕年度重点工作，系统梳理工作进展、主要做法和实际成效。</p><p>二、主要做法</p><p>坚持目标导向，细化任务清单，明确责任分工和完成时限。</p><p>三、下一步安排</p><p>持续跟踪重点事项，及时补充数据和佐证材料。</p>';
+const initialDraftText = '一、基本情况\n\n围绕年度重点工作，系统梳理工作进展、主要做法和实际成效。\n\n二、主要做法\n\n坚持目标导向，细化任务清单，明确责任分工和完成时限。\n\n三、下一步安排\n\n持续跟踪重点事项，及时补充数据和佐证材料。';
 
 interface BusinessDetailNavigationTarget { id: string; title: string; }
 interface BusinessDetailNavigation {
@@ -198,10 +201,11 @@ function App() {
   const [weeklyTemplates, setWeeklyTemplates] = useState<WeeklyTemplate[]>([]);
   const [partnerGroups, setPartnerGroups] = useState<PartnerGroup[]>([]);
   const [categoryStyles, setCategoryStyles] = useState<CategoryStyle[]>([]);
+  const [documentRevisions, setDocumentRevisions] = useState<DocumentRevision[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [pendingAttachmentJobs, setPendingAttachmentJobs] = useState(0);
-  const [draft, setDraft] = useState<Draft>({ id: 'draft_main', title: '工作总结', documentType: '工作总结', contentHtml: '', contentText: '', templateId: 'work-summary', version: 1, updatedAt: nowIso() });
+  const [draft, setDraft] = useState<Draft>({ id: 'draft_main', title: '工作总结', documentType: '工作总结', contentHtml: initialDraftHtml, contentText: initialDraftText, templateId: 'work-summary', version: 0, updatedAt: nowIso() });
   const [ledgerViews, setLedgerViews] = useState(createInitialLedgerViewStates);
   const [taskEditor, setTaskEditor] = useState<Task | null>(null);
   const [taskEditorImportText, setTaskEditorImportText] = useState('');
@@ -218,8 +222,11 @@ function App() {
   const [aiOverlayOpen, setAiOverlayOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
+  const [documentRevisionDialogOpen, setDocumentRevisionDialogOpen] = useState(false);
   const directoryRef = useRef<ContactDirectory>(emptyDirectory());
   const directoryWriteQueue = useRef<Promise<void>>(Promise.resolve());
+  const documentRevisionsRef = useRef<DocumentRevision[]>([]);
+  const documentRevisionWriteQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingAttachmentsRef = useRef<Attachment[]>([]);
   const pendingAttachmentSessionRef = useRef(0);
   const mainAreaRef = useRef<HTMLElement>(null);
@@ -233,8 +240,8 @@ function App() {
   const activeMobileNavRef = useRef<HTMLButtonElement>(null);
   const isDesktop = Boolean(desktopBridge());
   const businessEditorOpen = Boolean(taskEditor || meetingEditor || documentEditor || researchEditor || sealEditor || materialEditor);
-  const globalSearchBlocked = Boolean(businessEditorOpen || aiOverlayOpen || quickCaptureOpen);
-  const quickCaptureBlocked = Boolean(businessEditorOpen || aiOverlayOpen || globalSearchOpen);
+  const globalSearchBlocked = Boolean(businessEditorOpen || aiOverlayOpen || quickCaptureOpen || documentRevisionDialogOpen);
+  const quickCaptureBlocked = Boolean(businessEditorOpen || aiOverlayOpen || globalSearchOpen || documentRevisionDialogOpen);
   const changeGlobalSearchOpen = (open: boolean) => {
     if (open) {
       if (globalSearchBlocked) return;
@@ -258,12 +265,20 @@ function App() {
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => focusTarget?.focus()));
   };
 
-  const reload = async () => {
+  const reload = async ({ loadDraft = false }: { loadDraft?: boolean } = {}) => {
     if (__SEED_DEMO_DATA__) await seedDemoData();
+    const settingsPromise = enqueueDocumentRevisionWrite(async () => {
+      const settings = await listRecords<Record<string, unknown>>('setting');
+      const loadedDocumentRevisions = (settings as unknown[]).filter((setting): setting is DocumentRevision => isDocumentRevision(setting) && setting.type === 'document-revision');
+      const prunedDocumentRevisions = pruneDocumentRevisions(loadedDocumentRevisions);
+      for (const revision of prunedDocumentRevisions.removed) await removeRecordOfKind('setting', revision.id);
+      replaceDocumentRevisions(prunedDocumentRevisions.retained);
+      return settings;
+    });
     const [taskRows, meetingRows, documentRows, researchRows, sealRows, materialRows, reportRows, archiveRows, settings, attachmentRows] = await Promise.all([
       listRecords<Task | PurgedBusinessRecord>('task'), listRecords<MeetingRecord | PurgedBusinessRecord>('meeting'), listRecords<OfficialDocument | PurgedBusinessRecord>('document'), listRecords<ResearchRecord | PurgedBusinessRecord>('research'),
       listRecords<SealRecord | PurgedBusinessRecord>('seal'), listRecords<MaterialRecord | PurgedBusinessRecord>('material'), listRecords<WeeklyReport>('weekly'), listRecords<ArchiveRecord>('archive'),
-      listRecords<Record<string, unknown>>('setting'), listRecords<Attachment>('attachment')
+      settingsPromise, listRecords<Attachment>('attachment')
     ]);
     const taskRecords = partitionBusinessRecords<Task>(taskRows);
     const meetingRecords = partitionBusinessRecords<MeetingRecord>(meetingRows);
@@ -305,13 +320,15 @@ function App() {
     setWeeklyTemplates((settings.filter((setting) => setting.type === 'weekly-template') as unknown as WeeklyTemplate[]).slice().sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')));
     setPartnerGroups((settings.filter((setting) => setting.type === 'partner-group') as unknown as PartnerGroup[]).slice().sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')));
     setCategoryStyles(settings.filter((setting) => setting.type === 'category-style') as unknown as CategoryStyle[]);
-    const localSettingTypes = new Set(['contact-directory', 'custom-writing-template', 'ai-skill', 'ai-history', 'weekly-template', 'partner-group', 'category-style', 'demo-seed']);
+    const localSettingTypes = new Set(['contact-directory', 'custom-writing-template', 'ai-skill', 'ai-history', 'weekly-template', 'partner-group', 'category-style', 'document-revision', 'demo-seed']);
     setLegacySettings(settings.filter((setting) => !localSettingTypes.has(String(setting.type))));
-    const savedDraft = await getRecord<Draft>('draft_main');
-    if (savedDraft) setDraft(savedDraft);
+    if (loadDraft) {
+      const savedDraft = await getRecordOfKind<Draft>('draft', 'draft_main');
+      if (savedDraft) setDraft(savedDraft);
+    }
   };
 
-  useEffect(() => { void reload(); }, []);
+  useEffect(() => { void reload({ loadDraft: true }); }, []);
   useEffect(() => { if (!toast.text) return; const timer = window.setTimeout(() => setToastState((prev) => ({ text: '', key: prev.key })), 3200); return () => window.clearTimeout(timer); }, [toast]);
   useLayoutEffect(() => { mainAreaRef.current?.scrollTo({ top: 0, left: 0 }); window.scrollTo({ top: 0, left: 0 }); }, [tab]);
   useLayoutEffect(() => {
@@ -539,7 +556,7 @@ function App() {
     openTaskEditor(emptyTask());
   };
   const persistEditableRecord = async <T extends Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord,>(kind: Kind, id: string, payload: T) => {
-    const previous = await getRecord<T>(id);
+    const previous = await getRecordOfKind<T>(kind, id);
     const referenced = new Set(attachmentIdsFromPayload(payload));
     const detached = attachmentIdsFromPayload(previous).filter((attachmentId) => !referenced.has(attachmentId));
     const staged = pendingAttachmentsRef.current.filter((attachment) => referenced.has(attachment.id));
@@ -784,7 +801,7 @@ function App() {
   const deleteEditableRecord = async <T extends Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord,>(kind: BusinessKind, id: string, label: string, successMessage: string) => {
     if (!window.confirm(`确认将${label}移入回收站？记录和附件仍保留在本机，可稍后恢复。`)) return;
     try {
-      const existing = await getRecord<T>(id);
+      const existing = await getRecordOfKind<T>(kind, id);
       if (!existing) throw new Error('未找到要删除的记录');
       await putRecord(kind, id, moveBusinessRecordToTrash(existing));
       await reload();
@@ -833,6 +850,50 @@ function App() {
       setToast(error instanceof Error ? `清空失败：${error.message}` : '清空失败');
     }
   };
+
+  function replaceDocumentRevisions(next: DocumentRevision[]) {
+    documentRevisionsRef.current = next;
+    setDocumentRevisions(next);
+  }
+  function enqueueDocumentRevisionWrite<T>(operation: () => Promise<T>): Promise<T> {
+    const pending = documentRevisionWriteQueue.current.then(operation, operation);
+    documentRevisionWriteQueue.current = pending.then(() => undefined, () => undefined);
+    return pending;
+  }
+  const saveDocumentRevision = (targetKind: 'draft' | 'weekly', snapshot: Draft | WeeklyReport) => enqueueDocumentRevisionWrite(async () => {
+    const revision = targetKind === 'draft'
+      ? createDocumentRevision('draft', snapshot as Draft)
+      : createDocumentRevision('weekly', snapshot as WeeklyReport);
+    await putRecord('setting', revision.id, revision);
+    const next = pruneDocumentRevisions([...documentRevisionsRef.current, revision]);
+    for (const removedRevision of next.removed) await removeRecordOfKind('setting', removedRevision.id);
+    replaceDocumentRevisions(next.retained);
+  });
+  const deleteDocumentRevision = (revision: DocumentRevision) => enqueueDocumentRevisionWrite(async () => {
+    await removeRecordOfKind('setting', revision.id);
+    replaceDocumentRevisions(documentRevisionsRef.current.filter((candidate) => candidate.id !== revision.id));
+  });
+  const clearDocumentRevisions = (targetKind: 'draft' | 'weekly', targetId: string) => enqueueDocumentRevisionWrite(async () => {
+    const removing = documentRevisionsRef.current.filter((revision) => revision.targetKind === targetKind && revision.targetId === targetId);
+    for (const revision of removing) await removeRecordOfKind('setting', revision.id);
+    const removingIds = new Set(removing.map((revision) => revision.id));
+    replaceDocumentRevisions(documentRevisionsRef.current.filter((revision) => !removingIds.has(revision.id)));
+  });
+
+  const saveMainDraft = async (snapshot: Draft) => {
+    const saved: Draft = { ...snapshot, title: snapshot.title.trim(), version: snapshot.version + 1, updatedAt: nowIso() };
+    if (!saved.title || !saved.contentText.trim()) throw new Error('请填写文稿标题和正文');
+    await putRecord('draft', saved.id, saved);
+    setDraft(saved);
+    try {
+      await saveDocumentRevision('draft', saved);
+      setToast('文稿版本已保存，本机历史已记录');
+    } catch (error) {
+      setToast(error instanceof Error ? `文稿已保存，但版本历史记录失败：${error.message}` : '文稿已保存，但版本历史记录失败');
+    }
+    return saved;
+  };
+
   const saveWeeklyReport = async (report: WeeklyReport) => {
     if (!report.title.trim() || !report.contentText.trim()) throw new Error('请填写周报标题和正文');
     if (!isValidIsoDate(report.startDate, false) || !isValidIsoDate(report.endDate, false) || report.startDate > report.endDate) throw new Error('周报起止日期无效');
@@ -846,16 +907,26 @@ function App() {
       version: report.version + 1
     };
     await putRecord('weekly', saved.id, saved);
-    await reload();
-    setToast('周报已保存');
+    setWeeklyReports((current) => [saved, ...current.filter((candidate) => candidate.id !== saved.id)]);
+    try {
+      await saveDocumentRevision('weekly', saved);
+      setToast('周报已保存，本机历史已记录');
+    } catch (error) {
+      setToast(error instanceof Error ? `周报已保存，但版本历史记录失败：${error.message}` : '周报已保存，但版本历史记录失败');
+    }
     return saved;
   };
   const deleteWeeklyReport = async (id: string) => {
-    if (!window.confirm('确认删除该周报？删除后无法撤销，建议先导出本地快照。')) return;
+    if (!window.confirm('确认删除该周报及其本机版本历史？删除后无法撤销，建议先导出本地快照。')) return false;
     try {
-      await removeRecord(id); await reload(); setToast('周报已删除');
+      await removeRecordOfKind('weekly', id);
+      await clearDocumentRevisions('weekly', id);
+      setWeeklyReports((current) => current.filter((report) => report.id !== id));
+      setToast('周报及其本机版本历史已删除');
+      return true;
     } catch (error) {
       setToast(error instanceof Error ? `删除失败：${error.message}` : '删除失败');
+      return false;
     }
   };
 
@@ -872,7 +943,7 @@ function App() {
 
   const restoreSnapshot = async (snapshot: unknown): Promise<MigrationReport> => {
     const result = await importLocalSnapshot(snapshot);
-    await reload();
+    await reload({ loadDraft: true });
     return {
       sourceVersion: 'HxHwang Gw 本地快照',
       imported: {
@@ -970,6 +1041,7 @@ function App() {
   const editorAttachments = useMemo(() => [...attachments, ...pendingAttachments], [attachments, pendingAttachments]);
 
   const openAiAssistant = (request?: AiAssistRequest) => {
+    if (documentRevisionDialogOpen) return;
     if (request) {
       setAiPrefill({ source: request.source || 'workspace', purpose: request.purpose || '综合工作总结', custom: request.custom, changeContext: request.changeContext, nonce: Date.now() });
       setAiOverlayOpen(true);
@@ -1112,8 +1184,8 @@ function App() {
     if (tab === 'seals') return <SealView seals={filteredSeals} totalCount={seals.length} view={ledgerViews.seals} filterOptions={sealFilterOptions} onViewChange={(patch) => updateLedgerView('seals', patch)} onReset={() => resetLedgerView('seals')} onExport={() => exportLedgerCsv(() => buildLedgerCsv('seals', filteredSeals, { date: localDateInput(new Date()) }))} selectedId={selectedSealId} onSelect={(id) => selectBusinessRecord('seals', id)} onNew={() => openSealEditor(emptySeal())} onEdit={(seal) => openSealEditor(seal)} onDelete={deleteSeal} />;
     if (tab === 'materials') return <MaterialView materials={filteredMaterials} allMaterials={materials} totalCount={materials.length} view={ledgerViews.materials} filterOptions={materialFilterOptions} onViewChange={(patch) => updateLedgerView('materials', patch)} onReset={() => resetLedgerView('materials')} onExport={() => exportLedgerCsv(() => buildLedgerCsv('materials', filteredMaterials, { date: localDateInput(new Date()), allMaterials: materials }))} selectedId={selectedMaterialId} onSelect={(id) => selectBusinessRecord('materials', id)} onNew={() => openMaterialEditor(emptyMaterial())} onEdit={(material) => openMaterialEditor(material)} onDelete={deleteMaterial} />;
     if (tab === 'directory') return <DirectoryManager directory={directory} onSave={replaceDirectory} setToast={setToast} />;
-    if (tab === 'writing') return <WritingStudio draft={draft} setDraft={setDraft} customTemplates={customTemplates} onSaveCustomTemplate={saveCustomTemplate} onRenameCustomTemplate={renameCustomTemplate} onDeleteCustomTemplate={deleteCustomTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
-    if (tab === 'weekly') return <WeeklyView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} reports={weeklyReports} templates={weeklyTemplates} onSave={saveWeeklyReport} onDelete={deleteWeeklyReport} onSaveTemplate={saveWeeklyTemplate} onDeleteTemplate={deleteWeeklyTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
+    if (tab === 'writing') return <WritingStudio draft={draft} setDraft={setDraft} revisions={documentRevisions.filter((revision) => revision.targetKind === 'draft' && revision.targetId === draft.id)} onSave={saveMainDraft} onDeleteRevision={deleteDocumentRevision} onClearRevisions={() => clearDocumentRevisions('draft', draft.id)} onRevisionDialogOpenChange={setDocumentRevisionDialogOpen} customTemplates={customTemplates} onSaveCustomTemplate={saveCustomTemplate} onRenameCustomTemplate={renameCustomTemplate} onDeleteCustomTemplate={deleteCustomTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
+    if (tab === 'weekly') return <WeeklyView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} reports={weeklyReports} revisions={documentRevisions.filter((revision) => revision.targetKind === 'weekly')} templates={weeklyTemplates} onSave={saveWeeklyReport} onDelete={deleteWeeklyReport} onDeleteRevision={deleteDocumentRevision} onClearRevisions={(id) => clearDocumentRevisions('weekly', id)} onRevisionDialogOpenChange={setDocumentRevisionDialogOpen} onSaveTemplate={saveWeeklyTemplate} onDeleteTemplate={deleteWeeklyTemplate} onAiAssist={openAiAssistant} setToast={setToast} />;
     if (tab === 'stats') return <StatsView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} categoryTints={categoryTints} onSetCategoryTint={setCategoryTint} />;
     if (tab === 'ai') return null;
     if (tab === 'recycle') return <RecycleBinView entries={recycleEntries} attachments={attachments} onRestore={(kind, id) => void restoreDeletedRecord(kind, id)} onPurge={(kind, id) => void permanentlyDeleteRecord(kind, id)} onEmpty={() => void emptyRecycleBin()} onDownloadAttachment={downloadStoredAttachment} />;
@@ -1851,17 +1923,24 @@ function bytesToBase64(bytes: Uint8Array) { let binary = ''; for (let offset = 0
 function formatBytes(size: number) { if (size < 1024) return `${size} B`; if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`; return `${(size / 1024 / 1024).toFixed(1)} MB`; }
 function downloadStoredAttachment(attachment: Attachment) { if (attachment.data === undefined) return; const binary = atob(attachment.data); const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0)); downloadBlob(new Blob([bytes], { type: attachment.mimeType }), attachment.name); }
 
-function WritingStudio({ draft, setDraft, customTemplates, onSaveCustomTemplate, onRenameCustomTemplate, onDeleteCustomTemplate, onAiAssist, setToast }: { draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>; customTemplates: CustomWritingTemplate[]; onSaveCustomTemplate: (template: CustomWritingTemplate) => Promise<void>; onRenameCustomTemplate: (template: CustomWritingTemplate, name: string) => Promise<boolean>; onDeleteCustomTemplate: (template: CustomWritingTemplate) => Promise<boolean>; onAiAssist: (request?: AiAssistRequest) => void; setToast: (text: string) => void }) {
+function WritingStudio({ draft, setDraft, revisions, onSave, onDeleteRevision, onClearRevisions, onRevisionDialogOpenChange, customTemplates, onSaveCustomTemplate, onRenameCustomTemplate, onDeleteCustomTemplate, onAiAssist, setToast }: { draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>; revisions: DocumentRevision[]; onSave: (draft: Draft) => Promise<Draft>; onDeleteRevision: (revision: DocumentRevision) => Promise<void>; onClearRevisions: () => Promise<void>; onRevisionDialogOpenChange: (open: boolean) => void; customTemplates: CustomWritingTemplate[]; onSaveCustomTemplate: (template: CustomWritingTemplate) => Promise<void>; onRenameCustomTemplate: (template: CustomWritingTemplate, name: string) => Promise<boolean>; onDeleteCustomTemplate: (template: CustomWritingTemplate) => Promise<boolean>; onAiAssist: (request?: AiAssistRequest) => void; setToast: (text: string) => void }) {
   const pack = knowledgePack as KnowledgePack;
   const templates: Array<WritingTemplate | CustomWritingTemplate> = [...customTemplates, ...(pack.templates as WritingTemplate[])];
   const [templateQuery, setTemplateQuery] = useState('');
   const [renamingTemplateId, setRenamingTemplateId] = useState('');
   const [renamingTemplateName, setRenamingTemplateName] = useState('');
   const [renameReturnTemplateId, setRenameReturnTemplateId] = useState('');
+  const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [restoredFromVersion, setRestoredFromVersion] = useState<number | null>(null);
   const templateSearchRef = useRef<HTMLInputElement>(null);
   const templateRenameActionRef = useRef<HTMLButtonElement>(null);
-  const editor = useEditor({ extensions: [StarterKit, Placeholder.configure({ placeholder: '从第一段开始，把事实、数据和动作写下来……' })], content: draft.contentHtml || `<p>一、基本情况</p><p>围绕年度重点工作，系统梳理工作进展、主要做法和实际成效。</p><p>二、主要做法</p><p>坚持目标导向，细化任务清单，明确责任分工和完成时限。</p><p>三、下一步安排</p><p>持续跟踪重点事项，及时补充数据和佐证材料。</p>`, onUpdate: ({ editor: current }) => setDraft((currentDraft) => ({ ...currentDraft, contentHtml: current.getHTML(), contentText: current.getText(), updatedAt: nowIso() })) });
-  useEffect(() => { if (editor && draft.contentHtml && editor.getHTML() !== draft.contentHtml) editor.commands.setContent(draft.contentHtml); }, [editor, draft.contentHtml]);
+  const editor = useEditor({ extensions: [StarterKit, Placeholder.configure({ placeholder: '从第一段开始，把事实、数据和动作写下来……' })], content: draft.contentHtml, onUpdate: ({ editor: current }) => setDraft((currentDraft) => ({ ...currentDraft, contentHtml: current.getHTML(), contentText: current.getText(), updatedAt: nowIso() })) });
+  useEffect(() => {
+    if (!editor) return;
+    if (editor.getHTML() !== draft.contentHtml) editor.commands.setContent(draft.contentHtml, false);
+  }, [editor, draft.contentHtml]);
+  useEffect(() => () => onRevisionDialogOpenChange(false), [onRevisionDialogOpenChange]);
   useEffect(() => {
     if (renamingTemplateId || !renameReturnTemplateId) return;
     window.requestAnimationFrame(() => {
@@ -1873,7 +1952,33 @@ function WritingStudio({ draft, setDraft, customTemplates, onSaveCustomTemplate,
   const lines = (draft.contentText || editor?.getText() || '').split(/\r?\n/).filter(Boolean);
   const longLines = lines.filter((line) => line.length > 45);
   const visibleTemplates = templates.filter((template) => `${template.name} ${template.documentType}`.toLowerCase().includes(templateQuery.trim().toLowerCase()));
-  const saveDraft = async () => { const next = { ...draft, contentHtml: editor?.getHTML() || draft.contentHtml, contentText: editor?.getText() || draft.contentText, updatedAt: nowIso(), version: draft.version + 1 }; await putRecord('draft', next.id, next); setDraft(next); setToast('文稿版本已保存'); };
+  const changeRevisionDialogOpen = (open: boolean) => { setRevisionDialogOpen(open); onRevisionDialogOpenChange(open); };
+  const saveDraft = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onSave({ ...draft, contentHtml: editor?.getHTML() || draft.contentHtml, contentText: editor?.getText() || draft.contentText });
+      setRestoredFromVersion(null);
+    } catch (error) {
+      setToast(error instanceof Error ? `文稿保存失败：${error.message}` : '文稿保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+  const restoreRevision = (revision: DocumentRevision) => {
+    const restored = restoreDraftRevision(draft, revision);
+    setDraft(restored);
+    setRestoredFromVersion(revision.version);
+    setToast(`已载入 v${revision.version} 为未保存工作副本，请使用原“保存版本”确认`);
+  };
+  const removeRevision = async (revision: DocumentRevision) => {
+    try { await onDeleteRevision(revision); setToast(`本机历史 v${revision.version} 已删除`); }
+    catch (error) { setToast(error instanceof Error ? `删除版本失败：${error.message}` : '删除版本失败'); }
+  };
+  const clearRevisions = async () => {
+    try { await onClearRevisions(); setToast('当前文稿的本机版本历史已清空'); }
+    catch (error) { setToast(error instanceof Error ? `清空版本历史失败：${error.message}` : '清空版本历史失败'); }
+  };
   const applyTemplate = (template: WritingTemplate | CustomWritingTemplate) => {
     if ('custom' in template) {
       editor?.commands.setContent(template.contentHtml);
@@ -1931,7 +2036,7 @@ function WritingStudio({ draft, setDraft, customTemplates, onSaveCustomTemplate,
       eyebrow="写作中心"
       title="公文写作"
       detail="模板负责结构，规则负责提醒，事实仍由你确认。"
-      action={<div className="button-row"><label className="secondary-button document-import-button"><FileUp size={16} />导入文档<input type="file" accept=".docx,.txt,.html,.htm,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/html" onChange={(event) => { void importDocument(event.target.files?.[0]); event.currentTarget.value = ''; }} /></label><button className="secondary-button" onClick={() => { const body = editor?.getText() || draft.contentText; onAiAssist({ custom: `${draft.title}\n\n${body}`.trim(), purpose: '公文润色', changeContext: { targetLabel: '当前公文草稿', fields: [{ field: 'title', label: '标题', before: draft.title }, { field: 'contentText', label: '正文', before: body }] } }); }}><Sparkles size={16} />AI 润色</button><button className="secondary-button" onClick={() => void saveAsCustomTemplate()}><Library size={16} />保存自定义格式</button><button className="secondary-button" onClick={() => void saveDraft()}><Save size={16} />保存版本</button><button className="primary-button" onClick={() => void downloadWord()}><ArrowDownToLine size={16} />导出 DOCX</button><button className="secondary-button" onClick={() => void downloadPdf()}><FileOutput size={16} />导出 PDF</button></div>}
+      action={<div className="button-row"><label className="secondary-button document-import-button"><FileUp size={16} />导入文档<input type="file" accept=".docx,.txt,.html,.htm,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/html" onChange={(event) => { void importDocument(event.target.files?.[0]); event.currentTarget.value = ''; }} /></label><button className="secondary-button" onClick={() => { const body = editor?.getText() || draft.contentText; onAiAssist({ custom: `${draft.title}\n\n${body}`.trim(), purpose: '公文润色', changeContext: { targetLabel: '当前公文草稿', fields: [{ field: 'title', label: '标题', before: draft.title }, { field: 'contentText', label: '正文', before: body }] } }); }}><Sparkles size={16} />AI 润色</button><button className="secondary-button" onClick={() => void saveAsCustomTemplate()}><Library size={16} />保存自定义格式</button><button type="button" className="secondary-button" aria-haspopup="dialog" aria-expanded={revisionDialogOpen} onClick={() => changeRevisionDialogOpen(true)}><History size={16} />版本历史</button><button className="secondary-button" aria-busy={saving} disabled={saving} onClick={() => void saveDraft()}><Save size={16} />{saving ? '正在保存' : '保存版本'}</button><button className="primary-button" onClick={() => void downloadWord()}><ArrowDownToLine size={16} />导出 DOCX</button><button className="secondary-button" onClick={() => void downloadPdf()}><FileOutput size={16} />导出 PDF</button></div>}
     />
     <div className="writing-layout">
       <aside className="writing-sidebar panel">
@@ -1965,7 +2070,7 @@ function WritingStudio({ draft, setDraft, customTemplates, onSaveCustomTemplate,
         <div className="source-note"><ShieldCheck size={15} /><span>规则包 v{pack.version}<br />导入内容仅在本机转换，格式与事实需人工复核。</span></div>
       </aside>
       <section className="editor-panel panel">
-        <div className="editor-toolbar"><div className="editor-mode"><span className="mode-dot" />离线编辑</div><div className="toolbar-hint">第 {draft.version} 个版本 · {draft.updatedAt.slice(0, 10)}</div></div>
+        <div className="editor-toolbar"><div className="editor-mode"><span className="mode-dot" />离线编辑</div><div className="toolbar-hint" aria-live="polite">{restoredFromVersion === null ? (draft.version ? `当前保存版 v${draft.version} · ${draft.updatedAt.slice(0, 10)}` : '未保存草稿') : `未保存工作副本 · 来自 v${restoredFromVersion} · 当前保存版 v${draft.version}`}</div></div>
         <div className="editor-paper"><input className="draft-title-input" aria-label="文稿标题" value={draft.title} onChange={(event) => setDraft((currentDraft) => ({ ...currentDraft, title: event.target.value, updatedAt: nowIso() }))} placeholder="请输入文稿标题" /><EditorContent editor={editor} /></div>
       </section>
       <aside className="writing-sidebar panel">
@@ -1974,6 +2079,7 @@ function WritingStudio({ draft, setDraft, customTemplates, onSaveCustomTemplate,
         <div className="advice-list">{pack.rules.map((rule) => { const source = sourceLabel(rule.sourceId); return <div className="advice" key={rule.id}><span className={`advice-level ${rule.severity}`} /> <div><strong>{rule.title}</strong><p>{rule.description}</p><small>{source.kind} · {source.title}<br />版本：{rule.sourceVersion || source.version} · 严重程度：{severityLabel[rule.severity]}</small></div></div>; })}</div>
       </aside>
     </div>
+    <DocumentRevisionDialog open={revisionDialogOpen} current={draft} revisions={revisions} onClose={() => changeRevisionDialogOpen(false)} onRestore={restoreRevision} onDelete={removeRevision} onClear={clearRevisions} />
     <div className="print-only"><h1>{draft.title}</h1><div>{draftBodyLines(draft).map((line, index) => <p key={`${index}:${line}`}>{line}</p>)}</div></div>
   </>;
 }
@@ -1988,32 +2094,58 @@ function composeWeeklyReport(tasks: Task[], meetings: MeetingRecord[], documents
 }
 function weeklyAsDraft(report: WeeklyReport): Draft { return { id: `draft:${report.id || 'weekly'}`, title: report.title, documentType: '工作周报', contentHtml: '', contentText: report.contentText, templateId: 'weekly-report', version: report.version, updatedAt: report.updatedAt }; }
 
-function WeeklyView({ tasks, meetings, documents, researches, seals, materials, reports, templates, onSave, onDelete, onSaveTemplate, onDeleteTemplate, onAiAssist, setToast }: { tasks: Task[]; meetings: MeetingRecord[]; documents: OfficialDocument[]; researches: ResearchRecord[]; seals: SealRecord[]; materials: MaterialRecord[]; reports: WeeklyReport[]; templates: WeeklyTemplate[]; onSave: (report: WeeklyReport) => Promise<WeeklyReport>; onDelete: (id: string) => Promise<void>; onSaveTemplate: (name: string, sections: WeeklyTemplateSection[], id?: string) => Promise<string | null>; onDeleteTemplate: (template: WeeklyTemplate) => Promise<void>; onAiAssist: (request?: AiAssistRequest) => void; setToast: (text: string) => void }) {
+function WeeklyView({ tasks, meetings, documents, researches, seals, materials, reports, revisions, templates, onSave, onDelete, onDeleteRevision, onClearRevisions, onRevisionDialogOpenChange, onSaveTemplate, onDeleteTemplate, onAiAssist, setToast }: { tasks: Task[]; meetings: MeetingRecord[]; documents: OfficialDocument[]; researches: ResearchRecord[]; seals: SealRecord[]; materials: MaterialRecord[]; reports: WeeklyReport[]; revisions: DocumentRevision[]; templates: WeeklyTemplate[]; onSave: (report: WeeklyReport) => Promise<WeeklyReport>; onDelete: (id: string) => Promise<boolean>; onDeleteRevision: (revision: DocumentRevision) => Promise<void>; onClearRevisions: (id: string) => Promise<void>; onRevisionDialogOpenChange: (open: boolean) => void; onSaveTemplate: (name: string, sections: WeeklyTemplateSection[], id?: string) => Promise<string | null>; onDeleteTemplate: (template: WeeklyTemplate) => Promise<void>; onAiAssist: (request?: AiAssistRequest) => void; setToast: (text: string) => void }) {
   const initialRange = useMemo(defaultWeekRange, []);
   const [report, setReport] = useState<WeeklyReport | null>(null);
   const [templateId, setTemplateId] = useState('');
+  const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [restoredFromVersion, setRestoredFromVersion] = useState<number | null>(null);
   const selectedTemplate = templates.find((template) => template.id === templateId) || DEFAULT_WEEKLY_TEMPLATE;
   const current = report ?? composeWeeklyReport(tasks, meetings, documents, researches, seals, materials, initialRange.startDate, initialRange.endDate, selectedTemplate);
+  const currentRevisions = revisions.filter((revision) => revision.targetKind === 'weekly' && revision.targetId === current.id);
   const update = <K extends keyof WeeklyReport,>(key: K, value: WeeklyReport[K]) => setReport({ ...current, [key]: value, updatedAt: nowIso() });
   const regenerate = () => { try { setReport({ ...composeWeeklyReport(tasks, meetings, documents, researches, seals, materials, current.startDate, current.endDate, selectedTemplate), id: current.id, createdAt: current.createdAt, version: current.version }); setToast(selectedTemplate.id === DEFAULT_WEEKLY_TEMPLATE.id ? '已按日期重新汇总全部业务模块' : `已按模板「${selectedTemplate.name}」重新汇总`); } catch (error) { setToast(error instanceof Error ? error.message : '周报生成失败'); } };
-  const save = async () => { try { setReport(await onSave(current)); } catch (error) { setToast(error instanceof Error ? error.message : '周报保存失败'); } };
-  const remove = async (id: string) => { await onDelete(id); if (current.id === id) setReport(null); };
+  useEffect(() => () => onRevisionDialogOpenChange(false), [onRevisionDialogOpenChange]);
+  const changeRevisionDialogOpen = (open: boolean) => { setRevisionDialogOpen(open); onRevisionDialogOpenChange(open); };
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    try { setReport(await onSave(current)); setRestoredFromVersion(null); }
+    catch (error) { setToast(error instanceof Error ? error.message : '周报保存失败'); }
+    finally { setSaving(false); }
+  };
+  const remove = async (id: string) => { if (await onDelete(id) && current.id === id) { setReport(null); setRestoredFromVersion(null); } };
+  const restoreRevision = (revision: DocumentRevision) => {
+    setReport(restoreWeeklyRevision(current, revision));
+    setRestoredFromVersion(revision.version);
+    setToast(`已载入 v${revision.version} 为未保存工作副本，请使用原“保存版本”确认`);
+  };
+  const removeRevision = async (revision: DocumentRevision) => {
+    try { await onDeleteRevision(revision); setToast(`本机历史 v${revision.version} 已删除`); }
+    catch (error) { setToast(error instanceof Error ? `删除版本失败：${error.message}` : '删除版本失败'); }
+  };
+  const clearRevisions = async () => {
+    try { await onClearRevisions(current.id); setToast('当前周报的本机版本历史已清空'); }
+    catch (error) { setToast(error instanceof Error ? `清空版本历史失败：${error.message}` : '清空版本历史失败'); }
+  };
   const downloadWord = async () => { downloadBlob(await exportDraftDocx(weeklyAsDraft(current)), `${current.title || '工作周报'}.docx`); setToast('周报 DOCX 已生成'); };
   const downloadPdf = async () => { const printable = buildPrintableDocument(weeklyAsDraft(current)); const handled = await desktopBridge()?.printPdf(printable, current.title || '工作周报'); if (!handled) { document.body.classList.add('printing-draft'); window.print(); window.setTimeout(() => document.body.classList.remove('printing-draft'), 500); } };
   return <>
-    <PageHeading eyebrow="阶段汇总" title="周报生成" detail="按日期汇总本地任务和文件，保存后可继续编辑和导出。" action={<div className="button-row"><button className="secondary-button" onClick={() => setReport(null)}><Plus size={16} />新建</button><button className="secondary-button" onClick={() => onAiAssist({ custom: `${current.title}\n\n${current.contentText}`.trim(), purpose: '周报润色', changeContext: { targetLabel: '当前周报', fields: [{ field: 'title', label: '标题', before: current.title }, { field: 'contentText', label: '正文', before: current.contentText }] } })}><Sparkles size={16} />AI 润色</button><button className="secondary-button" onClick={() => void save()}><Save size={16} />保存版本</button><button className="primary-button" onClick={() => void downloadWord()}><ArrowDownToLine size={16} />导出 DOCX</button><button className="secondary-button" onClick={() => void downloadPdf()}><FileOutput size={16} />导出 PDF</button></div>} />
+    <PageHeading eyebrow="阶段汇总" title="周报生成" detail="按日期汇总本地任务和文件，保存后可继续编辑和导出。" action={<div className="button-row"><button className="secondary-button" onClick={() => { setReport(null); setRestoredFromVersion(null); }}><Plus size={16} />新建</button><button className="secondary-button" onClick={() => onAiAssist({ custom: `${current.title}\n\n${current.contentText}`.trim(), purpose: '周报润色', changeContext: { targetLabel: '当前周报', fields: [{ field: 'title', label: '标题', before: current.title }, { field: 'contentText', label: '正文', before: current.contentText }] } })}><Sparkles size={16} />AI 润色</button><button type="button" className="secondary-button" aria-haspopup="dialog" aria-expanded={revisionDialogOpen} disabled={!current.id} title={current.id ? '查看当前周报的本机版本历史' : '请先保存周报'} onClick={() => changeRevisionDialogOpen(true)}><History size={16} />版本历史</button><button className="secondary-button" aria-busy={saving} disabled={saving} onClick={() => void save()}><Save size={16} />{saving ? '正在保存' : '保存版本'}</button><button className="primary-button" onClick={() => void downloadWord()}><ArrowDownToLine size={16} />导出 DOCX</button><button className="secondary-button" onClick={() => void downloadPdf()}><FileOutput size={16} />导出 PDF</button></div>} />
     <div className="weekly-layout">
       <aside className="panel weekly-controls">
         <div className="panel-heading"><div><span className="eyebrow">素材范围</span><h2>汇总设置</h2></div></div>
         <div className="weekly-control-body"><DateField label="开始日期" value={current.startDate} onChange={(value) => update('startDate', value)} /><DateField label="结束日期" value={current.endDate} onChange={(value) => update('endDate', value)} /><SelectField label="周报模板" value={templates.some((template) => template.id === templateId) ? templateId : ''} options={[{ value: '', label: '默认周报结构' }, ...templates.map((template) => ({ value: template.id, label: template.name }))]} onChange={setTemplateId} /><button className="primary-button weekly-generate" onClick={regenerate}><RefreshCw size={15} />重新汇总</button><div className="weekly-source-count"><span>任务</span><strong>{current.taskIds.length}</strong><span>文件</span><strong>{current.documentIds.length}</strong><span>会议</span><strong>{current.meetingIds?.length || 0}</strong><span>外出</span><strong>{current.researchIds?.length || 0}</strong><span>用章</span><strong>{current.sealIds?.length || 0}</strong><span>物资</span><strong>{current.materialIds?.length || 0}</strong></div></div>
         <div className="weekly-history-heading"><span>已保存周报</span><small>{reports.length} 份</small></div>
-        <div className="weekly-history">{[...reports].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).map((saved) => <div className={`weekly-history-row ${saved.id === current.id ? 'selected' : ''}`} key={saved.id}><button className="weekly-history-open" onClick={() => setReport(saved)}><strong>{saved.title}</strong><small>{saved.startDate} 至 {saved.endDate} · v{saved.version}</small></button><button className="icon-button danger-icon" title={`删除周报 ${saved.title}`} onClick={() => void remove(saved.id)}><X size={14} /></button></div>)}{!reports.length && <small className="form-empty weekly-empty">暂无已保存周报</small>}</div>
+        <div className="weekly-history">{[...reports].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).map((saved) => <div className={`weekly-history-row ${saved.id === current.id ? 'selected' : ''}`} key={saved.id}><button className="weekly-history-open" onClick={() => { setReport(saved); setRestoredFromVersion(null); }}><strong>{saved.title}</strong><small>{saved.startDate} 至 {saved.endDate} · v{saved.version}</small></button><button className="icon-button danger-icon" title={`删除周报 ${saved.title}`} onClick={() => void remove(saved.id)}><X size={14} /></button></div>)}{!reports.length && <small className="form-empty weekly-empty">暂无已保存周报</small>}</div>
       </aside>
       <section className="panel weekly-editor-panel">
-        <div className="weekly-editor-toolbar"><span>{current.id ? `已保存版本 v${current.version}` : '未保存草稿'}</span><button className="text-button" onClick={() => { void navigator.clipboard?.writeText(current.contentText); setToast('周报正文已复制'); }}><ClipboardList size={14} />复制正文</button></div>
+        <div className="weekly-editor-toolbar"><span aria-live="polite">{restoredFromVersion === null ? (current.id ? `当前保存版 v${current.version}` : '未保存草稿') : `未保存工作副本 · 来自 v${restoredFromVersion} · 当前保存版 v${current.version}`}</span><button className="text-button" onClick={() => { void navigator.clipboard?.writeText(current.contentText); setToast('周报正文已复制'); }}><ClipboardList size={14} />复制正文</button></div>
         <div className="weekly-paper"><textarea className="draft-title-input weekly-title-input" rows={1} aria-label="周报标题" value={current.title} onChange={(event) => update('title', event.target.value)} /><textarea aria-label="周报正文" value={current.contentText} onChange={(event) => update('contentText', event.target.value)} /></div>
       </section>
     </div>
+    <DocumentRevisionDialog open={revisionDialogOpen} current={current} revisions={currentRevisions} onClose={() => changeRevisionDialogOpen(false)} onRestore={restoreRevision} onDelete={removeRevision} onClear={clearRevisions} />
     <WeeklyTemplateManager templates={templates} onUse={setTemplateId} onSaveTemplate={onSaveTemplate} onDeleteTemplate={onDeleteTemplate} setToast={setToast} />
     <div className="print-only"><h1>{current.title}</h1><div>{splitWeeklyLines(current.contentText).map((line, index) => <p key={`${index}:${line}`}>{line}</p>)}</div></div>
   </>;

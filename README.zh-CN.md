@@ -15,7 +15,7 @@
 ![Pages 状态](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![最近提交](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![仓库大小](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![版本](https://img.shields.io/badge/version-0.7.12-0969da?style=flat-square)
+![版本](https://img.shields.io/badge/version-0.7.13-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@
 
 HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联网/内网 Web 构建和互联网/内网 Electron 客户端之间共享同一套领域模型。系统首先把业务数据保存在本地，在构建时隔离不同联网能力，并通过显式适配器提供同步和 AI 请求。
 
-当前发布版本为 `0.7.12`：本机自定义写作格式可在模板列表内重命名，也可经明确确认后删除。重命名只更新名称和时间，保留模板 ID、正文、结构、创建时间及已经套用该格式的文稿；删除只移除自定义 setting，不会清空当前文稿。授权知识包模板继续只读，不显示管理入口。整个流程复用现有本机设置、快照和模板列表，不新增数据库 schema、同步集合或网络请求。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
+当前发布版本为 `0.7.13`：主草稿和已保存周报共用有界的本机版本历史。每次点击原“保存版本”都会先走原记录保存路径，再记录刚保存的内容；共用对话框以只读纯文本对比当前工作副本与所选历史。恢复不会覆盖已保存记录，而是保留当前记录 ID 和版本，把历史内容载入原编辑器；只有再次点击原“保存版本”才会持久化。每个目标最多 20 条、全局最多 100 条，单条最多 1,000,000 字符、总内容最多 10,000,000 字符。历史进入本地快照，但明确排除于私有同步、全局查找、AI 请求材料和所有网络路径。详情见 [`RELEASE_NOTES.md`](RELEASE_NOTES.md)。
 
 公开 Pages 不显示私有同步，但支持完整本机台账、附件、历史 JSON/快照、用户自备 Key 的兼容 AI，以及用户主动解锁的 `127.0.0.1` 本机中转站；页面加载和填写密码不会自动联系中转服务。所有业务数据只进入当前浏览器 IndexedDB。[GitHub Pages](https://nextweb4.github.io/gw/) 仅适合公开、虚构或获准的非敏感材料。
 
@@ -34,10 +34,10 @@ HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联�
 | 领域 | 已实现内容 |
 | --- | --- |
 | 事务管理 | 任务、会议、文件、外出、用章、物资六类可编辑台账，独立维护常用人员/单位目录，并支持全局快速任务记录、会话级最近记录、当前可见顺序的上一条/下一条详情浏览、当前筛选结果安全 CSV 导出、阶段、小结、附件、模块内关键词/字段筛选/排序、本机全局查找、统一事务日历和可恢复回收站 |
-| 写作 | 富文本起草、经清洗的 DOCX/HTML/TXT 导入、本机自定义格式、确定性周报、可编辑版本和历史档案 |
+| 写作 | 富文本起草、经清洗的 DOCX/HTML/TXT 导入、本机自定义格式、确定性周报、有界本机版本历史及其只读对比和非破坏恢复、历史档案 |
 | 文档 | DOCX 与 PDF 共用的 A4 导出引擎；Web 使用浏览器打印，桌面端使用 Electron 打印 |
 | 迁移 | 兼容两份历史原型导出结构和拖拽 JSON/快照；当共同版本标识无法可靠辨别来源时给出警告 |
-| 本地数据 | 基于 IndexedDB 的仓储、快照、附件引用、AI 历史查询、六类业务软删除/恢复、最小同步墓碑以及显式导出操作 |
+| 本地数据 | 基于 IndexedDB 的仓储、包含文稿历史的快照、附件引用、AI 历史查询、六类业务软删除/恢复、最小同步墓碑以及显式导出操作 |
 | 分版服务 | 公开 Pages/互联网版使用会话级 API Key 和 OpenAI 兼容地址；内网版只使用已认证私有同步与内部 AI 网关 |
 
 历史 Skill、配置、周报和未映射源字段会以只读纯文本保留，导入的 HTML 或脚本文本不会执行。
@@ -60,7 +60,7 @@ HxHwang Gw 是一个 pnpm monorepo，在公开 GitHub Pages 演示版、互联�
 - NSIS 安装包需要 Windows；AppImage/DEB 打包和最终 Linux 兼容性检查需要 Linux。
 - Web 构建需要 Chromium 类浏览器。
 
-仓库版本为 `0.7.12`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
+仓库版本为 `0.7.13`。依赖由 `pnpm-lock.yaml` 锁定，应使用 frozen lockfile 安装以保证可复现性。
 
 ## 安装与运行
 

@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { attachmentIdsFromPayload, LOCAL_SCHEMA_VERSION, parseLocalSnapshot, snapshotPayloadForRecord, shouldRefreshDemoRecord } from './index.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDocumentRevision, type DocumentRevision, type Draft, type WeeklyReport } from '@hxhwang/domain';
+
+vi.mock('rxdb/plugins/storage-dexie', async () => {
+  const { getRxStorageMemory } = await import('rxdb/plugins/storage-memory');
+  return { getRxStorageDexie: getRxStorageMemory };
+});
+
+import {
+  attachmentIdsFromPayload, clearAllData, getRecordOfKind, importLocalSnapshot, listRecords, LOCAL_SCHEMA_VERSION,
+  parseLocalSnapshot, putRecord, removeRecordOfKind, snapshotPayloadForRecord, shouldRefreshDemoRecord
+} from './index.js';
 
 describe('local snapshot validation', () => {
   it('uses an explicit schema migration version for editable legacy business modules', () => {
@@ -130,5 +140,120 @@ describe('local snapshot validation', () => {
     });
     expect(parsed.records).toEqual([]);
     expect(parsed.warnings).toEqual(['跳过自定义格式身份不匹配：unrelated-setting-id']);
+  });
+
+  it('skips draft and weekly records whose outer ids do not match their payload ids', () => {
+    const parsed = parseLocalSnapshot({
+      format: 'hxhwang-gw-local-v1',
+      records: [
+        { id: 'draft_outer', kind: 'draft', payload: { id: 'draft_inner' } },
+        { id: 'weekly_outer', kind: 'weekly', payload: { id: 'weekly_inner' } },
+      ],
+    });
+    expect(parsed.records).toEqual([]);
+    expect(parsed.warnings).toEqual(['跳过主草稿身份不匹配：draft_outer', '跳过周报身份不匹配：weekly_outer']);
+  });
+
+  it('accepts only canonical document revision setting identities and targets', () => {
+    const draft: Draft = { id: 'draft_main', title: '历史文稿', documentType: '报告', contentHtml: '<p>正文</p>', contentText: '正文', templateId: 'work-report', version: 2, updatedAt: '2026-08-05T01:00:00.000Z' };
+    const revision = createDocumentRevision('draft', draft, 'document-revision_valid', draft.updatedAt);
+    const valid = { id: revision.id, kind: 'setting', payload: revision, updatedAt: revision.createdAt };
+    expect(parseLocalSnapshot({ format: 'hxhwang-gw-local-v1', records: [valid] }).records).toEqual([valid]);
+
+    const invalid = parseLocalSnapshot({
+      format: 'hxhwang-gw-local-v1',
+      records: [
+        { ...valid, id: 'document-revision_wrong-outer' },
+        { ...valid, id: 'document-revision_wrong-payload', payload: { ...revision, id: 'document-revision_wrong-payload', targetId: 'other-draft' } },
+        { ...valid, id: 'document-revision_wrong-version', payload: { ...revision, id: 'document-revision_wrong-version', version: 99 } },
+        { ...valid, id: 'document-revision_wrong-kind', payload: { ...revision, id: 'document-revision_wrong-kind', targetKind: 'weekly' } },
+        { ...valid, id: 'document-revision_wrong-snapshot-id', payload: { ...revision, id: 'document-revision_wrong-snapshot-id', snapshot: { ...revision.snapshot, id: 'other-draft' } } },
+        { ...valid, id: 'document-revision_wrong-snapshot-version', payload: { ...revision, id: 'document-revision_wrong-snapshot-version', snapshot: { ...revision.snapshot, version: 99 } } },
+        { ...valid, id: 'document-revision_wrong-updated-at', payload: { ...revision, id: 'document-revision_wrong-updated-at', snapshot: { ...revision.snapshot, updatedAt: '2026-08-05T02:00:00.000Z' } } },
+        { ...valid, id: 'document-revision_wrong-outer-updated-at', payload: { ...revision, id: 'document-revision_wrong-outer-updated-at' }, updatedAt: '2026-08-05T02:00:00.000Z' },
+        { ...valid, id: 'document-revision_missing-type', payload: { id: 'document-revision_missing-type' } },
+      ],
+    });
+    expect(invalid.records).toEqual([]);
+    expect(invalid.warnings).toEqual([
+      '跳过文稿历史身份不匹配：document-revision_wrong-outer',
+      '跳过文稿历史身份不匹配：document-revision_wrong-payload',
+      '跳过文稿历史身份不匹配：document-revision_wrong-version',
+      '跳过文稿历史身份不匹配：document-revision_wrong-kind',
+      '跳过文稿历史身份不匹配：document-revision_wrong-snapshot-id',
+      '跳过文稿历史身份不匹配：document-revision_wrong-snapshot-version',
+      '跳过文稿历史身份不匹配：document-revision_wrong-updated-at',
+      '跳过文稿历史身份不匹配：document-revision_wrong-outer-updated-at',
+      '跳过文稿历史身份不匹配：document-revision_missing-type',
+    ]);
+  });
+});
+
+describe('kind-safe local persistence and snapshot restore', () => {
+  beforeEach(async () => {
+    await clearAllData();
+  });
+
+  it('serializes writes before checking cross-kind identity and exposes kind-safe reads and deletes', async () => {
+    const [taskWrite, attachmentWrite] = await Promise.allSettled([
+      putRecord('task', 'shared-record-id', { id: 'shared-record-id', name: '先写入任务' }),
+      putRecord('attachment', 'shared-record-id', { id: 'shared-record-id', name: '不得覆盖的附件' }),
+    ]);
+    expect(taskWrite.status).toBe('fulfilled');
+    expect(attachmentWrite.status).toBe('rejected');
+    expect(await getRecordOfKind<Record<string, unknown>>('task', 'shared-record-id')).toMatchObject({ name: '先写入任务' });
+    await expect(getRecordOfKind('attachment', 'shared-record-id')).rejects.toThrow(/拒绝按 attachment 类型读取/);
+    await expect(removeRecordOfKind('attachment', 'shared-record-id')).rejects.toThrow(/拒绝按 attachment 类型删除/);
+    expect(await getRecordOfKind<Record<string, unknown>>('task', 'shared-record-id')).toMatchObject({ name: '先写入任务' });
+  });
+
+  it('rejects direct draft and revision identity mismatches', async () => {
+    await expect(putRecord('draft', 'draft_outer', { id: 'draft_inner' })).rejects.toThrow(/主草稿身份不匹配/);
+    await expect(putRecord('setting', 'document-revision_fake', { id: 'document-revision_fake' })).rejects.toThrow(/文稿历史身份不匹配/);
+    expect(await getRecordOfKind('draft', 'draft_outer')).toBeUndefined();
+    expect(await getRecordOfKind('setting', 'document-revision_fake')).toBeUndefined();
+  });
+
+  it('preflights every existing id conflict before writing any snapshot record', async () => {
+    await putRecord('attachment', 'occupied-id', { id: 'occupied-id', name: '原附件' });
+    const restore = importLocalSnapshot({
+      format: 'hxhwang-gw-local-v1',
+      records: [
+        { id: 'new-task', kind: 'task', payload: { id: 'new-task', name: '不得部分导入' } },
+        { id: 'occupied-id', kind: 'task', payload: { id: 'occupied-id', name: '冲突任务' } },
+      ],
+    });
+    await expect(restore).rejects.toThrow(/occupied-id.*attachment.*task/);
+    expect(await getRecordOfKind('task', 'new-task')).toBeUndefined();
+    expect(await getRecordOfKind<Record<string, unknown>>('attachment', 'occupied-id')).toMatchObject({ name: '原附件' });
+  });
+
+  it('prunes imported revision settings to the shared domain retention limits', async () => {
+    const records = Array.from({ length: 21 }, (_, index) => {
+      const day = String(index + 1).padStart(2, '0');
+      const updatedAt = `2026-08-${day}T01:00:00.000Z`;
+      const draft: Draft = {
+        id: 'draft_main', title: `版本 ${index + 1}`, documentType: '报告', contentHtml: `<p>正文 ${index + 1}</p>`, contentText: `正文 ${index + 1}`,
+        templateId: 'work-report', version: index + 1, updatedAt,
+      };
+      const revision = createDocumentRevision('draft', draft, `document-revision_import-${day}`, updatedAt);
+      return { id: revision.id, kind: 'setting', payload: revision, updatedAt };
+    });
+    const restored = await importLocalSnapshot({ format: 'hxhwang-gw-local-v1', records });
+    const revisions = await listRecords<DocumentRevision>('setting');
+    expect(restored.imported).toBe(21);
+    expect(restored.warnings).toContain('已按本机版本历史上限裁剪 1 条最旧记录');
+    expect(revisions.map((revision) => revision.version).sort((left, right) => left - right)).toEqual(Array.from({ length: 20 }, (_, index) => index + 2));
+    expect(await getRecordOfKind('setting', 'document-revision_import-01')).toBeUndefined();
+  });
+
+  it('accepts canonical weekly revision records through the same persistence path', async () => {
+    const weekly: WeeklyReport = {
+      id: 'weekly-local', title: '周报历史', startDate: '2026-08-03', endDate: '2026-08-09', contentText: '周报正文',
+      taskIds: [], documentIds: [], version: 1, createdAt: '2026-08-05T00:00:00.000Z', updatedAt: '2026-08-05T01:00:00.000Z',
+    };
+    const revision = createDocumentRevision('weekly', weekly, 'document-revision_weekly-local', weekly.updatedAt);
+    await putRecord('setting', revision.id, revision);
+    expect(await getRecordOfKind<DocumentRevision>('setting', revision.id)).toEqual(revision);
   });
 });

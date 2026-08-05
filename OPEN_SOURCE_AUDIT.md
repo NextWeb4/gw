@@ -1,6 +1,6 @@
 # 开源方案审计
 
-审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3、v0.7.4、v0.7.5、v0.7.6 补充审计：2026-07-31；v0.7.7、v0.7.8、v0.7.9、v0.7.10、v0.7.11 补充审计：2026-08-01；v0.7.12 补充审计：2026-08-04。公开客户端为本地优先演示模式；服务端仅私有部署。
+审计日期：2026-07-25；v0.4.1 补充审计：2026-07-27；v0.6.6、v0.6.7、v0.6.8 补充审计：2026-07-30；v0.6.9、v0.7.0、v0.7.1、v0.7.2、v0.7.3、v0.7.4、v0.7.5、v0.7.6 补充审计：2026-07-31；v0.7.7、v0.7.8、v0.7.9、v0.7.10、v0.7.11 补充审计：2026-08-01；v0.7.12 补充审计：2026-08-04；v0.7.13 补充审计：2026-08-05。公开客户端为本地优先演示模式；服务端仅私有部署。
 
 | 方案名称 | 来源 / 许可证 | 核心能力 | 优点 | 缺点 | 维护状态 | 与项目契合度 / 可能冲突 | 是否采用 / 采用方式 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,6 +24,26 @@
 | Node 24 `fetch`、`crypto`、`node:test` | [Node.js](https://nodejs.org/api/) / MIT | HTTPS 抓取、哈希和策略测试 | 标准运行时内置，不增加供应链或安装体积 | 重定向与体积限制需显式实现 | 随 Node 24 维护 | 只在内容同步脚本和 CI 中使用，不进入浏览器联网路径 | 采用，封装允许清单、逐跳重定向和 2 MB 上限 |
 | Got 15.1.0 | [官方仓库](https://github.com/sindresorhus/got) / MIT | HTTP 重试、钩子、重定向 | HTTP 能力成熟 | 当前仅抓取少量权威来源，引入运行依赖收益不足 | 活跃；npm 元数据 2026-07-02 更新 | 会扩大供应链，不能替代本项目域名策略 | 不采用 |
 | simple-git 3.36.0 | [官方仓库](https://github.com/steveukx/git-js) / MIT | Git 命令封装 | API 易用 | Actions 仅需 add/commit/push 三步 | 活跃；npm 元数据 2026-04-12 更新 | 增加无必要依赖；runner 已提供 Git | 不采用，工作流直接调用 Git |
+
+## v0.7.13 主草稿与周报本机版本历史方案审计
+
+问题本质：主草稿与周报的按钮已经命名为“保存版本”，但 v0.7.12 只覆盖当前 head 并增加计数，旧正文无法查看或恢复。成熟产品普遍把“查看旧版本”“恢复旧内容”“保留后续历史”拆开；本项目还必须保持公开 Pages 零自动联网、私有同步不携带本机历史、恢复不绕过原编辑器和原保存校验，以及快照导入不能因后段身份冲突留下半份恢复结果。
+
+第一性原理不变量：只有原“保存版本”成功后才能产生历史；历史是当前设备的有界 `setting`，不是第二个 draft/weekly 集合；恢复只替换当前 React 工作副本并保留 canonical ID/版本，再次点击原按钮才持久化；历史正文只能以文本节点展示；每条、每目标、全局数量和总序列化内容都必须硬限制。revision 外层 ID、payload ID、target、snapshot ID、version 和保存时间必须一致，写删按 kind 串行，快照导入先全量预检跨 kind 冲突。历史不得进入私有同步、全局查找、AI 材料、日志或网络。
+
+| 方案名称 | 来源 / 许可证 | 可借鉴逻辑 | 冲突与限制 | 是否采用 / 采用方式 |
+| --- | --- | --- | --- | --- |
+| Joplin Note History | [官方说明](https://joplinapp.org/help/apps/note_history/)、[许可证](https://raw.githubusercontent.com/laurent22/joplin/dev/LICENSE) / AGPL-3.0-or-later | 历史有明确保留期，可查看旧版；恢复到独立位置而不直接抹掉当前笔记 | 自动定时修订、跨设备共享保留期、笔记本模型和同步协议都会扩大本项目联网与冲突边界 | 只借鉴“有界历史、恢复不直接覆盖当前 head”；本项目继续仅显式保存、仅本机 setting |
+| BookStack Page Revisions | [官方测试](https://raw.githubusercontent.com/BookStackApp/BookStack/development/tests/Entity/PageRevisionTest.php)、[模型](https://raw.githubusercontent.com/BookStackApp/BookStack/development/app/Entities/Models/PageRevision.php)、[许可证](https://raw.githubusercontent.com/BookStackApp/BookStack/development/LICENSE) / MIT | 恢复旧内容后通过正常更新形成新 revision；支持数量上限与旧 revision 删除 | 服务端数据库、角色权限、活动日志、路由和当前 revision 保护模型不适用于公开本机客户端 | 采用“恢复后仍走原保存路径”“数量有硬上限”“删除历史不改 head”的逻辑，不复制源码或 UI |
+| MediaWiki Page History | [官方帮助](https://www.mediawiki.org/wiki/Help:Page_history)、[许可证](https://raw.githubusercontent.com/wikimedia/mediawiki/master/COPYING) / GPL | 历史按新到旧查看，可比较当前与旧版；回退不会抹除后续历史 | Wiki 差异算法、多人编辑、页面权限和回退 UI 超出当前单机编辑器需求 | 只借鉴“只读当前/旧版对照、恢复保留历史链”；本版不实现逐字符 diff |
+| 共享 `DocumentRevision` + 本机 setting | 当前项目 / UNLICENSED | 主草稿与多份周报复用一个白名单快照、裁剪和恢复合同，继续进入既有本地快照 | 必须防止周报跨 report ID 串线、重复提交、旧请求式乱序状态、恶意超长数组和设置身份错配 | 采用；opaque ID、完整序列化字符计数、每目标 20、全局 100、总量 10,000,000，并复用原编辑器与原保存按钮 |
+| 自动保存、完整 diff、云端历史同步或新 revision API | 自研或外部库 / 取决于实现 | 可减少手工保存并支持多人协作、审计和细粒度差异 | 会引入定时写库、更多未保存语义、同步冲突、服务端容量/鉴权、隐私和新网络路径；不符合当前冻结边界 | 不采用；保留为未来独立需求，不能混入本机历史迭代 |
+
+- 直接复用：React 原生 `<dialog>`、Lucide `History/RotateCcw/Trash2`、既有 `setting` 与本地快照、原主草稿/周报编辑器和保存函数。
+- 只借鉴：有界保留、只读旧版查看、非破坏恢复、恢复后由正常保存产生更高版本；未复制外部代码、组件、文案、视觉、模板或数据。
+- 安全补强：`getRecordOfKind`、单 mutation 队列、导入前现有 ID/kind 全量预检和字段白名单同时修复了旧 draft/weekly 身份错配、并发跨 kind TOCTOU 与部分快照恢复风险。
+- 联网变化：无。历史保存、查看、恢复、删除和裁剪只访问当前设备的本机数据适配器；私有同步工作区仍只包含 canonical draft/weekly，不包含 revision setting。
+- 回滚：删除 `document-revision` settings、共享对话框及接线即可恢复单 head 行为；不涉及数据库 schema、服务端迁移、附件二进制或同步协议。
 
 ## v0.7.12 本机自定义写作格式管理方案审计
 

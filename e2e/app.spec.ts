@@ -1872,6 +1872,96 @@ test('saves a draft, exports DOCX and delegates PDF export to the desktop bridge
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem('e2e-pdf'))).toBe('测试会议纪要:true');
 });
 
+test('restores main draft revisions as unsaved copies without replacing the saved head or using the network', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'The full revision lifecycle is verified once in desktop Chromium.');
+  await page.getByRole('button', { name: '公文写作' }).click();
+
+  const title = page.getByLabel('文稿标题');
+  const editor = page.locator('.ProseMirror');
+  const save = page.getByRole('button', { name: '保存版本' });
+  const historyTrigger = page.getByRole('button', { name: '版本历史' });
+  const historyDialog = page.getByRole('dialog', { name: '查看与恢复保存版本' });
+  const revisionRow = (version: number) => historyDialog.getByRole('button', { name: new RegExp(`^v${version}(?:\\s|$)`) });
+  const actionRequests: string[] = [];
+  const recordActionRequest = (request: { url: () => string }) => actionRequests.push(request.url());
+  page.on('request', recordActionRequest);
+
+  await title.fill('草稿历史第一版');
+  await editor.fill('第一版正文：保留原始办理意见。');
+  await save.click();
+  await expect(page.getByRole('status')).toHaveText(/文稿版本已保存，本机历史已记录/);
+  await expect(save).toBeEnabled();
+
+  await title.fill('草稿历史第二版');
+  await editor.fill('第二版正文：补充复核结论。');
+  await save.click();
+  await expect(page.getByRole('status')).toHaveText(/文稿版本已保存，本机历史已记录/);
+  await expect(save).toBeEnabled();
+  await expect(page.locator('.toolbar-hint')).toContainText('当前保存版 v2');
+
+  await historyTrigger.click();
+  await expect(historyDialog).toBeVisible();
+  await expect(historyDialog.locator('.document-revision-list-meta strong')).toHaveText('2');
+  await revisionRow(1).click();
+  const comparison = historyDialog.locator('.document-revision-comparison article');
+  await expect(comparison.nth(0)).toContainText('草稿历史第二版');
+  await expect(comparison.nth(0)).toContainText('第二版正文：补充复核结论。');
+  await expect(comparison.nth(1)).toContainText('草稿历史第一版');
+  await expect(comparison.nth(1)).toContainText('第一版正文：保留原始办理意见。');
+  await expect(title).toHaveValue('草稿历史第二版');
+  await expect(editor).toContainText('第二版正文：补充复核结论。');
+
+  page.once('dialog', async (confirmation) => {
+    expect(confirmation.message()).toContain('恢复 v1 会替换当前屏幕中的未保存内容');
+    await confirmation.dismiss();
+  });
+  await historyDialog.getByRole('button', { name: '恢复 v1 为未保存工作副本' }).click();
+  await expect(historyDialog).toBeVisible();
+  await expect(title).toHaveValue('草稿历史第二版');
+  await expect(editor).toContainText('第二版正文：补充复核结论。');
+  await historyDialog.getByRole('button', { name: '关闭版本历史' }).click();
+
+  await historyTrigger.click();
+  await revisionRow(1).click();
+  page.once('dialog', async (confirmation) => {
+    expect(confirmation.message()).toContain('恢复 v1 会替换当前屏幕中的未保存内容');
+    await confirmation.accept();
+  });
+  await historyDialog.getByRole('button', { name: '恢复 v1 为未保存工作副本' }).click();
+  await expect(historyDialog).toBeHidden();
+  await expect(page.getByRole('status')).toHaveText(/已载入 v1 为未保存工作副本/);
+  await expect(title).toHaveValue('草稿历史第一版');
+  await expect(editor).toContainText('第一版正文：保留原始办理意见。');
+  await expect(page.locator('.toolbar-hint')).toContainText('当前保存版 v2');
+
+  page.off('request', recordActionRequest);
+  expect(actionRequests).toEqual([]);
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: '公文写作' }).click();
+  await expect(title).toHaveValue('草稿历史第二版');
+  await expect(editor).toContainText('第二版正文：补充复核结论。');
+  await expect(page.locator('.toolbar-hint')).toContainText('当前保存版 v2');
+
+  actionRequests.length = 0;
+  page.on('request', recordActionRequest);
+  await historyTrigger.click();
+  await revisionRow(1).click();
+  page.once('dialog', (confirmation) => confirmation.accept());
+  await historyDialog.getByRole('button', { name: '恢复 v1 为未保存工作副本' }).click();
+  await expect(historyDialog).toBeHidden();
+  await save.click();
+  await expect(page.getByRole('status')).toHaveText(/文稿版本已保存，本机历史已记录/);
+  await expect(page.locator('.toolbar-hint')).toContainText('当前保存版 v3');
+  await historyTrigger.click();
+  await expect(historyDialog.locator('.document-revision-list-meta strong')).toHaveText('3');
+  await expect(revisionRow(3)).toHaveAttribute('aria-current', 'true');
+  await expect(revisionRow(2)).toBeVisible();
+  await expect(revisionRow(1)).toBeVisible();
+  page.off('request', recordActionRequest);
+  expect(actionRequests).toEqual([]);
+});
+
 test('imports TXT, sanitized HTML and DOCX, then reuses a saved custom format', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'Document conversion and custom-template persistence are verified once.');
   await page.getByRole('button', { name: '公文写作' }).click();
@@ -2057,6 +2147,114 @@ test('generates, edits, persists and exports a weekly report', async ({ page }, 
   page.once('dialog', async (dialog) => { await dialog.accept(); });
   await page.getByTitle('删除周报 端到端测试周报').click();
   await expect(page.getByRole('button', { name: /端到端测试周报/ })).toHaveCount(0);
+});
+
+test('isolates weekly revision history by report and preserves editing state when deletion is cancelled', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Weekly revision identity and deletion are verified once in desktop Chromium.');
+  await page.getByRole('button', { name: '周报生成' }).click();
+
+  const title = page.getByLabel('周报标题');
+  const body = page.getByLabel('周报正文');
+  const save = page.getByRole('button', { name: '保存版本' });
+  const historyTrigger = page.getByRole('button', { name: '版本历史' });
+  const historyDialog = page.getByRole('dialog', { name: '查看与恢复保存版本' });
+  const revisionRow = (version: number) => historyDialog.getByRole('button', { name: new RegExp(`^v${version}(?:\\s|$)`) });
+  const actionRequests: string[] = [];
+  const recordActionRequest = (request: { url: () => string }) => actionRequests.push(request.url());
+  page.on('request', recordActionRequest);
+
+  await title.fill('周报历史 A');
+  await body.fill('周报 A 第一版正文。');
+  await save.click();
+  await expect(page.getByRole('status')).toHaveText(/周报已保存，本机历史已记录/);
+  await expect(save).toBeEnabled();
+  await body.fill('周报 A 第二版正文。');
+  await save.click();
+  await expect(page.getByRole('status')).toHaveText(/周报已保存，本机历史已记录/);
+  await expect(save).toBeEnabled();
+
+  await page.getByRole('button', { name: '新建' }).click();
+  await title.fill('周报历史 B');
+  await body.fill('周报 B 唯一保存正文。');
+  await save.click();
+  await expect(page.getByRole('status')).toHaveText(/周报已保存，本机历史已记录/);
+  await expect(save).toBeEnabled();
+
+  await historyTrigger.click();
+  await expect(historyDialog).toBeVisible();
+  await expect(historyDialog.locator('.document-revision-list-meta strong')).toHaveText('1');
+  await expect(revisionRow(1)).toContainText('周报历史 B');
+  await expect(historyDialog).not.toContainText('周报 A 第一版正文。');
+  await expect(historyDialog).not.toContainText('周报 A 第二版正文。');
+  await historyDialog.getByRole('button', { name: '关闭版本历史' }).click();
+
+  await page.locator('.weekly-history-open').filter({ hasText: '周报历史 A' }).click();
+  await expect(title).toHaveValue('周报历史 A');
+  await expect(body).toHaveValue('周报 A 第二版正文。');
+  await body.fill('周报 A 第二版正文。\n删除取消后仍需保留的未保存编辑。');
+  const unsavedBody = await body.inputValue();
+  page.once('dialog', async (confirmation) => {
+    expect(confirmation.message()).toContain('确认删除该周报及其本机版本历史');
+    await confirmation.dismiss();
+  });
+  await page.getByTitle('删除周报 周报历史 A').click();
+  await expect(title).toHaveValue('周报历史 A');
+  await expect(body).toHaveValue(unsavedBody);
+  await expect(page.locator('.weekly-history-open').filter({ hasText: '周报历史 A' })).toBeVisible();
+
+  await historyTrigger.click();
+  await expect(historyDialog.locator('.document-revision-list-meta strong')).toHaveText('2');
+  await expect(historyDialog).not.toContainText('周报 B 唯一保存正文。');
+  await revisionRow(1).click();
+  page.once('dialog', async (confirmation) => {
+    expect(confirmation.message()).toContain('确认删除 v1 的本机历史');
+    await confirmation.accept();
+  });
+  await historyDialog.getByRole('button', { name: '删除该版本' }).click();
+  await expect(historyDialog.locator('.document-revision-list-meta strong')).toHaveText('1');
+  await expect(revisionRow(1)).toHaveCount(0);
+  await expect(revisionRow(2)).toHaveAttribute('aria-current', 'true');
+  await historyDialog.getByRole('button', { name: '关闭版本历史' }).click();
+  await expect(body).toHaveValue(unsavedBody);
+
+  page.off('request', recordActionRequest);
+  expect(actionRequests).toEqual([]);
+});
+
+test('keeps the shared revision dialog touch-safe at 390 by 844 and restores focus on Escape', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'The exact 390 by 844 revision-dialog contract is checked once in Chromium.');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: '公文写作' }).click();
+  await page.getByLabel('文稿标题').fill('移动端版本历史');
+  await page.locator('.ProseMirror').fill('移动端版本历史正文。');
+  await page.getByRole('button', { name: '保存版本' }).click();
+  await expect(page.getByRole('status')).toHaveText(/文稿版本已保存，本机历史已记录/);
+
+  const historyTrigger = page.getByRole('button', { name: '版本历史' });
+  await historyTrigger.focus();
+  await historyTrigger.click();
+  const historyDialog = page.getByRole('dialog', { name: '查看与恢复保存版本' });
+  await expect(historyDialog).toBeVisible();
+  expect(page.viewportSize()).toEqual({ width: 390, height: 844 });
+  expect(await page.locator('body').evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true);
+  expect(await historyDialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+
+  const dialogBox = await historyDialog.boundingBox();
+  const navigationBox = await page.locator('.sidebar').boundingBox();
+  expect(dialogBox).not.toBeNull();
+  expect(navigationBox).not.toBeNull();
+  expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
+  expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(390);
+  expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(navigationBox!.y);
+
+  const actionHeights = await historyDialog.locator('.document-revision-action').evaluateAll((actions) => actions.map((action) => action.getBoundingClientRect().height));
+  expect(actionHeights.length).toBeGreaterThanOrEqual(4);
+  for (const height of actionHeights) expect(height).toBeGreaterThanOrEqual(44);
+
+  await page.keyboard.press('Escape');
+  await expect(historyDialog).toBeHidden();
+  await expect(historyTrigger).toBeFocused();
+  expect(await page.locator('body').evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test('keeps the application shell within the narrow viewport', async ({ page }, testInfo) => {

@@ -1,6 +1,6 @@
 import type { Attachment, Draft, MaterialRecord, MeetingRecord, OfficialDocument, PurgedBusinessRecord, ResearchRecord, SealRecord, Task, WeeklyReport } from '@hxhwang/domain';
 import { isPurgedBusinessRecord } from '@hxhwang/domain';
-import { attachmentIdsFromPayload, getRecord, putRecord, removeAttachmentsIfUnreferenced } from '@hxhwang/local-data';
+import { attachmentIdsFromPayload, getRecordOfKind, putRecord, removeAttachmentsIfUnreferenced } from '@hxhwang/local-data';
 import type { AttachmentTransfer, PrivateSyncClient, PullResponse, SyncRecord } from '@hxhwang/sync-client';
 
 interface WorkspaceData {
@@ -35,7 +35,7 @@ const rawPersistRecord: RecordWriter = (kind, id, payload) => putRecord(kind, id
 
 export async function persistPulledRecord(kind: SyncedKind, id: string, payload: object, overrides: Partial<PulledRecordPersistence> = {}) {
   const writeRecord = overrides.writeRecord || rawPersistRecord;
-  const readRecord = overrides.readRecord || ((recordId: string) => getRecord<Record<string, unknown>>(recordId));
+  const readRecord = overrides.readRecord || ((recordId: string) => getRecordOfKind<Record<string, unknown>>(kind, recordId));
   const cleanupAttachments = overrides.cleanupAttachments || removeAttachmentsIfUnreferenced;
   const previous = isPurgedBusinessRecord(payload) ? await readRecord(id) : undefined;
   await writeRecord(kind, id, payload);
