@@ -1,7 +1,7 @@
 # HxHwang Gw 管理系统详细使用说明书
 
 版本：v0.7.13  
-文档日期：2026-08-05  
+文档日期：2026-08-06  
 文档状态：v0.7.13 发布文档  
 适用范围：公开演示版、互联网 Web/桌面版、内网 Web/桌面版  
 在线演示：[https://nextweb4.github.io/gw/](https://nextweb4.github.io/gw/)  
