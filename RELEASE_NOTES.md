@@ -11,6 +11,7 @@
 - 历史只进入当前设备本地快照，明确排除于私有同步、全局查找、AI 工作区与材料、附件正文、Cookie、localStorage、日志和 URL。历史对话框打开时，全局查找、快速记录和当前页 AI overlay 互斥；保存、查看、恢复和删除历史均保持零外联。
 - Joplin Note History（AGPL-3.0-or-later）、BookStack Page Revisions（MIT）和 MediaWiki Page History（GPL）只用于核验“有界保留、只读旧版查看、恢复不抹除后续历史”的成熟逻辑。项目没有复制其源码、界面、文案、视觉、权限模型或业务数据，也没有引入相应依赖。
 - 失败优先阶段先观察到领域 3 项、本地数据 1 项和 UI 合约 1 项预期失败。实现后的聚焦证据包括领域 38/38、本地数据 16/16、Web 单测 26/26、UI 合约 18/18，以及 Chromium 草稿完整恢复、周报历史隔离/删除取消、390×844 几何与回焦 3/3；完整发布门禁与线上结果以交付验证矩阵的最终记录为准。
+- 功能提交 `c20d6d8` 与 annotated tag `v0.7.13` 已推送。[Pages run 31012942815](https://github.com/NextWeb4/gw/actions/runs/31012942815) 和 [Desktop run 31012983644](https://github.com/NextWeb4/gw/actions/runs/31012983644) 均绑定完整 SHA `c20d6d88e92dbb2efe5b25477311585afee4d35a` 并成功；Windows/Linux 四组分版构建与 Debian 10/12 八项安装启动门全部通过。线上 Pages HTTP 200，入口 `index-Dn0go3Cf.js` 为 336,507 字节并命中 `0.7.13` 10 次，`0.7.12`、`0.3.1` 与秘密模式为 0；桌面/移动真实 Chromium 完整版本历史流程零动作请求、零外联、零控制台/页面错误且无横向溢出。[Release v0.7.13](https://github.com/NextWeb4/gw/releases/tag/v0.7.13) 的 12 个安装包和 `SHA256SUMS.txt` 共 13 个公开地址全部 HTTP 200 且非空；1,278 字节清单含 12 条有效记录，SHA-256 与文件名均唯一并精确覆盖安装资产。
 
 ## v0.7.12
 
