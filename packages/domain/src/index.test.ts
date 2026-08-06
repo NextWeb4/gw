@@ -3,7 +3,7 @@ import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, defaultCategoryTint, extractTaskFromText,
   createDocumentRevision, documentRevisionContentLength, duplicateBusinessRecord, extractWeeklyTemplateFromSample, generateTaskWorkSummary, isDocumentRevision, isValidIsoDate, isValidIsoDateTime, listStatisticsMonths, materialStockKey,
   mergeContactDirectory, mergePartnerGroupMembers, moveBusinessRecordToTrash, parseWeeklyTemplate, partitionBusinessRecords, purgeBusinessRecord,
-  pruneDocumentRevisions, relatedDocumentsForTask, relatedTasksForDocument, normalizeRelatedRecordIds, renameCustomWritingTemplate, resolveCategoryTint, restoreBusinessRecord, restoreDraftRevision, restoreWeeklyRevision,
+  pruneDocumentRevisions, relatedDocumentsForTask, relatedTasksForDocument, normalizeRelatedRecordIds, renameCustomWritingTemplate, resolveCategoryTint, resolveWeeklyReportRelationGroups, restoreBusinessRecord, restoreDraftRevision, restoreWeeklyRevision,
   sampleDocuments, sampleMaterials, sampleContactDirectory, sampleMeetings, sampleResearches, sampleSeals, sampleTasks,
   DOCUMENT_REVISION_MAX_CONTENT_LENGTH, type DocumentRevision, type Draft, type WeeklyReport
 } from './index.js';
@@ -259,6 +259,29 @@ describe('document and task relations', () => {
     const trashedDocument = moveBusinessRecordToTrash({ ...sampleDocuments[0], id: 'doc-trash', relatedTaskIds: ['task_demo_1'] }, deletedAt);
     const secondDocument = { ...sampleDocuments[0], id: 'doc-second', relatedTaskIds: ['task_demo_2', 'task_demo_1'] };
     expect(relatedDocumentsForTask('task_demo_1', [firstDocument, trashedDocument, secondDocument]).map((item) => item.id)).toEqual(['doc-first', 'doc-second']);
+  });
+});
+
+describe('weekly report relation sources', () => {
+  it('resolves active source ids in report order and counts unavailable ids without mutating the report', () => {
+    const report = {
+      taskIds: ['task_demo_2', 'task-trash', 'missing-task', 'task-purged', 'task_demo_1', 'task_demo_2'],
+      documentIds: ['doc_demo_1', 'missing-document'],
+      meetingIds: ['meeting_demo_1'],
+      researchIds: [],
+      sealIds: ['seal_missing'],
+      materialIds: undefined,
+    };
+    const trashed = moveBusinessRecordToTrash({ ...sampleTasks[0], id: 'task-trash' }, '2026-08-01T02:00:00.000Z');
+    const purged = purgeBusinessRecord(moveBusinessRecordToTrash({ ...sampleTasks[0], id: 'task-purged' }, '2026-08-01T02:00:00.000Z'), '2026-08-01T03:00:00.000Z');
+    const groups = resolveWeeklyReportRelationGroups(report, {
+      tasks: [sampleTasks[0], sampleTasks[1], trashed, purged], documents: sampleDocuments, meetings: [], researches: [], seals: [], materials: [],
+    });
+    expect(groups.find((group) => group.kind === 'task')).toEqual({ kind: 'task', ids: ['task_demo_2', 'task_demo_1'], unavailableCount: 3 });
+    expect(groups.find((group) => group.kind === 'document')).toEqual({ kind: 'document', ids: ['doc_demo_1'], unavailableCount: 1 });
+    expect(groups.find((group) => group.kind === 'meeting')).toEqual({ kind: 'meeting', ids: [], unavailableCount: 1 });
+    expect(groups.find((group) => group.kind === 'seal')).toEqual({ kind: 'seal', ids: [], unavailableCount: 1 });
+    expect(report.taskIds).toEqual(['task_demo_2', 'task-trash', 'missing-task', 'task-purged', 'task_demo_1', 'task_demo_2']);
   });
 });
 

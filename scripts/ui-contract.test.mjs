@@ -45,7 +45,10 @@ test('desktop ledger layout keeps accessible navigation collapse and a read-only
   assert.match(app, /<BusinessDetailPanel detail=\{businessDetail\}/, 'business records must share one detail component');
   assert.match(app, /编辑此记录/, 'detail lane must route editing through the existing editor');
   assert.match(app, /返回记录列表/, 'narrow business detail must provide an explicit route back to the ledger');
-  assert.match(css, /\.content-wrap\.has-detail-panel[^}]*grid-template-columns:[^;}]*minmax\(300px,360px\)/s, 'wide business pages must reserve a right detail column');
+  assert.match(app, /aria-label="收起右侧记录详情"/, 'desktop detail lane must expose an accessible session-only collapse control');
+  assert.match(app, /aria-label="展开右侧记录详情"/, 'the collapsed detail rail must remain directly expandable');
+  assert.match(css, /\.content-wrap\.has-detail-panel[^}]*grid-template-columns:[^;}]*minmax\(340px,390px\)/s, 'wide business pages must reserve a readable right detail column');
+  assert.match(css, /\.content-wrap\.has-detail-panel\.detail-collapsed[^}]*54px/, 'collapsed detail state must retain a compact visible rail');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.content-wrap, \.content-wrap\.has-detail-panel[^}]*width:\s*calc\(100% - 24px\)/, 'narrow layout must return the detail lane to the mobile content width');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.row-actions \.icon-button[^}]*44px/, 'narrow ledger actions must keep a 44px touch target');
 });
@@ -154,6 +157,25 @@ test('document-task links keep one payload owner and reuse existing save and det
   assert.doesNotMatch(ledgerCsv, /relatedTaskIds[^\n]*rows|JSON\.stringify/, 'CSV must never expose raw relation ids');
   assert.match(css, /\.related-record-option/, 'relation choices must have a dedicated compact control style');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.related-record-option[^}]*min-height:\s*44px/, 'narrow relation choices must keep a 44px touch target');
+});
+
+test('weekly source links are derived from active local records and reuse the original detail path', async () => {
+  const [app, domain, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('packages/domain/src/index.ts'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(domain, /export function resolveWeeklyReportRelationGroups/, 'weekly source resolution must live in one domain pure function');
+  assert.match(domain, /!isPurgedBusinessRecord\(record\) && isActiveBusinessRecord\(record\)/, 'weekly source resolution must exclude trash and purge records');
+  assert.doesNotMatch(domain, /\bfetch\b|IndexedDB|localStorage|Electron|putRecord|removeRecord|ipc/i, 'weekly relation resolution must remain pure and local');
+  assert.match(app, /<WeeklyRelatedSources[^>]*onOpenRecord=\{openSourceRecord\}/, 'the weekly source panel must use its guarded navigation callback');
+  assert.match(app, /onOpenRecord=\{openBusinessRecord\}/, 'weekly source links must reuse the ledger reset, navigation and detail path');
+  assert.match(app, /当前周报有未保存修改，打开来源记录会丢失这些修改/, 'weekly source navigation must guard local unsaved editing state');
+  assert.doesNotMatch(app, /保存关联/, 'weekly sources must not create a second save path');
+  assert.match(app, /回收站、永久删除或不在本机的记录不会进入周报来源列表/, 'unavailable weak references must be explained without exposing ids');
+  assert.match(css, /\.weekly-related-group button[^}]*min-height:\s*42px/, 'weekly source buttons must have a stable desktop target');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.weekly-related-group button[^}]*min-height:\s*44px/, 'narrow weekly source buttons must retain a 44px touch target');
 });
 
 test('custom writing templates can be renamed and deleted without exposing licensed templates', async () => {

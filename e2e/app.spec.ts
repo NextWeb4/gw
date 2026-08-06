@@ -411,6 +411,56 @@ test('links documents to active tasks through the existing guarded editor and re
   expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
+test('opens active weekly source records through the original detail path and keeps the detail rail session-only', async ({ page }, testInfo) => {
+  const unexpectedRequests: string[] = [];
+  const pageOrigin = new URL(page.url()).origin;
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (!['data:', 'blob:'].includes(url.protocol) && url.origin !== pageOrigin) unexpectedRequests.push(request.url());
+  });
+
+  await page.getByRole('button', { name: '周报生成' }).click();
+  await page.getByLabel('开始日期').fill('2026-07-20');
+  await page.getByLabel('结束日期').fill('2026-07-28');
+  await page.getByRole('button', { name: '重新汇总' }).click();
+  const sourceTask = page.getByRole('button', { name: /打开周报来源任务：整理省政府办公厅来文并建立关联/ });
+  await expect(sourceTask).toBeVisible();
+  if (testInfo.project.name === 'mobile') {
+    const sourceBox = await sourceTask.boundingBox();
+    expect(sourceBox?.height || 0).toBeGreaterThanOrEqual(44);
+  }
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('当前周报有未保存修改');
+    await dialog.dismiss();
+  });
+  await sourceTask.click();
+  await expect(page.getByRole('heading', { level: 1, name: '周报生成' })).toBeVisible();
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('打开来源记录会丢失这些修改');
+    await dialog.accept();
+  });
+  await sourceTask.click();
+  await expect(page.getByRole('heading', { level: 1, name: '任务管理' })).toBeVisible();
+  const detail = page.locator('.business-detail-panel');
+  await expect(detail.getByRole('heading', { level: 2 })).toContainText('整理省政府办公厅来文并建立关联');
+  await expect(page.locator('.table-row').filter({ hasText: '整理省政府办公厅来文并建立关联' })).toContainText('关联文件 1');
+
+  if (testInfo.project.name === 'mobile') {
+    await expect(detail.getByRole('button', { name: '收起右侧记录详情' })).toBeHidden();
+  } else {
+    const collapse = detail.getByRole('button', { name: '收起右侧记录详情' });
+    await collapse.click();
+    await expect(page.getByRole('complementary', { name: '记录详情（已收起）' })).toBeVisible();
+    await page.getByRole('button', { name: '展开右侧记录详情' }).click();
+    await expect(detail.getByRole('heading', { level: 2 })).toContainText('整理省政府办公厅来文并建立关联');
+  }
+
+  await page.getByRole('button', { name: '文件收发', exact: true }).click();
+  await expect(page.locator('.table-row').filter({ hasText: '关于做好2026年全省重点工作的通知' })).toContainText('关联任务 1');
+  expect(unexpectedRequests).toEqual([]);
+  expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test('browses the unified local agenda and opens the original business detail', async ({ page }, testInfo) => {
   const unexpectedRequests: string[] = [];
   const pageOrigin = new URL(page.url()).origin;

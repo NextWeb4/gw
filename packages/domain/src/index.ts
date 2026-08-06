@@ -714,6 +714,41 @@ export function relatedDocumentsForTask(
   ));
 }
 
+export type WeeklyReportRelationKind = 'task' | 'document' | 'meeting' | 'research' | 'seal' | 'material';
+export interface WeeklyReportRelationGroup {
+  kind: WeeklyReportRelationKind;
+  ids: string[];
+  unavailableCount: number;
+}
+
+/** Resolve the saved weekly source ids against the currently active local records. */
+export function resolveWeeklyReportRelationGroups(
+  report: Pick<WeeklyReport, 'taskIds' | 'documentIds' | 'meetingIds' | 'researchIds' | 'sealIds' | 'materialIds'>,
+  sources: {
+    tasks: readonly (Task | PurgedBusinessRecord)[];
+    documents: readonly (OfficialDocument | PurgedBusinessRecord)[];
+    meetings: readonly (MeetingRecord | PurgedBusinessRecord)[];
+    researches: readonly (ResearchRecord | PurgedBusinessRecord)[];
+    seals: readonly (SealRecord | PurgedBusinessRecord)[];
+    materials: readonly (MaterialRecord | PurgedBusinessRecord)[];
+  },
+): WeeklyReportRelationGroup[] {
+  const resolve = (kind: WeeklyReportRelationKind, ids: unknown, records: readonly (EditableBusinessRecord | PurgedBusinessRecord)[]): WeeklyReportRelationGroup => {
+    const normalized = normalizeRelatedRecordIds(ids);
+    const activeIds = new Set(records.filter((record) => !isPurgedBusinessRecord(record) && isActiveBusinessRecord(record)).map((record) => record.id));
+    const resolved = normalized.filter((id) => activeIds.has(id));
+    return { kind, ids: resolved, unavailableCount: normalized.length - resolved.length };
+  };
+  return [
+    resolve('task', report.taskIds, sources.tasks),
+    resolve('document', report.documentIds, sources.documents),
+    resolve('meeting', report.meetingIds, sources.meetings),
+    resolve('research', report.researchIds, sources.researches),
+    resolve('seal', report.sealIds, sources.seals),
+    resolve('material', report.materialIds, sources.materials),
+  ];
+}
+
 export function mergeContactDirectory(
   current: ContactDirectory,
   people: string[] = [],
