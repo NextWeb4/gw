@@ -4,8 +4,9 @@
 
 - 修复原生“快速记录”和“版本历史”对话框误复用命令面板横向居中动画的问题。命令面板继续使用 `left: 50% + translateX(-50%)`，原生 `<dialog>` 改用独立的纵向位移/缩放动画，打开全过程不再瞬时越出 390px 视口。
 - UI 合约新增原生对话框动画边界：两类原生 dialog 必须使用 `native-dialog-in`，禁止重新绑定含 `translateX(-50%)` 的 `command-dialog-in`。本机 lint、format、161 项单元/契约、主 E2E 89 通过/11 条件跳过、互联网 7/7、内网 3/3 与三类 Web 构建全部通过；390×844 版本历史聚焦 E2E 1/1 通过。公开/互联网/内网产物分别为 25/15/15 文件，各命中 `0.7.15` 10 次且旧版本、指定中转密码、私钥和常见长格式 Key/PAT 模式为 0。
-- Windows x64 互联网版与内网版安装包已生成：互联网版 100,013,025 字节，SHA-256 `67E64011451805EBC255AD272D90027683DF71F4BCD79F4ACCAF769A245798A3`；内网版 100,013,049 字节，SHA-256 `E3E744395213EF9A290700746158C96A8BEC3C30A42587425D2E9341E97EB9B5`。两者均未做 Authenticode 签名；完整 Pages、Desktop 与 Release 证据待发布后补入。
+- Windows x64 互联网版与内网版安装包已生成：互联网版 100,013,025 字节，SHA-256 `67E64011451805EBC255AD272D90027683DF71F4BCD79F4ACCAF769A245798A3`；内网版 100,013,049 字节，SHA-256 `E3E744395213EF9A290700746158C96A8BEC3C30A42587425D2E9341E97EB9B5`。两者均未做 Authenticode 签名；正式多架构产物由下述 Actions Release 验证。
 - 不新增领域字段、持久化、同步、AI、API、IPC、依赖或网络请求；`v0.7.14` 的周报来源、三栏详情、Release 资产与历史证据保持不变。
+- 功能提交 `0f3e30a20c5d0dde22631272f93bd3374443aafa` 与 annotated tag `v0.7.15` 已推送。[Pages run 31173295538](https://github.com/NextWeb4/gw/actions/runs/31173295538) 成功；[Desktop run 31173294884](https://github.com/NextWeb4/gw/actions/runs/31173294884) 的 18/18 个 job 全部成功。线上 Pages HTTP 200，内容哈希入口 bundle 为 341,324 字节，命中 `0.7.15` 10 次，`0.7.14` 与 `0.3.1` 均为 0；CSS 明确包含一份 `native-dialog-in`，快速记录/版本历史各绑定一次且该动画无 `translateX`。线上 Chromium 以 1440×900 和 390×844 采样四次 dialog 入场共 416 帧，横向越界为 0；移动左右各保留 10px，版本历史距固定底栏 20px，两端均零动作请求、零外联、零错误。[Release v0.7.15](https://github.com/NextWeb4/gw/releases/tag/v0.7.15) 的 12 个安装包与 `SHA256SUMS.txt` 共 13 个地址全部 HTTP 200 且长度精确匹配元数据；1,278 字节清单含 12 条唯一记录，精确覆盖安装资产并匹配 GitHub digest。
 
 ## v0.7.14
 
