@@ -418,3 +418,28 @@ test('global search stays local-only and reuses accessible navigation paths', as
   assert.match(css, /\.global-search-trigger/, 'the topbar must provide a styled visible global-search trigger');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.global-search-trigger[^}]*44px/, 'the narrow global-search trigger must retain a 44px touch target');
 });
+
+test('starred business records stay reference-only, local and connected to existing record paths', async () => {
+  const [app, globalSearch, starredDomain, privateServices, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/GlobalSearch.tsx'),
+    read('packages/domain/src/index.ts'),
+    read('apps/web/src/private-services.ts'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(starredDomain, /STARRED_BUSINESS_RECORD_LIMIT\s*=\s*12/, 'starred references must have an explicit ergonomic limit');
+  assert.match(starredDomain, /type:\s*'starred-business-records'/, 'starred state must use one explicit local setting contract');
+  assert.match(app, /putRecord\('setting', STARRED_BUSINESS_RECORDS_SETTING_ID/, 'starred references must use the existing local setting adapter');
+  assert.match(app, /removeRecordOfKind\('setting', STARRED_BUSINESS_RECORDS_SETTING_ID\)/, 'clearing the last star must remove the empty setting record');
+  assert.match(app, /'starred-business-records'/, 'local settings must recognize stars rather than exposing them as migrated legacy configuration');
+  assert.match(app, /aria-pressed=\{starred\}/, 'the shared detail action must expose its toggle state to assistive technology');
+  assert.match(app, /onToggleStarred=\{\(\) => void toggleBusinessRecordStar/, 'all six detail models must share one star action path');
+  assert.match(app, /<StarredRecordsPanel[^>]+onOpenRecord=\{onOpenRecord\}/, 'the dashboard must reuse the existing business-record opener');
+  assert.match(app, /id: 'starred', label: '星标记录', emptyQueryOnly: true/, 'the command palette must show a distinct empty-query-only starred group');
+  assert.match(globalSearch, /'starred'/, 'starred command items must keep a distinct accessible presentation');
+  assert.doesNotMatch(privateServices, /starred-business-records|STARRED_BUSINESS_RECORDS_SETTING_ID/, 'private sync must not gain a starred setting collection');
+  assert.match(css, /\.starred-record-toggle/, 'the shared detail star action must have a dedicated compact treatment');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.starred-record-toggle[^}]*44px/, 'the narrow star action must retain a 44px touch target');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.starred-record-item[^}]*min-height:\s*64px/, 'narrow starred dashboard rows must exceed the 44px touch-target floor');
+});

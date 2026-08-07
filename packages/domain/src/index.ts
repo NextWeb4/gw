@@ -151,6 +151,104 @@ export interface MaterialRecord extends BusinessRecordLifecycle {
 
 export type EditableBusinessRecord = Task | OfficialDocument | MeetingRecord | ResearchRecord | SealRecord | MaterialRecord;
 
+export type StarredBusinessRecordKind = 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material';
+
+export interface StarredBusinessRecordRef {
+  kind: StarredBusinessRecordKind;
+  id: string;
+  starredAt: string;
+}
+
+export interface StarredBusinessRecordsSetting {
+  type: 'starred-business-records';
+  version: 1;
+  items: StarredBusinessRecordRef[];
+  updatedAt: string;
+}
+
+export const STARRED_BUSINESS_RECORD_LIMIT = 12;
+export const STARRED_BUSINESS_RECORDS_SETTING_ID = 'starred-business-records';
+export const STARRED_BUSINESS_RECORDS_SETTING_TYPE = 'starred-business-records';
+export const STARRED_BUSINESS_RECORDS_SETTING_VERSION = 1;
+
+const starredBusinessRecordKinds = new Set<StarredBusinessRecordKind>(['task', 'meeting', 'document', 'research', 'seal', 'material']);
+
+function canonicalIsoTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 50) return false;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value;
+}
+
+function canonicalStarredBusinessRecordRef(value: unknown): StarredBusinessRecordRef | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const candidate = value as Partial<StarredBusinessRecordRef>;
+  if (!starredBusinessRecordKinds.has(candidate.kind as StarredBusinessRecordKind)) return null;
+  if (typeof candidate.id !== 'string' || !candidate.id || candidate.id.length > 180 || candidate.id.trim() !== candidate.id) return null;
+  if (!canonicalIsoTimestamp(candidate.starredAt)) return null;
+  return { kind: candidate.kind as StarredBusinessRecordKind, id: candidate.id, starredAt: candidate.starredAt };
+}
+
+export function normalizeStarredBusinessRecordRefs(value: unknown): StarredBusinessRecordRef[] {
+  if (!Array.isArray(value)) return [];
+  const normalized: StarredBusinessRecordRef[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    const reference = canonicalStarredBusinessRecordRef(item);
+    if (!reference) continue;
+    const key = `${reference.kind}:${reference.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(reference);
+  }
+  return normalized;
+}
+
+export function createStarredBusinessRecordsSetting(items: unknown, updatedAt = new Date().toISOString()): StarredBusinessRecordsSetting {
+  if (!canonicalIsoTimestamp(updatedAt)) throw new Error('星标记录设置时间无效');
+  const normalized = normalizeStarredBusinessRecordRefs(items);
+  if (normalized.length > STARRED_BUSINESS_RECORD_LIMIT) throw new Error(`星标记录最多保留 ${STARRED_BUSINESS_RECORD_LIMIT} 条`);
+  return {
+    type: STARRED_BUSINESS_RECORDS_SETTING_TYPE,
+    version: STARRED_BUSINESS_RECORDS_SETTING_VERSION,
+    items: normalized,
+    updatedAt,
+  };
+}
+
+export function parseStarredBusinessRecordsSetting(value: unknown): StarredBusinessRecordsSetting | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const candidate = value as Partial<StarredBusinessRecordsSetting>;
+  if (candidate.type !== STARRED_BUSINESS_RECORDS_SETTING_TYPE || candidate.version !== STARRED_BUSINESS_RECORDS_SETTING_VERSION) return null;
+  if (!Array.isArray(candidate.items) || !canonicalIsoTimestamp(candidate.updatedAt)) return null;
+  const items = normalizeStarredBusinessRecordRefs(candidate.items);
+  if (items.length > STARRED_BUSINESS_RECORD_LIMIT) return null;
+  return createStarredBusinessRecordsSetting(items, candidate.updatedAt);
+}
+
+export function toggleStarredBusinessRecord(
+  current: readonly StarredBusinessRecordRef[],
+  target: Pick<StarredBusinessRecordRef, 'kind' | 'id'>,
+  starredAt = new Date().toISOString(),
+): { items: StarredBusinessRecordRef[]; starred: boolean; limitReached: boolean } {
+  const items = normalizeStarredBusinessRecordRefs(current);
+  const key = `${target.kind}:${target.id}`;
+  const existingIndex = items.findIndex((item) => `${item.kind}:${item.id}` === key);
+  if (existingIndex >= 0) {
+    return { items: items.filter((_, index) => index !== existingIndex), starred: false, limitReached: false };
+  }
+  const reference = canonicalStarredBusinessRecordRef({ ...target, starredAt });
+  if (!reference) throw new Error('星标记录引用无效');
+  if (items.length >= STARRED_BUSINESS_RECORD_LIMIT) return { items, starred: false, limitReached: true };
+  return { items: [reference, ...items], starred: true, limitReached: false };
+}
+
+export function prunePurgedStarredBusinessRecords(
+  current: readonly StarredBusinessRecordRef[],
+  purgedRecordKeys: ReadonlySet<string>,
+): StarredBusinessRecordRef[] {
+  return normalizeStarredBusinessRecordRefs(current).filter((item) => !purgedRecordKeys.has(`${item.kind}:${item.id}`));
+}
+
 export interface WritingRule {
   id: string;
   title: string;

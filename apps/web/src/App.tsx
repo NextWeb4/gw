@@ -5,18 +5,19 @@ import Placeholder from '@tiptap/extension-placeholder';
 import {
   Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowUpDown, ArrowUpRight, BarChart3, BookOpen, CalendarDays, CalendarRange, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList,
   Bot, Building2, CopyPlus, FileArchive, FileOutput, FileText, FileUp, FolderOpen, Globe2, Info, KeyRound, LayoutDashboard, Library, Link2, MapPin,
-  History, ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Stamp, Trash2, Upload, UsersRound, WandSparkles, X
+  History, ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Star, Stamp, Trash2, Upload, UsersRound, WandSparkles, X
 } from 'lucide-react';
 import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, DEFAULT_WEEKLY_TEMPLATE, extractTaskFromText,
-  createDocumentRevision, duplicateBusinessRecord, extractWeeklyTemplateFromSample, isDocumentRevision, listStatisticsMonths, mergePartnerGroupMembers, moveBusinessRecordToTrash, nowIso, parseWeeklyTemplate, partitionBusinessRecords, pruneDocumentRevisions,
+  createDocumentRevision, createStarredBusinessRecordsSetting, duplicateBusinessRecord, extractWeeklyTemplateFromSample, isDocumentRevision, listStatisticsMonths, mergePartnerGroupMembers, moveBusinessRecordToTrash, nowIso, parseStarredBusinessRecordsSetting, parseWeeklyTemplate, partitionBusinessRecords, pruneDocumentRevisions, prunePurgedStarredBusinessRecords,
   normalizeRelatedRecordIds, purgeBusinessRecord, relatedDocumentsForTask, relatedTasksForDocument, renameCustomWritingTemplate, resolveCategoryTint, resolveWeeklyReportRelationGroups, restoreBusinessRecord,
   restoreDraftRevision, restoreWeeklyRevision, weeklySectionSourceLabels,
   type AiFieldChange, type AiGuidancePreset, type AiHistoryEntry, type AiSkill, type ArchiveRecord, type Attachment, type CategoryStyle, type CategoryTint, type Draft, type KnowledgePack, type MaterialRecord, type PartnerGroup,
   type MeetingRecord, type MigrationReport, type PurgedBusinessRecord, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, mergeContactDirectory, statusLabels,
   type ContactDirectory, type CustomWritingTemplate, type DocumentRevision, type OfficialDocument, type PartnerStatus, type ResearchDirection, type ResearchRecord,
   type SealRecord, type Status, type Task, type TaskStage, type WeeklyReport, type WeeklySectionSource, type WeeklyTemplate,
-  type WeeklyTemplateSection, type WorkStatisticsInput, type WorkSummaryTemplateId, type WritingTemplate,
+  type StarredBusinessRecordRef, type WeeklyTemplateSection, type WorkStatisticsInput, type WorkSummaryTemplateId, type WritingTemplate,
+  STARRED_BUSINESS_RECORDS_SETTING_ID, toggleStarredBusinessRecord,
   workSummaryTemplateLabels
 } from '@hxhwang/domain';
 import {
@@ -38,13 +39,16 @@ import { DocumentRevisionDialog } from './DocumentRevisionDialog';
 import { AgendaView } from './AgendaView';
 import type { AgendaKind } from './agenda';
 import { WorkOverview } from './WorkOverview';
+import { StarredRecordsPanel } from './StarredRecordsPanel';
 import { QuickTaskCapture } from './QuickTaskCapture';
 import { RecycleBinView, type RecycleBinEntry, type RecycleRecordKind } from './RecycleBinView';
 import { pruneRecentRecords, rememberRecentRecord, type RecentRecordRef } from './recent-records';
+import { StarredRecordRevisionGate } from './starred-record-revision';
 import { getVisibleRecordPosition } from './visible-record-navigation';
 
 type Tab = 'dashboard' | 'agenda' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'recycle' | 'archive' | 'migration' | 'about';
 type BusinessTab = Extract<Tab, 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials'>;
+const starredKindToTab: Record<StarredBusinessRecordRef['kind'], BusinessTab> = { task: 'tasks', meeting: 'meetings', document: 'documents', research: 'researches', seal: 'seals', material: 'materials' };
 type BusinessDetail =
   | { kind: 'task'; record: Task }
   | { kind: 'meeting'; record: MeetingRecord }
@@ -184,6 +188,7 @@ function App() {
   const [detailCollapsed, setDetailCollapsed] = useState(false);
   const [selectedBusinessRecord, setSelectedBusinessRecord] = useState<{ tab: BusinessTab; id: string } | null>(null);
   const [recentBusinessRecords, setRecentBusinessRecords] = useState<RecentRecordRef<BusinessTab>[]>([]);
+  const [starredBusinessRecords, setStarredBusinessRecords] = useState<StarredBusinessRecordRef[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [meetings, setMeetings] = useState<MeetingRecord[]>([]);
   const [documents, setDocuments] = useState<OfficialDocument[]>([]);
@@ -228,6 +233,9 @@ function App() {
   const directoryWriteQueue = useRef<Promise<void>>(Promise.resolve());
   const documentRevisionsRef = useRef<DocumentRevision[]>([]);
   const documentRevisionWriteQueue = useRef<Promise<void>>(Promise.resolve());
+  const starredBusinessRecordsRef = useRef<StarredBusinessRecordRef[]>([]);
+  const starredBusinessRecordWriteQueue = useRef<Promise<void>>(Promise.resolve());
+  const starredBusinessRecordRevisionGate = useRef(new StarredRecordRevisionGate());
   const pendingAttachmentsRef = useRef<Attachment[]>([]);
   const pendingAttachmentSessionRef = useRef(0);
   const mainAreaRef = useRef<HTMLElement>(null);
@@ -273,7 +281,23 @@ function App() {
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => focusTarget?.focus()));
   };
 
+  const replaceStarredBusinessRecords = (next: StarredBusinessRecordRef[]) => {
+    starredBusinessRecordsRef.current = next;
+    setStarredBusinessRecords(next);
+  };
+  const persistStarredBusinessRecords = (items: StarredBusinessRecordRef[], updatedAt = nowIso()) => {
+    const setting = createStarredBusinessRecordsSetting(items, updatedAt);
+    const write = starredBusinessRecordWriteQueue.current.then(async () => {
+      if (setting.items.length) await putRecord('setting', STARRED_BUSINESS_RECORDS_SETTING_ID, setting);
+      else await removeRecordOfKind('setting', STARRED_BUSINESS_RECORDS_SETTING_ID);
+    });
+    starredBusinessRecordWriteQueue.current = write.then(() => undefined, () => undefined);
+    return write;
+  };
+
   const reload = async ({ loadDraft = false }: { loadDraft?: boolean } = {}) => {
+    await starredBusinessRecordWriteQueue.current;
+    const starredReloadRevision = starredBusinessRecordRevisionGate.current.beginReload();
     if (__SEED_DEMO_DATA__) await seedDemoData();
     const settingsPromise = enqueueDocumentRevisionWrite(async () => {
       const settings = await listRecords<Record<string, unknown>>('setting');
@@ -294,6 +318,14 @@ function App() {
     const researchRecords = partitionBusinessRecords<ResearchRecord>(researchRows);
     const sealRecords = partitionBusinessRecords<SealRecord>(sealRows);
     const materialRecords = partitionBusinessRecords<MaterialRecord>(materialRows);
+    const purgedBusinessRecordKeys = new Set([
+      ...taskRecords.purged.map((record) => `task:${record.id}`),
+      ...meetingRecords.purged.map((record) => `meeting:${record.id}`),
+      ...documentRecords.purged.map((record) => `document:${record.id}`),
+      ...researchRecords.purged.map((record) => `research:${record.id}`),
+      ...sealRecords.purged.map((record) => `seal:${record.id}`),
+      ...materialRecords.purged.map((record) => `material:${record.id}`),
+    ]);
     setTasks(taskRecords.active); setMeetings(meetingRecords.active); setDocuments(documentRecords.active); setResearches(researchRecords.active); setSeals(sealRecords.active); setMaterials(materialRecords.active);
     setTrashedBusinessRecords([
       ...taskRecords.trashed.map((record) => ({ kind: 'task' as const, record })),
@@ -305,6 +337,15 @@ function App() {
     ]);
     setSyncBusinessWorkspace({ tasks: taskRows, meetings: meetingRows, documents: documentRows, researches: researchRows, seals: sealRows, materials: materialRows });
     setWeeklyReports(reportRows); setArchives(archiveRows); setAttachments(attachmentRows);
+    const starredSettingCandidate = settings.find((setting) => setting.type === 'starred-business-records');
+    const loadedStarredSetting = parseStarredBusinessRecordsSetting(starredSettingCandidate);
+    if (starredBusinessRecordRevisionGate.current.canApplyReload(starredReloadRevision)) {
+      const nextStarredBusinessRecords = prunePurgedStarredBusinessRecords(loadedStarredSetting?.items || [], purgedBusinessRecordKeys);
+      replaceStarredBusinessRecords(nextStarredBusinessRecords);
+      if (starredSettingCandidate && (!loadedStarredSetting || JSON.stringify(starredSettingCandidate) !== JSON.stringify(loadedStarredSetting) || nextStarredBusinessRecords.length !== loadedStarredSetting.items.length)) {
+        await persistStarredBusinessRecords(nextStarredBusinessRecords, loadedStarredSetting?.updatedAt || nowIso());
+      }
+    }
     const directorySetting = settings.find((setting) => setting.type === 'contact-directory') as (ContactDirectory & { type: string }) | undefined;
     const legacyAssigners = settings.flatMap((setting) => setting.id === 'work_assigners' && Array.isArray(setting.value) ? setting.value.filter((value): value is string => typeof value === 'string') : []);
     const participantNames = researchRecords.active.flatMap((research) => research.participants.split(/[、，,;；\n]/));
@@ -328,7 +369,7 @@ function App() {
     setWeeklyTemplates((settings.filter((setting) => setting.type === 'weekly-template') as unknown as WeeklyTemplate[]).slice().sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')));
     setPartnerGroups((settings.filter((setting) => setting.type === 'partner-group') as unknown as PartnerGroup[]).slice().sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')));
     setCategoryStyles(settings.filter((setting) => setting.type === 'category-style') as unknown as CategoryStyle[]);
-    const localSettingTypes = new Set(['contact-directory', 'custom-writing-template', 'ai-skill', 'ai-history', 'weekly-template', 'partner-group', 'category-style', 'document-revision', 'demo-seed']);
+    const localSettingTypes = new Set(['contact-directory', 'custom-writing-template', 'ai-skill', 'ai-history', 'weekly-template', 'partner-group', 'category-style', 'document-revision', 'starred-business-records', 'demo-seed']);
     setLegacySettings(settings.filter((setting) => !localSettingTypes.has(String(setting.type))));
     if (loadDraft) {
       const savedDraft = await getRecordOfKind<Draft>('draft', 'draft_main');
@@ -446,7 +487,23 @@ function App() {
         if (item.kind === 'record' && item.recordId) activeRecordItems.set(`${item.tab}:${item.recordId}`, item);
       }
     }
+    const starredActiveKeys = new Set<string>();
+    const starredItems = starredBusinessRecords.flatMap((starred) => {
+      const tab = starredKindToTab[starred.kind];
+      const item = activeRecordItems.get(`${tab}:${starred.id}`);
+      if (!item) return [];
+      starredActiveKeys.add(`${tab}:${starred.id}`);
+      return [{
+        ...item,
+        id: `starred:${item.id}`,
+        kind: 'starred' as const,
+        description: `星标记录 · ${item.description}`,
+        searchValue: `星标记录 ${tab} ${starred.id}`,
+        keywords: [],
+      }];
+    });
     const recentItems = recentBusinessRecords.flatMap((recent) => {
+      if (starredActiveKeys.has(`${recent.tab}:${recent.id}`)) return [];
       const item = activeRecordItems.get(`${recent.tab}:${recent.id}`);
       if (!item) return [];
       return [{
@@ -458,8 +515,12 @@ function App() {
         keywords: [],
       }];
     });
-    return [{ id: 'recent', label: '最近访问', emptyQueryOnly: true, items: recentItems }, ...groups];
-  }, [tasks, meetings, documents, researches, seals, materials, recentBusinessRecords]);
+    return [
+      { id: 'starred', label: '星标记录', emptyQueryOnly: true, items: starredItems },
+      { id: 'recent', label: '最近访问', emptyQueryOnly: true, items: recentItems },
+      ...groups,
+    ];
+  }, [tasks, meetings, documents, researches, seals, materials, recentBusinessRecords, starredBusinessRecords]);
 
   useEffect(() => {
     const toggleGlobalSearch = (event: KeyboardEvent) => {
@@ -1135,6 +1196,23 @@ function App() {
     if (detail.kind === 'seal') openSealEditor(detail.record);
     if (detail.kind === 'material') openMaterialEditor(detail.record);
   };
+  const toggleBusinessRecordStar = async (detail: BusinessDetail) => {
+    const previous = starredBusinessRecordsRef.current;
+    const result = toggleStarredBusinessRecord(previous, { kind: detail.kind, id: detail.record.id }, nowIso());
+    if (result.limitReached) {
+      setToast('星标记录已达到 12 条上限，请先取消一条再继续');
+      return;
+    }
+    starredBusinessRecordRevisionGate.current.markUserMutation();
+    replaceStarredBusinessRecords(result.items);
+    try {
+      await persistStarredBusinessRecords(result.items);
+      setToast(result.starred ? '已加入本机星标' : '已取消本机星标');
+    } catch (error) {
+      if (starredBusinessRecordsRef.current === result.items) await reload();
+      setToast(error instanceof Error ? `星标保存失败：${error.message}` : '星标保存失败');
+    }
+  };
   const scrollToBusinessRegion = (target: HTMLElement | null) => {
     if (!target) return;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1161,7 +1239,7 @@ function App() {
         if (item.tab === 'materials') openMaterialEditor(emptyMaterial());
         return;
       }
-      if ((item.kind === 'record' || item.kind === 'recent') && item.recordId) {
+      if ((item.kind === 'record' || item.kind === 'recent' || item.kind === 'starred') && item.recordId) {
         const businessTab = item.tab as BusinessTab;
         openBusinessRecord(businessTab, item.recordId);
         return;
@@ -1185,7 +1263,7 @@ function App() {
   };
 
   const renderContent = () => {
-    if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} onNavigate={navigate} onOpenRecord={openBusinessRecord} onQuickCapture={() => changeQuickCaptureOpen(true)} />;
+    if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} starredRecords={starredBusinessRecords} onNavigate={navigate} onOpenRecord={openBusinessRecord} onQuickCapture={() => changeQuickCaptureOpen(true)} />;
     if (tab === 'agenda') return <AgendaView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={openBusinessRecord} />;
     if (tab === 'tasks') return <TaskView tasks={filteredTasks} totalCount={tasks.length} view={ledgerViews.tasks} filterOptions={taskFilterOptions} onViewChange={(patch) => updateLedgerView('tasks', patch)} onReset={() => resetLedgerView('tasks')} onExport={() => exportLedgerCsv(() => buildLedgerCsv('tasks', filteredTasks, { date: localDateInput(new Date()), documents }))} selectedId={selectedTaskId} onSelect={(id) => selectBusinessRecord('tasks', id)} attachments={attachments} relationCounts={taskRelationCounts} categoryTints={categoryTints} onNew={() => openTaskEditor(emptyTask())} onEdit={(task) => openTaskEditor(task)} onDelete={deleteTask} />;
     if (tab === 'meetings') return <MeetingView meetings={filteredMeetings} totalCount={meetings.length} view={ledgerViews.meetings} filterOptions={meetingFilterOptions} onViewChange={(patch) => updateLedgerView('meetings', patch)} onReset={() => resetLedgerView('meetings')} onExport={() => exportLedgerCsv(() => buildLedgerCsv('meetings', filteredMeetings, { date: localDateInput(new Date()) }))} selectedId={selectedMeetingId} onSelect={(id) => selectBusinessRecord('meetings', id)} onNew={() => openMeetingEditor(emptyMeeting())} onEdit={(meeting) => openMeetingEditor(meeting)} onDelete={deleteMeeting} />;
@@ -1224,6 +1302,7 @@ function App() {
     <main className="main-area" ref={mainAreaRef}>
       <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="topbar-context"><span>HX / {String(activeNavIndex >= 0 ? activeNavIndex + 1 : navItems.length + 1).padStart(2, '0')}</span><strong>{navItems.find((item) => item.id === tab)?.label ?? '关于与设置'}</strong></div><div className="breadcrumbs">本地优先 <span>/</span> 外发必须逐次确认</div><div className="topbar-actions"><button ref={quickCaptureTriggerRef} type="button" className="global-search-trigger quick-capture-trigger" aria-label="快速记录任务" aria-haspopup="dialog" aria-expanded={quickCaptureOpen} title={quickCaptureBlocked ? '当前有查找、编辑或 AI 面板，暂不可用' : '快速记录任务（Shift + A）'} disabled={quickCaptureBlocked} onClick={() => changeQuickCaptureOpen(true)}><Plus size={16} /><span>快速记录</span><kbd>Shift A</kbd></button><button ref={globalSearchTriggerRef} type="button" className="global-search-trigger" aria-label="打开全局查找" aria-haspopup="dialog" aria-expanded={globalSearchOpen} title={globalSearchBlocked ? '当前有记录、编辑或 AI 面板，暂不可用' : '全局查找（Ctrl 或 Command + K）'} disabled={globalSearchBlocked} onClick={() => changeGlobalSearchOpen(true)}><Search size={16} /><span>全局查找</span><kbd>Ctrl K</kbd></button><span className="connection"><Activity size={15} /><span>{connectionLabel}</span><strong>{connectionDetail}</strong></span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
       <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''} ${businessDetail && detailCollapsed ? 'detail-collapsed' : ''}`}><div className="primary-content" ref={primaryContentRef}>{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} compact={aiOverlayOpen} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} history={aiHistory} onSaveHistory={saveAiHistory} onDeleteHistory={deleteAiHistory} onClearHistory={clearAiHistory} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && businessDetailNavigation && <BusinessDetailPanel detail={businessDetail} navigation={businessDetailNavigation} tasks={tasks} documents={documents} attachments={attachments} panelRef={businessDetailRef} collapsed={detailCollapsed} onToggleCollapsed={() => setDetailCollapsed((collapsed) => !collapsed)}
+        starred={starredBusinessRecords.some((item) => item.kind === businessDetail.kind && item.id === businessDetail.record.id)} onToggleStarred={() => void toggleBusinessRecordStar(businessDetail)}
         onNavigateVisibleRecord={(id) => selectBusinessRecord(tab as BusinessTab, id)}
         onOpenRelatedRecord={openBusinessRecord} onBackToList={() => scrollToBusinessRegion(primaryContentRef.current)} onEdit={() => editBusinessDetail(businessDetail)} onDuplicate={() => duplicateBusinessDetail(businessDetail)} />}</div>
       <footer className="page-footer"><span>HXHWANG GW / {__APP_VERSION__}</span><span>© HaoXiangHwang · <a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a> · <a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer">nextweb4.github.io</a></span></footer>
@@ -1257,7 +1336,7 @@ function PageHeading({ eyebrow, title, detail, action }: { eyebrow: string; titl
   return <div className="page-heading"><div className="heading-copy"><span className="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{detail}</p></div>{action && <div className="heading-action">{action}</div>}<span className="heading-signal" aria-hidden="true">HX</span></div>;
 }
 
-function Dashboard({ tasks, meetings, documents, researches, seals, materials, archives, onNavigate, onOpenRecord, onQuickCapture }: { tasks: Task[]; meetings: MeetingRecord[]; documents: OfficialDocument[]; researches: ResearchRecord[]; seals: SealRecord[]; materials: MaterialRecord[]; archives: ArchiveRecord[]; onNavigate: (tab: Tab) => void; onOpenRecord: (kind: AgendaKind, id: string) => void; onQuickCapture: () => void }) {
+function Dashboard({ tasks, meetings, documents, researches, seals, materials, archives, starredRecords, onNavigate, onOpenRecord, onQuickCapture }: { tasks: Task[]; meetings: MeetingRecord[]; documents: OfficialDocument[]; researches: ResearchRecord[]; seals: SealRecord[]; materials: MaterialRecord[]; archives: ArchiveRecord[]; starredRecords: StarredBusinessRecordRef[]; onNavigate: (tab: Tab) => void; onOpenRecord: (kind: AgendaKind, id: string) => void; onQuickCapture: () => void }) {
   const active = tasks.filter((task) => task.status !== 'done').length;
   const dueSoon = tasks.filter((task) => task.deadline && task.deadline <= localDateInput(new Date(Date.now() + 7 * 86400000)) && task.status !== 'done').length;
   const operations = meetings.length + researches.length + seals.length + materials.length;
@@ -1268,7 +1347,7 @@ function Dashboard({ tasks, meetings, documents, researches, seals, materials, a
       <div className="hero-meta"><span>01 / PRIVATE BY DEFAULT</span><span>02 / DETERMINISTIC RULES</span><span>03 / TRACEABLE RECORDS</span></div>
     </section>
     <section className="metric-grid"><Metric label="进行中任务" value={active} note="未完成事项" accent="rust" /><Metric label="近七日到期" value={dueSoon} note="需要优先处理" accent="gold" /><Metric label="登记文件" value={documents.length} note="本机索引" accent="green" /><Metric label="综合台账" value={operations} note={`会议/外出/用章/物资；历史 ${archives.length}`} accent="ink" /></section>
-    <div className="dashboard-grid"><WorkOverview tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={onOpenRecord} onOpenAgenda={() => onNavigate('agenda')} /><section className="panel paper-panel"><div className="paper-index">公文写作速查</div><h2>先立意，再落笔。</h2><p>将“依据—行动—结果”拆开，把可核验的数据留在句子里。正式规范与写作建议分别标注，不让模型替你做判断。</p><button className="secondary-button" onClick={() => onNavigate('writing')}><Sparkles size={16} />打开写作中心</button></section></div>
+    <div className="dashboard-grid"><WorkOverview tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={onOpenRecord} onOpenAgenda={() => onNavigate('agenda')} /><StarredRecordsPanel refs={starredRecords} tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={onOpenRecord} /></div>
     <section className="panel quick-panel"><div className="panel-heading"><div><span className="eyebrow">工作入口</span><h2>继续处理</h2></div></div><div className="quick-actions"><button onClick={() => onNavigate('meetings')}><CalendarDays size={18} /><span>记录会议</span><small>通知、时间、地点</small></button><button onClick={() => onNavigate('documents')}><FileText size={18} /><span>登记新文件</span><small>收文、发文、附件</small></button><button onClick={() => onNavigate('writing')}><BookOpen size={18} /><span>开始写作</span><small>模板、规则、版本</small></button><button onClick={() => onNavigate('migration')}><Upload size={18} /><span>导入旧数据</span><small>支持 JSON 导出文件</small></button></div></section>
   </>;
 }
@@ -1340,7 +1419,7 @@ interface BusinessDetailModel {
   sections: Array<{ title: string; content: React.ReactNode }>;
 }
 
-function BusinessDetailPanel({ detail, navigation, tasks, documents, attachments, panelRef, collapsed, onToggleCollapsed, onNavigateVisibleRecord, onOpenRelatedRecord, onBackToList, onEdit, onDuplicate }: { detail: BusinessDetail; navigation: BusinessDetailNavigation; tasks: Task[]; documents: OfficialDocument[]; attachments: Attachment[]; panelRef: React.RefObject<HTMLElement | null>; collapsed: boolean; onToggleCollapsed: () => void; onNavigateVisibleRecord: (id: string) => void; onOpenRelatedRecord: (tab: BusinessTab, id: string) => void; onBackToList: () => void; onEdit: () => void; onDuplicate: () => void }) {
+function BusinessDetailPanel({ detail, navigation, tasks, documents, attachments, panelRef, collapsed, starred, onToggleStarred, onToggleCollapsed, onNavigateVisibleRecord, onOpenRelatedRecord, onBackToList, onEdit, onDuplicate }: { detail: BusinessDetail; navigation: BusinessDetailNavigation; tasks: Task[]; documents: OfficialDocument[]; attachments: Attachment[]; panelRef: React.RefObject<HTMLElement | null>; collapsed: boolean; starred: boolean; onToggleStarred: () => void; onToggleCollapsed: () => void; onNavigateVisibleRecord: (id: string) => void; onOpenRelatedRecord: (tab: BusinessTab, id: string) => void; onBackToList: () => void; onEdit: () => void; onDuplicate: () => void }) {
   const show = (value: string | number | undefined) => String(value ?? '').trim() || '未填写';
   const linkedTasks = detail.kind === 'document' ? relatedTasksForDocument(detail.record, tasks) : [];
   const linkedDocuments = detail.kind === 'task' ? relatedDocumentsForTask(detail.record.id, documents) : [];
@@ -1444,7 +1523,7 @@ function BusinessDetailPanel({ detail, navigation, tasks, documents, attachments
     </aside>;
   }
   return <aside className="panel business-detail-panel" aria-label="记录详情" ref={panelRef}>
-    <div className="detail-panel-header"><span className="detail-icon"><Icon size={18} /></span><div><span className="eyebrow">{model.eyebrow}</span><h2><span className="sr-only">记录详情：</span>{model.title}</h2></div><span className={`status-pill ${model.badgeClass}`}>{model.badge}</span><button type="button" className="icon-button detail-collapse-toggle" aria-label="收起右侧记录详情" title="收起右侧记录详情" onClick={onToggleCollapsed}><PanelRightClose size={17} /></button></div>
+    <div className="detail-panel-header"><span className="detail-icon"><Icon size={18} /></span><div><span className="eyebrow">{model.eyebrow}</span><h2><span className="sr-only">记录详情：</span>{model.title}</h2></div><span className={`status-pill ${model.badgeClass}`}>{model.badge}</span><button type="button" className={`icon-button starred-record-toggle ${starred ? 'active' : ''}`} aria-label={starred ? '取消此记录星标' : '将此记录加入星标'} aria-pressed={starred} title={starred ? '取消本机星标' : '加入本机星标'} onClick={onToggleStarred}><Star size={17} fill={starred ? 'currentColor' : 'none'} /></button><button type="button" className="icon-button detail-collapse-toggle" aria-label="收起右侧记录详情" title="收起右侧记录详情" onClick={onToggleCollapsed}><PanelRightClose size={17} /></button></div>
     <div className="detail-record-navigation">
       <span aria-live="polite" className="detail-record-position"><small>当前可见</small><strong>{navigation.index + 1}<span aria-hidden="true"> / </span>{navigation.total}</strong></span>
       <div className="detail-record-steps" role="group" aria-label="浏览当前可见记录">
@@ -2323,10 +2402,14 @@ function MigrationView({ onImport, onRestore, onReload, setToast }: {
     }
   };
   const exportSnapshot = async () => {
-    const data = await exportLocalSnapshot();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, `hxhwang-gw-本地快照-${localDateInput(new Date())}.json`);
-    setSnapshot('已导出当前本地快照');
+    try {
+      const data = await exportLocalSnapshot();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      downloadBlob(blob, `hxhwang-gw-本地快照-${localDateInput(new Date())}.json`);
+      setSnapshot('已导出当前本地快照');
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : '本地快照导出失败');
+    }
   };
   return <>
     <PageHeading eyebrow="数据边界" title="数据迁移" detail="旧版导出和本地快照都只在本机解析，不会上传或清空现有数据。" />

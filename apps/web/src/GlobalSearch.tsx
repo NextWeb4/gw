@@ -4,7 +4,7 @@ import { ArrowUpRight, Search, X, type LucideIcon } from 'lucide-react';
 
 export interface GlobalSearchItem<TTab extends string> {
   id: string;
-  kind: 'navigation' | 'record' | 'create' | 'recent';
+  kind: 'navigation' | 'record' | 'create' | 'recent' | 'starred';
   tab: TTab;
   recordId?: string;
   title: string;
@@ -61,12 +61,12 @@ export function GlobalSearch<TTab extends string>({ open, groups, onOpenChange, 
           >
             <span className="global-search-item-icon" aria-hidden="true"><Icon size={18} strokeWidth={1.6} /></span>
             <span className="global-search-item-copy"><strong>{item.title}</strong><small>{item.description}</small></span>
-            <span className="global-search-item-kind">{item.kind === 'navigation' ? '导航' : item.kind === 'create' ? '新建' : item.kind === 'recent' ? '最近' : '记录'}</span>
+            <span className="global-search-item-kind">{item.kind === 'navigation' ? '导航' : item.kind === 'create' ? '新建' : item.kind === 'recent' ? '最近' : item.kind === 'starred' ? '星标' : '记录'}</span>
             <ArrowUpRight size={15} aria-hidden="true" />
           </Command.Item>;
         })}
       </Command.Group>)}
     </Command.List>
-    <div className="global-search-footer"><span>最近访问仅保留在当前会话；新建仍需显式保存</span><span><kbd>上下键</kbd> 选择 <kbd>Enter</kbd> 打开</span></div>
+    <div className="global-search-footer"><span>星标保存在本机；最近访问仅当前会话；新建仍需显式保存</span><span><kbd>上下键</kbd> 选择 <kbd>Enter</kbd> 打开</span></div>
   </Command.Dialog>;
 }

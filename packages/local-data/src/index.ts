@@ -2,16 +2,17 @@ import { addRxPlugin, createRxDatabase, type RxCollection, type RxDatabase } fro
 import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 import type {
-  ArchiveRecord, Attachment, DocumentRevision, Draft, MaterialRecord, MeetingRecord, OfficialDocument, PurgedBusinessRecord, ResearchRecord, SealRecord, Task, WeeklyReport
+  ArchiveRecord, Attachment, DocumentRevision, Draft, MaterialRecord, MeetingRecord, OfficialDocument, PurgedBusinessRecord, ResearchRecord, SealRecord, StarredBusinessRecordsSetting, Task, WeeklyReport
 } from '@hxhwang/domain';
 import {
-  isDocumentRevision, isPurgedBusinessRecord, mergeContactDirectory, minimizePurgedBusinessRecord, pruneDocumentRevisions,
+  isDocumentRevision, isPurgedBusinessRecord, mergeContactDirectory, minimizePurgedBusinessRecord, parseStarredBusinessRecordsSetting, pruneDocumentRevisions,
+  STARRED_BUSINESS_RECORDS_SETTING_ID, STARRED_BUSINESS_RECORDS_SETTING_TYPE,
   sampleContactDirectory, sampleDocuments, sampleMaterials, sampleMeetings, sampleResearches, sampleSeals, sampleTasks
 } from '@hxhwang/domain';
 
 export type Kind = 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material' | 'attachment' | 'draft' | 'weekly' | 'archive' | 'setting';
 export type BusinessKind = Extract<Kind, 'task' | 'meeting' | 'document' | 'research' | 'seal' | 'material'>;
-type RecordPayload = Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord | PurgedBusinessRecord | Attachment | Draft | WeeklyReport | ArchiveRecord | DocumentRevision | Record<string, unknown>;
+type RecordPayload = Task | MeetingRecord | OfficialDocument | ResearchRecord | SealRecord | MaterialRecord | PurgedBusinessRecord | Attachment | Draft | WeeklyReport | ArchiveRecord | DocumentRevision | StarredBusinessRecordsSetting | Record<string, unknown>;
 interface StoredRecord { id: string; kind: Kind; payload: RecordPayload; updatedAt: string; }
 interface SnapshotRecord { id: string; kind: Kind; payload: RecordPayload; updatedAt?: string; }
 const allowedKinds = new Set<Kind>(['task', 'meeting', 'document', 'research', 'seal', 'material', 'attachment', 'draft', 'weekly', 'archive', 'setting']);
@@ -63,9 +64,23 @@ function isCanonicalDocumentRevisionRecord(id: string, payload: RecordPayload, u
     && isCanonicalIsoTimestamp(payload.createdAt);
 }
 
+function isStarredBusinessRecordsCandidate(id: string, payload: RecordPayload) {
+  return id === STARRED_BUSINESS_RECORDS_SETTING_ID
+    || (isObjectRecord(payload) && payload.type === STARRED_BUSINESS_RECORDS_SETTING_TYPE);
+}
+
+function canonicalPayloadForRecord(kind: Kind, id: string, payload: RecordPayload): RecordPayload {
+  if (kind !== 'setting' || !isStarredBusinessRecordsCandidate(id, payload)) return payload;
+  return parseStarredBusinessRecordsSetting(payload) || payload;
+}
+
 function recordIdentityError(kind: Kind, id: string, payload: RecordPayload, updatedAt?: unknown) {
   if (kind === 'draft' && (!isObjectRecord(payload) || payload.id !== id)) return `主草稿身份不匹配：${id}`;
   if (kind === 'weekly' && (!isObjectRecord(payload) || payload.id !== id)) return `周报身份不匹配：${id}`;
+  if (kind === 'setting' && isStarredBusinessRecordsCandidate(id, payload)) {
+    if (id !== STARRED_BUSINESS_RECORDS_SETTING_ID) return `星标记录设置身份不匹配：${id}`;
+    if (!parseStarredBusinessRecordsSetting(payload)) return `星标记录设置无效：${id}`;
+  }
   if (kind === 'setting' && isDocumentRevisionCandidate(id, payload) && !isCanonicalDocumentRevisionRecord(id, payload, updatedAt)) {
     return `文稿历史身份不匹配：${id}`;
   }
@@ -74,6 +89,7 @@ function recordIdentityError(kind: Kind, id: string, payload: RecordPayload, upd
 
 function storedUpdatedAt(kind: Kind, payload: RecordPayload, preferred?: unknown) {
   if (kind === 'setting' && isDocumentRevision(payload)) return payload.createdAt;
+  if (kind === 'setting' && isObjectRecord(payload) && payload.type === STARRED_BUSINESS_RECORDS_SETTING_TYPE && isCanonicalIsoTimestamp(payload.updatedAt)) return payload.updatedAt;
   return isCanonicalIsoTimestamp(preferred) ? preferred : new Date().toISOString();
 }
 
@@ -109,12 +125,13 @@ export async function getRecordOfKind<T extends RecordPayload>(kind: Kind, id: s
 }
 
 async function putRecordUnlocked<T extends RecordPayload>(collection: RxCollection<StoredRecord>, kind: Kind, id: string, payload: T, preferredUpdatedAt?: unknown) {
-  const updatedAt = storedUpdatedAt(kind, payload, preferredUpdatedAt);
-  const identityError = recordIdentityError(kind, id, payload, updatedAt);
+  const canonicalPayload = canonicalPayloadForRecord(kind, id, payload);
+  const updatedAt = storedUpdatedAt(kind, canonicalPayload, preferredUpdatedAt);
+  const identityError = recordIdentityError(kind, id, canonicalPayload, updatedAt);
   if (identityError) throw new Error(identityError);
   const existing = await collection.findOne(id).exec();
   if (existing && existing.kind !== kind) throw new Error(`记录 ID ${id} 已被 ${existing.kind} 类型占用，拒绝覆盖为 ${kind}`);
-  await collection.upsert({ id, kind, payload, updatedAt });
+  await collection.upsert({ id, kind, payload: canonicalPayload, updatedAt });
 }
 
 export function putRecord<T extends RecordPayload>(kind: Kind, id: string, payload: T): Promise<void> {
@@ -262,18 +279,32 @@ export function clearAllData(): Promise<void> {
   });
 }
 
-export async function exportLocalSnapshot() {
-  const collection = await getDb();
-  const docs = await collection.find().exec();
-  return {
-    format: 'hxhwang-gw-local-v1',
-    exportedAt: new Date().toISOString(),
-    author: 'HaoXiangHwang',
-    records: docs.map((doc: any) => ({ id: doc.id, kind: doc.kind, payload: snapshotPayloadForRecord(doc.kind, doc.payload), updatedAt: doc.updatedAt }))
-  };
+export function exportLocalSnapshot() {
+  return serializeRecordMutation(async () => {
+    const collection = await getDb();
+    const docs = await collection.find().exec();
+    return {
+      format: 'hxhwang-gw-local-v1',
+      exportedAt: new Date().toISOString(),
+      author: 'HaoXiangHwang',
+      records: docs.map((doc: any) => {
+        if (isStarredBusinessRecordsCandidate(doc.id, doc.payload)) {
+          if (doc.id !== STARRED_BUSINESS_RECORDS_SETTING_ID || !parseStarredBusinessRecordsSetting(doc.payload)) {
+            throw new Error(`星标记录设置无效，拒绝导出：${doc.id}`);
+          }
+        }
+        return { id: doc.id, kind: doc.kind, payload: snapshotPayloadForRecord(doc.kind, doc.payload), updatedAt: doc.updatedAt };
+      })
+    };
+  });
 }
 
 export function snapshotPayloadForRecord(kind: Kind, payload: RecordPayload): RecordPayload {
+  if (kind === 'setting' && isObjectRecord(payload) && payload.type === STARRED_BUSINESS_RECORDS_SETTING_TYPE) {
+    const parsed = parseStarredBusinessRecordsSetting(payload);
+    if (!parsed) throw new Error('星标记录设置无效，拒绝导出');
+    return parsed;
+  }
   return businessKinds.has(kind) && isPurgedBusinessRecord(payload) ? minimizePurgedBusinessRecord(payload) : payload;
 }
 
@@ -296,7 +327,8 @@ export function parseLocalSnapshot(snapshot: unknown): { records: SnapshotRecord
     if (!record.payload || typeof record.payload !== 'object' || Array.isArray(record.payload)) { warnings.push(`跳过无效 payload：${record.id}`); continue; }
     const kind = record.kind as Kind;
     const payload = record.payload as Record<string, unknown>;
-    const identityError = recordIdentityError(kind, record.id, payload, record.updatedAt);
+    const canonicalPayload = canonicalPayloadForRecord(kind, record.id, payload);
+    const identityError = recordIdentityError(kind, record.id, canonicalPayload, record.updatedAt);
     if (identityError) {
       warnings.push(`跳过${identityError}`);
       continue;
@@ -314,7 +346,10 @@ export function parseLocalSnapshot(snapshot: unknown): { records: SnapshotRecord
       continue;
     }
     seenKinds.set(record.id, kind);
-    records.push({ id: record.id, kind, payload: snapshotPayloadForRecord(kind, payload as RecordPayload), updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : undefined });
+    const canonicalUpdatedAt = kind === 'setting' && isObjectRecord(canonicalPayload) && canonicalPayload.type === STARRED_BUSINESS_RECORDS_SETTING_TYPE
+      ? canonicalPayload.updatedAt as string
+      : typeof record.updatedAt === 'string' ? record.updatedAt : undefined;
+    records.push({ id: record.id, kind, payload: snapshotPayloadForRecord(kind, canonicalPayload), updatedAt: canonicalUpdatedAt });
   }
   return { records, warnings };
 }

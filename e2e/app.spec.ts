@@ -767,6 +767,83 @@ test('keeps recent business records ordered, active-only and session-local in th
   if (testInfo.project.name === 'mobile') expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
+test('persists explicit starred records locally while respecting trash and purge lifecycle', async ({ page }, testInfo) => {
+  const actionRequests: string[] = [];
+  const pageOrigin = new URL(page.url()).origin;
+  const recordActionRequest = (request: { url: () => string }) => {
+    const url = new URL(request.url());
+    if (!['data:', 'blob:'].includes(url.protocol) && url.origin !== pageOrigin) actionRequests.push(request.url());
+  };
+  page.on('request', recordActionRequest);
+  const taskTitle = '整理省政府办公厅来文并建立关联';
+  const meetingTitle = '全省重点工作协调推进会';
+  const starButton = page.getByRole('button', { name: '将此记录加入星标' });
+
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await page.locator('.selectable-row').filter({ hasText: taskTitle }).click();
+  await expect(starButton).toHaveAttribute('aria-pressed', 'false');
+  await starButton.click();
+  await expect(page.getByRole('button', { name: '取消此记录星标' })).toHaveAttribute('aria-pressed', 'true');
+
+  await page.getByRole('button', { name: '会议管理', exact: true }).click();
+  await page.locator('.selectable-row').filter({ hasText: meetingTitle }).click();
+  await starButton.click();
+
+  await page.getByRole('button', { name: '工作台', exact: true }).click();
+  let starredPanel = page.getByRole('region', { name: '星标记录' });
+  await expect(starredPanel.getByRole('button')).toHaveCount(2);
+  await expect(starredPanel.getByRole('button').nth(0)).toContainText(meetingTitle);
+  await expect(starredPanel.getByRole('button').nth(1)).toContainText(taskTitle);
+  if (testInfo.project.name === 'mobile') {
+    for (const item of await starredPanel.getByRole('button').all()) {
+      const box = await item.boundingBox();
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+  }
+
+  await page.getByRole('button', { name: '打开全局查找' }).click();
+  let dialog = page.getByRole('dialog', { name: '全局查找' });
+  const starredGroupFor = (target: Locator) => target.locator('.global-search-group').filter({ hasText: '星标记录' });
+  await expect(starredGroupFor(dialog).locator('.global-search-item')).toHaveCount(2);
+  await dialog.getByRole('combobox', { name: '全局查找' }).fill(taskTitle);
+  await expect(starredGroupFor(dialog)).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  starredPanel = page.getByRole('region', { name: '星标记录' });
+  await expect(starredPanel.getByRole('button')).toHaveCount(2);
+  await starredPanel.getByRole('button', { name: `打开星标任务：${taskTitle}` }).click();
+  await expect(page.getByRole('button', { name: '取消此记录星标' })).toHaveAttribute('aria-pressed', 'true');
+
+  const taskRow = page.locator('.selectable-row').filter({ hasText: taskTitle });
+  page.once('dialog', (confirmation) => confirmation.accept());
+  await taskRow.getByTitle('删除任务').click();
+  await page.getByRole('button', { name: '工作台', exact: true }).click();
+  starredPanel = page.getByRole('region', { name: '星标记录' });
+  await expect(starredPanel.getByText(taskTitle, { exact: true })).toHaveCount(0);
+
+  await page.getByRole('button', { name: '回收站', exact: true }).click();
+  page.once('dialog', (confirmation) => confirmation.accept());
+  await page.getByRole('button', { name: `恢复任务：${taskTitle}` }).click();
+  await page.getByRole('button', { name: '工作台', exact: true }).click();
+  await expect(page.getByRole('region', { name: '星标记录' }).getByText(taskTitle, { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  page.once('dialog', (confirmation) => confirmation.accept());
+  await page.locator('.selectable-row').filter({ hasText: taskTitle }).getByTitle('删除任务').click();
+  await page.getByRole('button', { name: '回收站', exact: true }).click();
+  page.once('dialog', (confirmation) => confirmation.accept());
+  await page.getByRole('button', { name: `永久删除任务：${taskTitle}` }).click();
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByRole('region', { name: '星标记录' }).getByText(taskTitle, { exact: true })).toHaveCount(0);
+
+  expect(actionRequests).toEqual([]);
+  page.off('request', recordActionRequest);
+  if (testInfo.project.name === 'mobile') expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test('steps through the current filtered and sorted task order from the shared detail navigator', async ({ page }, testInfo) => {
   const actionRequests: string[] = [];
   const recordActionRequest = (request: { url: () => string }) => actionRequests.push(request.url());
@@ -1792,8 +1869,12 @@ test('keeps create-mode drawer titles stable after required fields are entered',
     await page.getByRole('button', { name: openButton }).click();
     await page.getByLabel(fieldLabel).fill(value);
     await expect(page.getByRole('heading', { name: expectedTitle, exact: true })).toBeVisible();
-    page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('未保存修改'); await dialog.accept(); });
-    await page.getByTitle('关闭').click();
+    const confirmationPromise = page.waitForEvent('dialog');
+    const closePromise = page.getByTitle('关闭').click();
+    const confirmation = await confirmationPromise;
+    expect(confirmation.message()).toContain('未保存修改');
+    await confirmation.accept();
+    await closePromise;
   }
 });
 

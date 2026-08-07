@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDocumentRevision, type DocumentRevision, type Draft, type WeeklyReport } from '@hxhwang/domain';
+import { createDocumentRevision, createStarredBusinessRecordsSetting, STARRED_BUSINESS_RECORDS_SETTING_ID, type DocumentRevision, type Draft, type WeeklyReport } from '@hxhwang/domain';
 
 vi.mock('rxdb/plugins/storage-dexie', async () => {
   const { getRxStorageMemory } = await import('rxdb/plugins/storage-memory');
@@ -7,7 +7,7 @@ vi.mock('rxdb/plugins/storage-dexie', async () => {
 });
 
 import {
-  attachmentIdsFromPayload, clearAllData, getRecordOfKind, importLocalSnapshot, listRecords, LOCAL_SCHEMA_VERSION,
+  attachmentIdsFromPayload, clearAllData, exportLocalSnapshot, getRecordOfKind, importLocalSnapshot, listRecords, LOCAL_SCHEMA_VERSION,
   parseLocalSnapshot, putRecord, removeRecordOfKind, snapshotPayloadForRecord, shouldRefreshDemoRecord
 } from './index.js';
 
@@ -142,6 +142,54 @@ describe('local snapshot validation', () => {
     expect(parsed.warnings).toEqual(['跳过自定义格式身份不匹配：unrelated-setting-id']);
   });
 
+  it('canonicalizes starred-record snapshots to reference-only data and rejects the wrong outer identity', () => {
+    const updatedAt = '2026-08-07T12:00:00.000Z';
+    const parsed = parseLocalSnapshot({
+      format: 'hxhwang-gw-local-v1',
+      records: [{
+        id: STARRED_BUSINESS_RECORDS_SETTING_ID,
+        kind: 'setting',
+        payload: {
+          type: 'starred-business-records', version: 1, updatedAt,
+          items: [
+            { kind: 'task', id: 'task-1', starredAt: updatedAt, title: '不得进入快照' },
+            { kind: 'task', id: 'task-1', starredAt: updatedAt },
+            { kind: 'unknown', id: 'invalid', starredAt: updatedAt },
+          ],
+          apiKey: '不得进入快照',
+        },
+        updatedAt,
+      }],
+    });
+
+    expect(parsed.records).toEqual([{
+      id: STARRED_BUSINESS_RECORDS_SETTING_ID,
+      kind: 'setting',
+      payload: {
+        type: 'starred-business-records', version: 1, updatedAt,
+        items: [{ kind: 'task', id: 'task-1', starredAt: updatedAt }],
+      },
+      updatedAt,
+    }]);
+    expect(JSON.stringify(parsed.records)).not.toMatch(/不得进入快照|apiKey|title/);
+
+    const invalid = parseLocalSnapshot({
+      format: 'hxhwang-gw-local-v1',
+      records: [{
+        id: 'unrelated-setting-id', kind: 'setting',
+        payload: { type: 'starred-business-records', version: 1, items: [], updatedAt }, updatedAt,
+      }],
+    });
+    expect(invalid.records).toEqual([]);
+    expect(invalid.warnings).toEqual(['跳过星标记录设置身份不匹配：unrelated-setting-id']);
+  });
+
+  it('fails closed instead of exporting a malformed starred-record payload', () => {
+    expect(() => snapshotPayloadForRecord('setting', {
+      type: 'starred-business-records', version: 2, items: [], updatedAt: 'invalid', apiKey: '不得导出',
+    })).toThrow(/星标记录设置无效.*拒绝导出/);
+  });
+
   it('skips draft and weekly records whose outer ids do not match their payload ids', () => {
     const parsed = parseLocalSnapshot({
       format: 'hxhwang-gw-local-v1',
@@ -214,6 +262,28 @@ describe('kind-safe local persistence and snapshot restore', () => {
     expect(await getRecordOfKind('setting', 'document-revision_fake')).toBeUndefined();
   });
 
+  it('canonicalizes direct starred-record writes and rejects an incorrect setting identity', async () => {
+    const updatedAt = '2026-08-07T12:30:00.000Z';
+    await putRecord('setting', STARRED_BUSINESS_RECORDS_SETTING_ID, {
+      type: 'starred-business-records',
+      version: 1,
+      items: [{ kind: 'seal', id: 'seal-direct', starredAt: updatedAt, title: '不得持久化' }],
+      updatedAt,
+      apiKey: '不得持久化',
+    });
+
+    expect(await getRecordOfKind('setting', STARRED_BUSINESS_RECORDS_SETTING_ID)).toEqual({
+      type: 'starred-business-records',
+      version: 1,
+      items: [{ kind: 'seal', id: 'seal-direct', starredAt: updatedAt }],
+      updatedAt,
+    });
+    await expect(putRecord('setting', 'wrong-starred-setting-id', {
+      type: 'starred-business-records', version: 1, items: [], updatedAt,
+    })).rejects.toThrow(/星标记录设置身份不匹配/);
+    expect(await getRecordOfKind('setting', 'wrong-starred-setting-id')).toBeUndefined();
+  });
+
   it('preflights every existing id conflict before writing any snapshot record', async () => {
     await putRecord('attachment', 'occupied-id', { id: 'occupied-id', name: '原附件' });
     const restore = importLocalSnapshot({
@@ -255,5 +325,21 @@ describe('kind-safe local persistence and snapshot restore', () => {
     const revision = createDocumentRevision('weekly', weekly, 'document-revision_weekly-local', weekly.updatedAt);
     await putRecord('setting', revision.id, revision);
     expect(await getRecordOfKind<DocumentRevision>('setting', revision.id)).toEqual(revision);
+  });
+
+  it('waits for a queued starred-record write before reading the export snapshot', async () => {
+    const updatedAt = '2026-08-07T13:00:00.000Z';
+    const setting = createStarredBusinessRecordsSetting([{ kind: 'task', id: 'task-export-race', starredAt: updatedAt }], updatedAt);
+    const write = putRecord('setting', STARRED_BUSINESS_RECORDS_SETTING_ID, setting);
+
+    const snapshot = await exportLocalSnapshot();
+    await write;
+
+    expect(snapshot.records).toContainEqual({
+      id: STARRED_BUSINESS_RECORDS_SETTING_ID,
+      kind: 'setting',
+      payload: setting,
+      updatedAt,
+    });
   });
 });
