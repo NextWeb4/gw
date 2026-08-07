@@ -149,10 +149,10 @@ h1, h2, p { margin-top: 0; }
 .quick-capture-trigger { color: var(--paper); border-color: rgba(216,255,63,.24); background: rgba(216,255,63,.055); }
 .quick-capture-trigger svg { color: var(--acid); }
 .quick-capture-dialog { position: fixed; z-index: 112; inset: 0; width: min(710px, calc(100vw - 40px)); max-width: none; max-height: min(760px, calc(100svh - 80px)); margin: auto; padding: 0; overflow: hidden; color: var(--paper); background: #0d0f0b; border: 1px solid rgba(216,255,63,.26); border-radius: 22px; box-shadow: 0 50px 150px rgba(0,0,0,.72), 0 0 0 1px rgba(255,255,255,.035) inset; }
-.quick-capture-dialog[open] { animation: command-dialog-in .24s cubic-bezier(.16,1,.3,1); }
+.quick-capture-dialog[open] { animation: native-dialog-in .24s cubic-bezier(.16,1,.3,1); }
 .quick-capture-dialog::backdrop { background: rgba(3,4,3,.78); backdrop-filter: blur(10px) saturate(80%); }
 .document-revision-dialog { width: min(1120px, calc(100vw - 48px)); max-width: none; height: min(720px, calc(100svh - 72px)); max-height: none; margin: auto; padding: 0; overflow: hidden; color: var(--paper); background: #11130f; border: 1px solid rgba(216,255,63,.24); border-radius: 8px; box-shadow: 0 42px 130px rgba(0,0,0,.68); }
-.document-revision-dialog[open] { animation: command-dialog-in .2s cubic-bezier(.16,1,.3,1); }
+.document-revision-dialog[open] { animation: native-dialog-in .2s cubic-bezier(.16,1,.3,1); }
 .document-revision-dialog::backdrop { background: rgba(3,4,3,.78); backdrop-filter: blur(8px) saturate(80%); }
 .document-revision-shell { height: 100%; min-height: 0; display: flex; flex-direction: column; }
 .document-revision-heading { min-height: 78px; padding: 16px 18px 14px 22px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); }
@@ -218,6 +218,7 @@ h1, h2, p { margin-top: 0; }
 .quick-capture-action:disabled { cursor: not-allowed; opacity: .36; transform: none; }
 @keyframes command-overlay-in { from { opacity: 0; } }
 @keyframes command-dialog-in { from { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(.975); } }
+@keyframes native-dialog-in { from { opacity: 0; transform: translateY(-10px) scale(.975); } }
 .content-wrap { width: min(1460px, calc(100% - 72px)); flex: 1; margin: 0 auto; padding: 38px 0 28px; }
 .content-wrap.has-detail-panel { width: min(1600px, calc(100% - 48px)); display: grid; grid-template-columns: minmax(0,1fr) minmax(340px,390px); align-items: start; gap: 18px; }
 .content-wrap.has-detail-panel.detail-collapsed { grid-template-columns: minmax(0,1fr) 54px; }

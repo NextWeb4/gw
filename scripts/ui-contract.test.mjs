@@ -212,6 +212,9 @@ test('draft and weekly revision history stays local, bounded and restores throug
   assert.match(dialog, /<dialog[\s\S]*当前内容[\s\S]*该版本内容/, 'the shared dialog must provide a read-only current-versus-history comparison');
   assert.doesNotMatch(dialog, /dangerouslySetInnerHTML|fetch\(|putRecord|removeRecord|indexedDB|hxhwang/i, 'the dialog must remain presentation-only and text-safe');
   assert.doesNotMatch(privateServices, /document-revision|DocumentRevision/, 'local revision history must not enter private sync');
+  assert.match(css, /\.document-revision-dialog\[open\][^}]*animation:\s*native-dialog-in/, 'native revision dialogs must use a centering-safe animation');
+  assert.doesNotMatch(css, /\.(?:quick-capture-dialog|document-revision-dialog)\[open\][^}]*animation:\s*command-dialog-in/, 'native dialogs must not reuse the translateX command-palette animation');
+  assert.match(css, /@keyframes native-dialog-in\s*\{[^}]*transform:\s*translateY\([^)]*\)\s*scale\([^)]*\)/, 'native dialog animation must only move on the vertical axis and scale around its centered box');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.document-revision-action[^}]*min-height:\s*(?:4[4-9]|[5-9]\d)px/, 'mobile revision actions must retain at least a 44px touch target');
 });
 
