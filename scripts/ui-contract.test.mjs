@@ -475,3 +475,34 @@ test('cross-module record visit history stays session-only and reuses the existi
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.detail-visit-menu-toggle[^}]*44px/, 'the narrow direct history trigger must retain a 44px touch target');
   assert.doesNotMatch(privateServices, /record-visit-history|RecordVisitHistory|recordVisitHistory/, 'private sync must not gain visit-history state');
 });
+
+test('same-module business comparison stays active-only, read-only and session-only', async () => {
+  const [app, comparison, dialog, css, privateServices] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/business-record-comparison.ts'),
+    read('apps/web/src/BusinessRecordComparisonDialog.tsx'),
+    read('apps/web/src/styles.css'),
+    read('apps/web/src/private-services.ts'),
+  ]);
+
+  assert.match(comparison, /isActiveBusinessRecord/, 'comparison candidates must defensively exclude deleted records');
+  assert.match(comparison, /chooseInitialBusinessComparisonTarget/, 'the initial target must be derived without changing selection');
+  assert.match(comparison, /buildBusinessRecordComparison/, 'all six kinds must share one explicit read-only comparison builder');
+  assert.doesNotMatch(comparison, /legacyPayload|sourceVersion|deletedAt|purgedAt|attachment\.data|apiKey|password/i, 'the comparison model must not read lifecycle, migration, attachment-body or secret fields');
+  assert.doesNotMatch(comparison, /fetch|IndexedDB|localStorage|sessionStorage|putRecord|removeRecord|Electron|ipc/i, 'comparison derivation must not persist, network or invoke adapters');
+  assert.match(dialog, /\.showModal\(\)/, 'comparison must use the native modal focus boundary');
+  assert.match(dialog, /type="search"/, 'large same-kind candidate sets must be locally searchable');
+  assert.match(dialog, /aria-pressed=\{mode === 'differences'\}/, 'the differences-only segmented control must expose its pressed state');
+  assert.match(dialog, /event\.target === event\.currentTarget/, 'backdrop clicks must close through the shared dialog path');
+  assert.match(dialog, /returnFocusRef/, 'all comparison close paths must restore the original trigger focus');
+  assert.doesNotMatch(dialog, /fetch|IndexedDB|localStorage|sessionStorage|putRecord|removeRecord|Electron|ipc|onEdit|onSave|onDelete/i, 'the dialog must remain a read-only presentation of supplied active data');
+  assert.match(app, /useState<BusinessComparisonState>\(null\)/, 'comparison state must start in React memory only');
+  assert.match(app, /comparisonDialogOpen/, 'other global modal triggers must be blocked while comparison is open');
+  assert.match(app, /listBusinessComparisonCandidates/, 'the app must derive targets from its current loaded records');
+  assert.match(app, /chooseInitialBusinessComparisonTarget/, 'opening comparison must not navigate or mutate the current ledger selection');
+  assert.match(app, /<BusinessRecordComparisonDialog/, 'all six detail kinds must share one comparison dialog');
+  assert.doesNotMatch(privateServices, /business-record-comparison|BusinessComparisonState|comparisonState/, 'private sync must not gain comparison state');
+  assert.match(css, /\.business-comparison-dialog/, 'the native comparison dialog must have a dedicated bounded layout');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.business-comparison-action[^}]*min-height:\s*(?:4[4-9]|[5-9]\d)px/, 'narrow comparison controls must retain at least 44px touch targets');
+  assert.match(css, /\.business-comparison-value[^}]*overflow-wrap:\s*anywhere/, 'long comparison values must wrap instead of widening the dialog');
+});

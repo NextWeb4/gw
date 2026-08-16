@@ -1015,6 +1015,61 @@ test('jumps directly to a session visit entry with keyboard-accessible menu cont
   expect(actionRequests).toEqual([]);
 });
 
+test('compares two active same-module records without changing the ledger or making requests', async ({ page }, testInfo) => {
+  const actionRequests: string[] = [];
+  page.on('request', (request) => actionRequests.push(request.url()));
+  const sourceTitle = '推进全省基层治理年度工作总结';
+  const targetTitle = '整理省政府办公厅来文并建立关联';
+
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  const rows = page.locator('.selectable-row');
+  await expect(rows).toHaveCount(2);
+  const detail = page.locator('.business-detail-panel');
+  await expect(detail.getByRole('heading', { level: 2 })).toContainText(sourceTitle);
+  const trigger = detail.getByRole('button', { name: '对比记录' });
+  await expect(trigger).toBeEnabled();
+  await trigger.focus();
+  await trigger.click();
+
+  const dialog = page.getByRole('dialog', { name: '对比业务记录' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: sourceTitle })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: `选择对比记录：${targetTitle}` })).toHaveAttribute('aria-pressed', 'true');
+  const allRows = dialog.locator('.business-comparison-row');
+  const changedRows = dialog.locator('.business-comparison-row.changed');
+  expect(await allRows.count()).toBeGreaterThan(await changedRows.count());
+  expect(await changedRows.count()).toBeGreaterThan(0);
+
+  await dialog.getByRole('button', { name: /仅看差异/ }).click();
+  await expect(dialog.getByRole('button', { name: /仅看差异/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(dialog.locator('.business-comparison-row')).toHaveCount(await changedRows.count());
+  await dialog.getByRole('searchbox', { name: '搜索同类记录' }).fill('不存在的记录');
+  await expect(dialog.getByText('没有匹配的同类记录')).toBeVisible();
+  await dialog.getByRole('button', { name: '清除记录搜索' }).click();
+  await expect(dialog.getByRole('button', { name: `选择对比记录：${targetTitle}` })).toBeVisible();
+
+  if (testInfo.project.name === 'mobile') {
+    const dialogBox = await dialog.boundingBox();
+    const viewport = page.viewportSize();
+    expect(dialogBox).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    expect(dialogBox?.x || 0).toBeGreaterThanOrEqual(0);
+    expect((dialogBox?.x || 0) + (dialogBox?.width || 0)).toBeLessThanOrEqual(viewport?.width || 0);
+    for (const control of await dialog.locator('.business-comparison-action').all()) {
+      const box = await control.boundingBox();
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+    expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await expect(detail.getByRole('heading', { level: 2 })).toContainText(sourceTitle);
+  await expect(rows).toHaveCount(2);
+  expect(actionRequests).toEqual([]);
+});
+
 test('steps through the current filtered and sorted task order from the shared detail navigator', async ({ page }, testInfo) => {
   const actionRequests: string[] = [];
   const recordActionRequest = (request: { url: () => string }) => actionRequests.push(request.url());

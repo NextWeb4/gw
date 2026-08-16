@@ -5,7 +5,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import {
   Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpDown, ArrowUpRight, BarChart3, BookOpen, CalendarDays, CalendarRange, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList,
   Bot, Building2, CopyPlus, FileArchive, FileOutput, FileText, FileUp, FolderOpen, Globe2, Info, KeyRound, LayoutDashboard, Library, Link2, MapPin,
-  History, ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Star, Stamp, Trash2, Upload, UsersRound, WandSparkles, X
+  GitCompareArrows, History, ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Star, Stamp, Trash2, Upload, UsersRound, WandSparkles, X
 } from 'lucide-react';
 import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, DEFAULT_WEEKLY_TEMPLATE, extractTaskFromText,
@@ -46,6 +46,8 @@ import { pruneRecentRecords, rememberRecentRecord, type RecentRecordRef } from '
 import { createRecordVisitHistory, jumpRecordVisitHistory, moveRecordVisitHistory, pruneRecordVisitHistory, recordVisitHistoryNavigation, rememberRecordVisit, type RecordVisit, type RecordVisitHistory } from './record-visit-history';
 import { StarredRecordRevisionGate } from './starred-record-revision';
 import { getVisibleRecordPosition } from './visible-record-navigation';
+import { buildBusinessRecordComparison, chooseInitialBusinessComparisonTarget, listBusinessComparisonCandidates, type BusinessComparisonCandidate, type BusinessComparisonKind, type BusinessRecordComparison } from './business-record-comparison';
+import { BusinessRecordComparisonDialog } from './BusinessRecordComparisonDialog';
 
 type Tab = 'dashboard' | 'agenda' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'recycle' | 'archive' | 'migration' | 'about';
 type BusinessTab = Extract<Tab, 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials'>;
@@ -58,6 +60,8 @@ type BusinessDetail =
   | { kind: 'research'; record: ResearchRecord }
   | { kind: 'seal'; record: SealRecord }
   | { kind: 'material'; record: MaterialRecord };
+type BusinessComparisonState = { kind: BusinessComparisonKind; sourceId: string; targetId: string } | null;
+const comparisonKindToTab: Record<BusinessComparisonKind, BusinessTab> = { task: 'tasks', meeting: 'meetings', document: 'documents', research: 'researches', seal: 'seals', material: 'materials' };
 type TrashedBusinessRecord =
   | { kind: 'task'; record: Task }
   | { kind: 'meeting'; record: MeetingRecord }
@@ -240,6 +244,7 @@ function App() {
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [documentRevisionDialogOpen, setDocumentRevisionDialogOpen] = useState(false);
+  const [businessComparisonState, setBusinessComparisonState] = useState<BusinessComparisonState>(null);
   const directoryRef = useRef<ContactDirectory>(emptyDirectory());
   const directoryWriteQueue = useRef<Promise<void>>(Promise.resolve());
   const documentRevisionsRef = useRef<DocumentRevision[]>([]);
@@ -268,8 +273,9 @@ function App() {
     return () => wideLayout.removeEventListener('change', keepNarrowDetailExpanded);
   }, []);
   const businessEditorOpen = Boolean(taskEditor || meetingEditor || documentEditor || researchEditor || sealEditor || materialEditor);
-  const globalSearchBlocked = Boolean(businessEditorOpen || aiOverlayOpen || quickCaptureOpen || documentRevisionDialogOpen);
-  const quickCaptureBlocked = Boolean(businessEditorOpen || aiOverlayOpen || globalSearchOpen || documentRevisionDialogOpen);
+  const comparisonDialogOpen = Boolean(businessComparisonState);
+  const globalSearchBlocked = Boolean(businessEditorOpen || aiOverlayOpen || quickCaptureOpen || documentRevisionDialogOpen || comparisonDialogOpen);
+  const quickCaptureBlocked = Boolean(businessEditorOpen || aiOverlayOpen || globalSearchOpen || documentRevisionDialogOpen || comparisonDialogOpen);
   const changeGlobalSearchOpen = (open: boolean) => {
     if (open) {
       if (globalSearchBlocked) return;
@@ -1130,7 +1136,7 @@ function App() {
   const editorAttachments = useMemo(() => [...attachments, ...pendingAttachments], [attachments, pendingAttachments]);
 
   const openAiAssistant = (request?: AiAssistRequest) => {
-    if (documentRevisionDialogOpen) return;
+    if (documentRevisionDialogOpen || comparisonDialogOpen) return;
     if (request) {
       setAiPrefill({ source: request.source || 'workspace', purpose: request.purpose || '综合工作总结', custom: request.custom, changeContext: request.changeContext, nonce: Date.now() });
       setAiOverlayOpen(true);
@@ -1140,6 +1146,7 @@ function App() {
     setTab('ai');
   };
   const navigate = (nextTab: Tab) => {
+    setBusinessComparisonState(null);
     setAiOverlayOpen(false);
     setTab(nextTab);
   };
@@ -1200,6 +1207,87 @@ function App() {
     }
     return null;
   })();
+  const comparisonAvailableFor = (detail: BusinessDetail) => {
+    if (detail.kind === 'task') return listBusinessComparisonCandidates('task', tasks, detail.record.id).length > 0;
+    if (detail.kind === 'meeting') return listBusinessComparisonCandidates('meeting', meetings, detail.record.id).length > 0;
+    if (detail.kind === 'document') return listBusinessComparisonCandidates('document', documents, detail.record.id).length > 0;
+    if (detail.kind === 'research') return listBusinessComparisonCandidates('research', researches, detail.record.id).length > 0;
+    if (detail.kind === 'seal') return listBusinessComparisonCandidates('seal', seals, detail.record.id).length > 0;
+    return listBusinessComparisonCandidates('material', materials, detail.record.id).length > 0;
+  };
+  const openBusinessComparison = (detail: BusinessDetail) => {
+    let candidates: BusinessComparisonCandidate[];
+    let visibleIds: string[];
+    if (detail.kind === 'task') {
+      candidates = listBusinessComparisonCandidates('task', tasks, detail.record.id);
+      visibleIds = filteredTasks.map((record) => record.id);
+    } else if (detail.kind === 'meeting') {
+      candidates = listBusinessComparisonCandidates('meeting', meetings, detail.record.id);
+      visibleIds = filteredMeetings.map((record) => record.id);
+    } else if (detail.kind === 'document') {
+      candidates = listBusinessComparisonCandidates('document', documents, detail.record.id);
+      visibleIds = filteredDocuments.map((record) => record.id);
+    } else if (detail.kind === 'research') {
+      candidates = listBusinessComparisonCandidates('research', researches, detail.record.id);
+      visibleIds = filteredResearches.map((record) => record.id);
+    } else if (detail.kind === 'seal') {
+      candidates = listBusinessComparisonCandidates('seal', seals, detail.record.id);
+      visibleIds = filteredSeals.map((record) => record.id);
+    } else {
+      candidates = listBusinessComparisonCandidates('material', materials, detail.record.id);
+      visibleIds = filteredMaterials.map((record) => record.id);
+    }
+    const targetId = chooseInitialBusinessComparisonTarget(detail.record.id, candidates, visibleIds);
+    if (!targetId) {
+      setToast('没有可对比的同类记录');
+      return;
+    }
+    setBusinessComparisonState({ kind: detail.kind, sourceId: detail.record.id, targetId });
+  };
+  const businessComparisonData = useMemo<{ candidates: BusinessComparisonCandidate[]; comparison: BusinessRecordComparison } | null>(() => {
+    const state = businessComparisonState;
+    if (!state) return null;
+    const context = { tasks, documents };
+    if (state.kind === 'task') {
+      const source = tasks.find((record) => record.id === state.sourceId);
+      const target = tasks.find((record) => record.id === state.targetId);
+      return source && target ? { candidates: listBusinessComparisonCandidates('task', tasks, source.id), comparison: buildBusinessRecordComparison('task', source, target, context) } : null;
+    }
+    if (state.kind === 'meeting') {
+      const source = meetings.find((record) => record.id === state.sourceId);
+      const target = meetings.find((record) => record.id === state.targetId);
+      return source && target ? { candidates: listBusinessComparisonCandidates('meeting', meetings, source.id), comparison: buildBusinessRecordComparison('meeting', source, target, context) } : null;
+    }
+    if (state.kind === 'document') {
+      const source = documents.find((record) => record.id === state.sourceId);
+      const target = documents.find((record) => record.id === state.targetId);
+      return source && target ? { candidates: listBusinessComparisonCandidates('document', documents, source.id), comparison: buildBusinessRecordComparison('document', source, target, context) } : null;
+    }
+    if (state.kind === 'research') {
+      const source = researches.find((record) => record.id === state.sourceId);
+      const target = researches.find((record) => record.id === state.targetId);
+      return source && target ? { candidates: listBusinessComparisonCandidates('research', researches, source.id), comparison: buildBusinessRecordComparison('research', source, target, context) } : null;
+    }
+    if (state.kind === 'seal') {
+      const source = seals.find((record) => record.id === state.sourceId);
+      const target = seals.find((record) => record.id === state.targetId);
+      return source && target ? { candidates: listBusinessComparisonCandidates('seal', seals, source.id), comparison: buildBusinessRecordComparison('seal', source, target, context) } : null;
+    }
+    const source = materials.find((record) => record.id === state.sourceId);
+    const target = materials.find((record) => record.id === state.targetId);
+    return source && target ? { candidates: listBusinessComparisonCandidates('material', materials, source.id), comparison: buildBusinessRecordComparison('material', source, target, context) } : null;
+  }, [businessComparisonState, tasks, meetings, documents, researches, seals, materials]);
+  useEffect(() => {
+    if (!businessComparisonState) return;
+    if (comparisonKindToTab[businessComparisonState.kind] !== tab) {
+      setBusinessComparisonState(null);
+      return;
+    }
+    if (!businessComparisonData) {
+      setBusinessComparisonState(null);
+      setToast('对比记录已不可用');
+    }
+  }, [businessComparisonState, businessComparisonData, tab]);
   const duplicateBusinessDetail = (detail: BusinessDetail) => {
     if (detail.kind === 'task') openTaskEditor(duplicateBusinessRecord('task', detail.record), '', true);
     if (detail.kind === 'meeting') openMeetingEditor(duplicateBusinessRecord('meeting', detail.record), true);
@@ -1352,7 +1440,7 @@ function App() {
     </aside>
     <main className="main-area" ref={mainAreaRef}>
       <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="topbar-context"><span>HX / {String(activeNavIndex >= 0 ? activeNavIndex + 1 : navItems.length + 1).padStart(2, '0')}</span><strong>{navItems.find((item) => item.id === tab)?.label ?? '关于与设置'}</strong></div><div className="breadcrumbs">本地优先 <span>/</span> 外发必须逐次确认</div><div className="topbar-actions"><button ref={quickCaptureTriggerRef} type="button" className="global-search-trigger quick-capture-trigger" aria-label="快速记录任务" aria-haspopup="dialog" aria-expanded={quickCaptureOpen} title={quickCaptureBlocked ? '当前有查找、编辑或 AI 面板，暂不可用' : '快速记录任务（Shift + A）'} disabled={quickCaptureBlocked} onClick={() => changeQuickCaptureOpen(true)}><Plus size={16} /><span>快速记录</span><kbd>Shift A</kbd></button><button ref={globalSearchTriggerRef} type="button" className="global-search-trigger" aria-label="打开全局查找" aria-haspopup="dialog" aria-expanded={globalSearchOpen} title={globalSearchBlocked ? '当前有记录、编辑或 AI 面板，暂不可用' : '全局查找（Ctrl 或 Command + K）'} disabled={globalSearchBlocked} onClick={() => changeGlobalSearchOpen(true)}><Search size={16} /><span>全局查找</span><kbd>Ctrl K</kbd></button><span className="connection"><Activity size={15} /><span>{connectionLabel}</span><strong>{connectionDetail}</strong></span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
-      <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''} ${businessDetail && detailCollapsed ? 'detail-collapsed' : ''}`}><div className="primary-content" ref={primaryContentRef}>{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} compact={aiOverlayOpen} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} history={aiHistory} onSaveHistory={saveAiHistory} onDeleteHistory={deleteAiHistory} onClearHistory={clearAiHistory} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && businessDetailNavigation && <BusinessDetailPanel detail={businessDetail} navigation={businessDetailNavigation} visitNavigation={recordVisitHistory.entries[recordVisitHistory.cursor]?.tab === tab && recordVisitHistory.entries[recordVisitHistory.cursor]?.id === businessDetail.record.id ? visitNavigation : { position: 0, total: 0, entries: [] }} tasks={tasks} documents={documents} attachments={attachments} panelRef={businessDetailRef} collapsed={detailCollapsed} onToggleCollapsed={() => setDetailCollapsed((collapsed) => !collapsed)}
+      <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''} ${businessDetail && detailCollapsed ? 'detail-collapsed' : ''}`}><div className="primary-content" ref={primaryContentRef}>{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} compact={aiOverlayOpen} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} history={aiHistory} onSaveHistory={saveAiHistory} onDeleteHistory={deleteAiHistory} onClearHistory={clearAiHistory} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && businessDetailNavigation && <BusinessDetailPanel detail={businessDetail} navigation={businessDetailNavigation} visitNavigation={recordVisitHistory.entries[recordVisitHistory.cursor]?.tab === tab && recordVisitHistory.entries[recordVisitHistory.cursor]?.id === businessDetail.record.id ? visitNavigation : { position: 0, total: 0, entries: [] }} tasks={tasks} documents={documents} attachments={attachments} panelRef={businessDetailRef} collapsed={detailCollapsed} comparisonAvailable={comparisonAvailableFor(businessDetail)} onCompare={() => openBusinessComparison(businessDetail)} onToggleCollapsed={() => setDetailCollapsed((collapsed) => !collapsed)}
         starred={starredBusinessRecords.some((item) => item.kind === businessDetail.kind && item.id === businessDetail.record.id)} onToggleStarred={() => void toggleBusinessRecordStar(businessDetail)}
         onNavigateVisit={navigateRecordVisitHistory}
         onJumpToVisit={jumpRecordVisitHistoryEntry}
@@ -1362,6 +1450,7 @@ function App() {
     </main>
     <GlobalSearch open={globalSearchOpen} groups={globalSearchGroups} onOpenChange={changeGlobalSearchOpen} onSelectItem={selectGlobalSearchItem} />
     <QuickTaskCapture open={quickCaptureOpen} today={localDateInput(new Date())} onCancel={() => changeQuickCaptureOpen(false)} onCreateBlank={createBlankTaskFromCapture} onContinue={continueQuickCapture} />
+    <BusinessRecordComparisonDialog open={Boolean(businessComparisonState && businessComparisonData)} comparison={businessComparisonData?.comparison || null} candidates={businessComparisonData?.candidates || []} targetId={businessComparisonState?.targetId || ''} onTargetChange={(targetId) => setBusinessComparisonState((current) => current ? { ...current, targetId } : null)} onClose={() => setBusinessComparisonState(null)} />
     {taskEditor && <TaskEditor task={taskEditor} initialImportText={taskEditorImportText} isNew={!tasks.some((task) => task.id === taskEditor.id)} forceDirty={copyDraftMatches('task', taskEditor.id)} returnFocusTarget={editorReturnFocusRef.current} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} partnerGroups={partnerGroups} onSaveGroup={savePartnerGroup} onDeleteGroup={deletePartnerGroup} onRemember={rememberDirectoryValue} onChange={setTaskEditor} onAttach={(files) => void addAttachments(files, taskEditor.files, (ids) => setTaskEditor({ ...taskEditor, files: ids }))} onSave={() => void saveTask(taskEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setTaskEditor(null); setTaskEditorImportText(''); }} setToast={setToast} />}
     {meetingEditor && <MeetingEditor meeting={meetingEditor} isNew={!meetings.some((meeting) => meeting.id === meetingEditor.id)} forceDirty={copyDraftMatches('meeting', meetingEditor.id)} returnFocusTarget={editorReturnFocusRef.current} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setMeetingEditor} onAttach={(files) => void addAttachments(files, meetingEditor.files, (ids) => setMeetingEditor({ ...meetingEditor, files: ids }))} onSave={() => void saveMeeting(meetingEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setMeetingEditor(null); }} />}
     {documentEditor && <DocumentEditor document={documentEditor} tasks={tasks} isNew={!documents.some((document) => document.id === documentEditor.id)} forceDirty={copyDraftMatches('document', documentEditor.id)} returnFocusTarget={editorReturnFocusRef.current} directory={directory} attachments={editorAttachments} attachmentBusy={pendingAttachmentJobs > 0} onRemember={rememberDirectoryValue} onChange={setDocumentEditor} onAttach={(files) => void addAttachments(files, documentEditor.files, (ids) => setDocumentEditor({ ...documentEditor, files: ids }))} onSave={() => void saveDocument(documentEditor)} onClose={() => { clearPendingAttachments(); setCopyDraft(null); setDocumentEditor(null); }} />}
@@ -1472,7 +1561,7 @@ interface BusinessDetailModel {
   sections: Array<{ title: string; content: React.ReactNode }>;
 }
 
-function BusinessDetailPanel({ detail, navigation, visitNavigation, tasks, documents, attachments, panelRef, collapsed, starred, onToggleStarred, onToggleCollapsed, onNavigateVisit, onJumpToVisit, onNavigateVisibleRecord, onOpenRelatedRecord, onBackToList, onEdit, onDuplicate }: { detail: BusinessDetail; navigation: BusinessDetailNavigation; visitNavigation: BusinessVisitNavigation; tasks: Task[]; documents: OfficialDocument[]; attachments: Attachment[]; panelRef: React.RefObject<HTMLElement | null>; collapsed: boolean; starred: boolean; onToggleStarred: () => void; onToggleCollapsed: () => void; onNavigateVisit: (direction: 'back' | 'forward') => void; onJumpToVisit: (target: RecordVisit<BusinessTab>) => void; onNavigateVisibleRecord: (id: string) => void; onOpenRelatedRecord: (tab: BusinessTab, id: string) => void; onBackToList: () => void; onEdit: () => void; onDuplicate: () => void }) {
+function BusinessDetailPanel({ detail, navigation, visitNavigation, tasks, documents, attachments, panelRef, collapsed, comparisonAvailable, starred, onToggleStarred, onToggleCollapsed, onCompare, onNavigateVisit, onJumpToVisit, onNavigateVisibleRecord, onOpenRelatedRecord, onBackToList, onEdit, onDuplicate }: { detail: BusinessDetail; navigation: BusinessDetailNavigation; visitNavigation: BusinessVisitNavigation; tasks: Task[]; documents: OfficialDocument[]; attachments: Attachment[]; panelRef: React.RefObject<HTMLElement | null>; collapsed: boolean; comparisonAvailable: boolean; starred: boolean; onToggleStarred: () => void; onToggleCollapsed: () => void; onCompare: () => void; onNavigateVisit: (direction: 'back' | 'forward') => void; onJumpToVisit: (target: RecordVisit<BusinessTab>) => void; onNavigateVisibleRecord: (id: string) => void; onOpenRelatedRecord: (tab: BusinessTab, id: string) => void; onBackToList: () => void; onEdit: () => void; onDuplicate: () => void }) {
   const [visitMenuOpen, setVisitMenuOpen] = useState(false);
   const visitMenuRef = useRef<HTMLDivElement>(null);
   const visitMenuToggleRef = useRef<HTMLButtonElement>(null);
@@ -1640,7 +1729,7 @@ function BusinessDetailPanel({ detail, navigation, visitNavigation, tasks, docum
         <button type="button" className="icon-button detail-record-step detail-record-step-next" aria-label={navigation.next ? `查看下一条可见记录：${navigation.next.title}` : '没有下一条可见记录'} title={navigation.next ? `下一条：${navigation.next.title}` : '已经是最后一条可见记录'} disabled={!navigation.next} onClick={() => navigation.next && onNavigateVisibleRecord(navigation.next.id)}><ChevronDown size={17} /></button>
       </div>
     </div>
-    <div className="detail-panel-actions"><button type="button" className="secondary-button mobile-detail-back" onClick={onBackToList}><ClipboardList size={15} />返回记录列表</button><button type="button" className="secondary-button" onClick={onEdit}><Pencil size={15} />编辑此记录</button><button type="button" className="secondary-button" onClick={onDuplicate}><CopyPlus size={15} />复制相似记录</button></div>
+    <div className="detail-panel-actions"><button type="button" className="secondary-button mobile-detail-back" onClick={onBackToList}><ClipboardList size={15} />返回记录列表</button><button type="button" className="secondary-button" disabled={!comparisonAvailable} title={comparisonAvailable ? '并排核对同模块记录' : '没有可对比的同类记录'} onClick={onCompare}><GitCompareArrows size={15} />对比记录</button><button type="button" className="secondary-button" onClick={onEdit}><Pencil size={15} />编辑此记录</button><button type="button" className="secondary-button" onClick={onDuplicate}><CopyPlus size={15} />复制相似记录</button></div>
     <dl className="detail-fields">{model.fields.map((field) => <div key={field.label}><dt>{field.label}</dt><dd>{field.value}</dd></div>)}</dl>
     {model.sections.map((section) => <section className="detail-section" key={section.title}><h3>{section.title}</h3><div>{section.content}</div></section>)}
     <section className="detail-section detail-attachments"><h3>本机附件 <span>{linkedAttachments.length}</span></h3>{linkedAttachments.length ? <div>{linkedAttachments.map((attachment) => <button type="button" key={attachment.id} disabled={attachment.data === undefined} title={attachment.data === undefined ? '附件内容不可用' : `下载附件 ${attachment.name}`} onClick={() => downloadStoredAttachment(attachment)}><FileText size={14} /><span>{attachment.name}</span><small>{formatBytes(attachment.size)}</small><ArrowDownToLine size={13} /></button>)}</div> : <p>当前记录没有附件</p>}</section>
