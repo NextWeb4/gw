@@ -5,14 +5,14 @@
 - 修复访问轨迹列表在外侧点击后的焦点竞态：外侧关闭改在 click 阶段执行，不再抢走用户刚点击的详情控件焦点；Escape 和菜单选项仍在下一帧把焦点还给“打开访问轨迹列表”按钮。
 - 移动端菜单改为详情面板内的绝对定位，避开 `backdrop-filter` 对 fixed 子元素的包含块影响，并将宽度限制在 320px/视口内；仍保持 44px 触控目标和页面无横向溢出。
 - 新增外侧点击（含详情内星标控件）回归覆盖，验证菜单在移动视口和固定底栏上方可见；菜单关闭、重新打开、Escape 和键盘跳转均保持零外联边界。
-- 本节记录的是待发布的 `v0.7.19` 补丁；Pages、Desktop Actions、Release 与线上入口需在版本提交和 tag 完成后回填。
+- 已发布：功能提交 `7b53c8e` 与 annotated tag `v0.7.19` 已推送；Pages run `31948992451` 成功（96 passed / 12 skipped），Desktop run `31948994248` 成功（Linux 4、Windows 4、Debian smoke 8），Release 与线上 PWA/Chromium 验证已完成。详细证据见 `reports/gw-record-visit-history-jump-menu-v0.7.19.md`。
 
 ## v0.7.18
 
 - 跨模块访问轨迹新增“访问轨迹列表”按钮。菜单只从当前 React 会话的最多 20 条 `{tab,id}` 历史派生，可用键盘 Home/End/上下键和触控直接跳转；选中项使用 `aria-selected`，Escape/外侧点击关闭并恢复焦点，移动端菜单与固定底栏保持间距。
 - 直接跳转只移动历史 cursor，并沿用 `jumpRecordVisitHistory` 与 `openBusinessRecord(..., false)`；不创建新历史、不截断 forward、不改写 active 记录，也不进入 IndexedDB、local/sessionStorage、快照、同步、AI、API、IPC、URL 或网络。
 - 新增领域跳转/失效目标测试、UI 合约和桌面/移动聚焦 E2E。当前本机门禁：客户端测试 34 项、UI 合约 21/21、主 E2E 97 通过/11 条件跳过、互联网/内网构建通过，公开/互联网/内网 Web 构建均成功；聚焦菜单 E2E 桌面/移动 2/2 通过，`git diff --check` 通过。
-- 本节记录的是待发布的 `v0.7.18` 变更；Pages、Desktop Actions、Release 与线上入口需在版本提交和 tag 完成后回填，不把本机构建误报为已发布。
+- 已发布：功能提交 `57d3102` 与 tag `v0.7.18` 已推送；Pages run `31939132979` 成功（96 passed / 12 skipped），线上页脚已显示 `0.7.18`。发布核验不以本机构建替代线上证据。
 
 ## v0.7.17
 
