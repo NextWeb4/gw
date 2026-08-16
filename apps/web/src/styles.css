@@ -1003,7 +1003,10 @@ h1, h2, p { margin-top: 0; }
   .starred-record-toggle { width: 44px; min-width: 44px; height: 44px; }
   .detail-visit-step { width: 44px; min-width: 44px; height: 44px; }
   .detail-visit-menu-toggle { width: 44px; min-width: 44px; height: 44px; }
-  .detail-visit-menu-list { position: fixed; top: auto; right: 16px; bottom: 86px; width: calc(100vw - 32px); max-height: min(390px, calc(100svh - 130px)); }
+  /* The detail panel uses backdrop-filter, which creates a containing block
+     for fixed children. Keep this menu in the panel so it stays visible on
+     mobile and does not inherit the panel's scroll offset as a viewport one. */
+  .detail-visit-menu-list { position: absolute; top: calc(100% + 7px); right: 0; bottom: auto; width: min(320px, calc(100vw - 32px)); max-height: min(390px, calc(100vh - 150px)); }
   .detail-record-step { width: 44px; min-width: 44px; height: 44px; }
   .detail-related-list button, .related-record-option { min-height: 44px; }
   .weekly-related-group button { min-height: 44px; }

@@ -1477,6 +1477,9 @@ function BusinessDetailPanel({ detail, navigation, visitNavigation, tasks, docum
   const visitMenuRef = useRef<HTMLDivElement>(null);
   const visitMenuToggleRef = useRef<HTMLButtonElement>(null);
   const visitMenuOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const restoreVisitMenuToggleFocus = () => {
+    window.requestAnimationFrame(() => visitMenuToggleRef.current?.focus());
+  };
   const show = (value: string | number | undefined) => String(value ?? '').trim() || '未填写';
   const linkedTasks = detail.kind === 'document' ? relatedTasksForDocument(detail.record, tasks) : [];
   const linkedDocuments = detail.kind === 'task' ? relatedDocumentsForTask(detail.record.id, documents) : [];
@@ -1570,23 +1573,22 @@ function BusinessDetailPanel({ detail, navigation, visitNavigation, tasks, docum
   })();
   useEffect(() => {
     if (!visitMenuOpen) return;
-    const closeOnOutsidePointer = (event: PointerEvent) => {
+    const closeOnOutsideClick = (event: MouseEvent) => {
       if (event.target instanceof Node && !visitMenuRef.current?.contains(event.target)) {
         setVisitMenuOpen(false);
-        visitMenuToggleRef.current?.focus();
       }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
       setVisitMenuOpen(false);
-      visitMenuToggleRef.current?.focus();
+      restoreVisitMenuToggleFocus();
     };
-    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('click', closeOnOutsideClick);
     document.addEventListener('keydown', closeOnEscape);
     window.requestAnimationFrame(() => visitMenuOptionRefs.current[Math.max(0, visitNavigation.position - 1)]?.focus());
     return () => {
-      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('click', closeOnOutsideClick);
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [visitMenuOpen, visitNavigation.position]);
@@ -1622,7 +1624,7 @@ function BusinessDetailPanel({ detail, navigation, visitNavigation, tasks, docum
           {visitMenuOpen && <div className="detail-visit-menu-list" role="listbox" aria-label="访问轨迹列表">
             {visitNavigation.entries.map((entry, index) => {
               const selected = index === visitNavigation.position - 1;
-              return <button ref={(element) => { visitMenuOptionRefs.current[index] = element; }} type="button" role="option" aria-selected={selected} className={`detail-visit-menu-option ${selected ? 'selected' : ''}`} key={`${entry.tab}:${entry.id}`} onKeyDown={(event) => moveVisitMenuFocus(index, event)} onClick={() => { setVisitMenuOpen(false); visitMenuToggleRef.current?.focus(); onJumpToVisit(entry); }}>
+              return <button ref={(element) => { visitMenuOptionRefs.current[index] = element; }} type="button" role="option" aria-selected={selected} className={`detail-visit-menu-option ${selected ? 'selected' : ''}`} key={`${entry.tab}:${entry.id}:${index}`} onKeyDown={(event) => moveVisitMenuFocus(index, event)} onClick={() => { setVisitMenuOpen(false); restoreVisitMenuToggleFocus(); onJumpToVisit(entry); }}>
                 <span className="detail-visit-menu-index">{String(index + 1).padStart(2, '0')}</span>
                 <span><strong>{entry.title}</strong><small>{entry.moduleLabel}</small></span>
               </button>;

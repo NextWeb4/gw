@@ -964,7 +964,36 @@ test('jumps directly to a session visit entry with keyboard-accessible menu cont
   await expect(menu.getByRole('option')).toHaveCount(3);
   await expect(menu.locator('.detail-visit-menu-option').filter({ hasText: taskTitle })).toHaveAttribute('aria-selected', 'false');
   await expect(menu.getByRole('option').nth(2)).toBeFocused();
+  await page.evaluate(() => {
+    const focusLog: string[] = [];
+    const originalFocus = HTMLElement.prototype.focus;
+    HTMLElement.prototype.focus = function focusWithVisitMenuLog(...args: Parameters<HTMLElement['focus']>) {
+      focusLog.push(this.getAttribute('aria-label') || this.className || this.tagName);
+      return originalFocus.apply(this, args);
+    };
+    (window as unknown as { __visitMenuFocusLog?: string[] }).__visitMenuFocusLog = focusLog;
+  });
 
+  if (testInfo.project.name === 'mobile') {
+    const menuBox = await menu.boundingBox();
+    const mobileNavBox = await page.locator('.sidebar').boundingBox();
+    const viewport = page.viewportSize();
+    expect(menuBox).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    expect(menuBox?.x || 0).toBeGreaterThanOrEqual(0);
+    expect((menuBox?.x || 0) + (menuBox?.width || 0)).toBeLessThanOrEqual(viewport?.width || 0);
+    expect(menuBox?.y || 0).toBeGreaterThanOrEqual(0);
+    expect((menuBox?.y || 0) + (menuBox?.height || 0)).toBeLessThanOrEqual(mobileNavBox?.y || viewport?.height || 0);
+  }
+
+  const outsideTarget = page.locator('.starred-record-toggle');
+  await outsideTarget.click();
+  await expect(menu).toBeHidden();
+  const focusLog = await page.evaluate(() => (window as unknown as { __visitMenuFocusLog?: string[] }).__visitMenuFocusLog || []);
+  expect(focusLog.filter((label) => label === '打开访问轨迹列表')).toEqual([]);
+
+  await menuToggle.click();
+  await expect(menu.getByRole('option').nth(2)).toBeFocused();
   await menuToggle.press('Escape');
   await expect(menu).toBeHidden();
   await expect(menuToggle).toBeFocused();
