@@ -62,6 +62,15 @@ export function moveRecordVisitHistory<TTab extends string>(
   };
 }
 
+export function jumpRecordVisitHistory<TTab extends string>(
+  history: RecordVisitHistory<TTab>,
+  target: RecordVisit<TTab>,
+): { history: RecordVisitHistory<TTab>; target?: RecordVisit<TTab> } {
+  const cursor = history.entries.findIndex((entry) => sameVisit(entry, target));
+  if (cursor < 0) return { history: { entries: history.entries, cursor: boundedCursor(history) }, target: undefined };
+  return { history: { entries: history.entries, cursor }, target: { tab: target.tab, id: target.id } };
+}
+
 export function recordVisitHistoryNavigation<TTab extends string>(history: RecordVisitHistory<TTab>): RecordVisitNavigation<TTab> {
   const cursor = boundedCursor(history);
   const previous = cursor > 0 ? history.entries[cursor - 1] : undefined;

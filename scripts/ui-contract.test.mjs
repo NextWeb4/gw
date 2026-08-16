@@ -462,10 +462,16 @@ test('cross-module record visit history stays session-only and reuses the existi
   assert.match(app, /currentWasRemoved[\s\S]*openBusinessRecord\(replacement\.tab, replacement\.id, false\)/, 'deleting the current history target must reopen the nearest surviving visit through the existing opener');
   assert.match(app, /moveRecordVisitHistory\(recordVisitHistoryRef\.current, direction\)/, 'history controls must move the existing cursor instead of recording themselves');
   assert.match(app, /openBusinessRecord\(moved\.target\.tab, moved\.target\.id, false\)/, 'back and forward must reuse the existing record opener without creating a new history entry');
+  assert.match(history, /jumpRecordVisitHistory/, 'the history domain must support cursor jumps without changing entries');
+  assert.match(app, /jumpRecordVisitHistory\(recordVisitHistoryRef\.current, target\)/, 'direct history jumps must use the pure cursor helper');
+  assert.match(app, /openBusinessRecord\(jumped\.target\.tab, jumped\.target\.id, false\)/, 'direct history jumps must reuse the existing record opener');
   assert.match(app, /aria-label="跨模块访问历史"/, 'the shared detail must expose a named history control group');
   assert.match(app, /aria-label=\{visitNavigation\.previous/, 'back must expose a target-aware accessible label');
   assert.match(app, /aria-label=\{visitNavigation\.next/, 'forward must expose a target-aware accessible label');
+  assert.match(app, /aria-label="打开访问轨迹列表"/, 'the direct history menu must have an accessible trigger');
+  assert.match(app, /role="listbox" aria-label="访问轨迹列表"/, 'the direct history menu must expose a keyboard-navigable listbox');
   assert.match(css, /\.detail-visit-step/, 'back and forward controls must have a dedicated treatment');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.detail-visit-step[^}]*44px/, 'narrow history controls must retain 44px touch targets');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.detail-visit-menu-toggle[^}]*44px/, 'the narrow direct history trigger must retain a 44px touch target');
   assert.doesNotMatch(privateServices, /record-visit-history|RecordVisitHistory|recordVisitHistory/, 'private sync must not gain visit-history state');
 });

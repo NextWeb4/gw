@@ -444,6 +444,17 @@ h1, h2, p { margin-top: 0; }
 .detail-visit-step { width: 38px; min-width: 38px; height: 38px; color: #a8ad9f; background: rgba(216,255,63,.025); border-color: rgba(216,255,63,.14); }
 .detail-visit-step:hover:not(:disabled) { color: var(--acid); background: var(--acid-soft); border-color: rgba(216,255,63,.32); }
 .detail-visit-step:disabled { color: #555a51; cursor: not-allowed; opacity: .48; }
+.detail-visit-menu { position: relative; }
+.detail-visit-menu-toggle { width: 38px; min-width: 38px; height: 38px; color: #a8ad9f; background: rgba(216,255,63,.025); border-color: rgba(216,255,63,.14); }
+.detail-visit-menu-toggle[aria-expanded="true"], .detail-visit-menu-toggle:hover { color: var(--acid); background: var(--acid-soft); border-color: rgba(216,255,63,.32); }
+.detail-visit-menu-list { position: absolute; z-index: 12; top: calc(100% + 7px); right: 0; width: min(320px, calc(100vw - 32px)); max-height: min(360px, calc(100vh - 150px)); padding: 6px; overflow-y: auto; background: #141713; border: 1px solid rgba(216,255,63,.24); border-radius: 12px; box-shadow: 0 18px 44px rgba(0,0,0,.42); }
+.detail-visit-menu-option { width: 100%; min-height: 44px; padding: 8px 9px; display: grid; grid-template-columns: 25px minmax(0,1fr); align-items: center; gap: 8px; color: var(--paper-muted); background: transparent; border: 1px solid transparent; border-radius: 8px; text-align: left; }
+.detail-visit-menu-option:hover, .detail-visit-menu-option:focus-visible, .detail-visit-menu-option.selected { color: var(--paper-bright); background: rgba(216,255,63,.08); border-color: rgba(216,255,63,.2); outline: none; }
+.detail-visit-menu-index { color: #777d70; font: 700 9px/1 "Cascadia Mono", Consolas, monospace; }
+.detail-visit-menu-option.selected .detail-visit-menu-index { color: var(--acid); }
+.detail-visit-menu-option strong, .detail-visit-menu-option small { display: block; min-width: 0; overflow-wrap: anywhere; }
+.detail-visit-menu-option strong { color: inherit; font-size: 10px; line-height: 1.35; font-weight: 600; }
+.detail-visit-menu-option small { margin-top: 3px; color: #808779; font-size: 8px; line-height: 1.2; }
 .detail-record-navigation { min-height: 58px; padding: 9px 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
 .detail-record-position { min-width: 0; display: grid; gap: 5px; color: var(--paper); }
 .detail-record-position small { color: #70756b; font: 700 8px/1 "Aptos Narrow", sans-serif; letter-spacing: 0; text-transform: uppercase; }
@@ -991,6 +1002,8 @@ h1, h2, p { margin-top: 0; }
   .detail-panel-actions .secondary-button { min-height: 44px; }
   .starred-record-toggle { width: 44px; min-width: 44px; height: 44px; }
   .detail-visit-step { width: 44px; min-width: 44px; height: 44px; }
+  .detail-visit-menu-toggle { width: 44px; min-width: 44px; height: 44px; }
+  .detail-visit-menu-list { position: fixed; top: auto; right: 16px; bottom: 86px; width: calc(100vw - 32px); max-height: min(390px, calc(100svh - 130px)); }
   .detail-record-step { width: 44px; min-width: 44px; height: 44px; }
   .detail-related-list button, .related-record-option { min-height: 44px; }
   .weekly-related-group button { min-height: 44px; }

@@ -942,6 +942,50 @@ test('opens the nearest surviving record when the current visit target is delete
   expect(actionRequests).toEqual([]);
 });
 
+test('jumps directly to a session visit entry with keyboard-accessible menu controls', async ({ page }, testInfo) => {
+  const actionRequests: string[] = [];
+  page.on('request', (request) => actionRequests.push(request.url()));
+  const taskTitle = '整理省政府办公厅来文并建立关联';
+  const documentTitle = '关于做好2026年全省重点工作的通知';
+  const meetingTitle = '全省重点工作协调推进会';
+
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await page.locator('.selectable-row').filter({ hasText: taskTitle }).click();
+  await page.getByRole('button', { name: `打开关联文件：${documentTitle}` }).click();
+  await page.getByRole('button', { name: '会议管理', exact: true }).click();
+  await page.locator('.selectable-row').filter({ hasText: meetingTitle }).click();
+
+  const detailHeading = page.locator('.business-detail-panel').getByRole('heading', { level: 2 });
+  const visitHistory = page.getByRole('group', { name: '跨模块访问历史' });
+  const menuToggle = visitHistory.getByRole('button', { name: '打开访问轨迹列表' });
+  await menuToggle.click();
+  const menu = page.getByRole('listbox', { name: '访问轨迹列表' });
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('option')).toHaveCount(3);
+  await expect(menu.locator('.detail-visit-menu-option').filter({ hasText: taskTitle })).toHaveAttribute('aria-selected', 'false');
+  await expect(menu.getByRole('option').nth(2)).toBeFocused();
+
+  await menuToggle.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(menuToggle).toBeFocused();
+  await menuToggle.click();
+  await expect(menu.getByRole('option').nth(2)).toBeFocused();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(detailHeading).toContainText(documentTitle);
+  await expect(menu).toBeHidden();
+  await expect(visitHistory.getByRole('button', { name: '打开访问轨迹列表' })).toBeFocused();
+
+  if (testInfo.project.name === 'mobile') {
+    const box = await visitHistory.getByRole('button', { name: '打开访问轨迹列表' }).boundingBox();
+    expect(box?.width || 0).toBeGreaterThanOrEqual(44);
+    expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+  expect(actionRequests).toEqual([]);
+});
+
 test('steps through the current filtered and sorted task order from the shared detail navigator', async ({ page }, testInfo) => {
   const actionRequests: string[] = [];
   const recordActionRequest = (request: { url: () => string }) => actionRequests.push(request.url());

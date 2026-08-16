@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   createRecordVisitHistory,
+  jumpRecordVisitHistory,
   moveRecordVisitHistory,
   pruneRecordVisitHistory,
   recordVisitHistoryNavigation,
   rememberRecordVisit,
   RECORD_VISIT_HISTORY_LIMIT,
   type RecordVisit,
+  type RecordVisitHistory,
 } from './record-visit-history';
 
 type Tab = 'tasks' | 'meetings' | 'documents';
@@ -67,6 +69,22 @@ describe('session record visit history', () => {
       cursor: 2,
     });
     expect(recordVisitHistoryNavigation(history).next).toBeUndefined();
+  });
+
+  it('jumps to an existing entry without changing the stack', () => {
+    let history = createRecordVisitHistory<Tab>();
+    history = rememberRecordVisit(history, visit('tasks', 'task-1'));
+    history = rememberRecordVisit(history, visit('documents', 'document-1'));
+    history = rememberRecordVisit(history, visit('meetings', 'meeting-1'));
+
+    const jumped = jumpRecordVisitHistory(history, visit('documents', 'document-1'));
+    expect(jumped).toEqual({ history: { entries: history.entries, cursor: 1 }, target: visit('documents', 'document-1') });
+    expect(jumped.history.entries).toEqual(history.entries);
+  });
+
+  it('ignores a jump target that is no longer in the session stack', () => {
+    const history = { entries: [visit('tasks', 'task-1')], cursor: 0 } satisfies RecordVisitHistory<Tab>;
+    expect(jumpRecordVisitHistory(history, visit('meetings', 'meeting-1'))).toEqual({ history, target: undefined });
   });
 
   it('enforces the shared limit and prunes inactive targets while keeping a usable cursor', () => {
