@@ -6,7 +6,7 @@
 - 对比使用独立原生只读对话框，支持同类记录本地搜索、“全部字段 / 仅看差异”切换、差异数量提示、键盘操作、Escape/外侧点击关闭和关闭后焦点恢复。桌面按字段三列对齐，390px 下按字段名/当前记录/对比记录逐行排列，长中文可换行且操作目标至少 44px。
 - 六类字段均使用显式白名单：标题、状态/类型、日期、人员、单位、摘要、备注、伙伴/阶段关系标题和附件数量；不输出 ID、删除/墓碑字段、迁移原文、来源版本、附件 ID/正文/Base64/哈希、API Key、访问码或 AI 原文。对比只重新派生当前已加载 active 数组，不改写台账筛选、排序、选中记录、访问轨迹、星标、编辑器或保存路径。
 - 对比状态只保留在 React 会话；模块切换、记录失效或组件卸载会关闭并清理状态。打开对比时全局查找、快速记录、业务编辑抽屉、AI 面板和版本历史不会叠加；整个功能不新增 schema、IndexedDB、快照字段、同步集合、API、IPC、依赖或网络请求。
-- 失败优先覆盖六类字段顺序/空值/差异/关系标题/附件数量/源对象不变、active 候选顺序与默认目标、只读和秘密边界；新增 UI 合约与 1440×900/390×844 Chromium 聚焦 E2E 均通过。完整发布证据将在 Pages、Desktop、Release 和线上 PWA 核验完成后补入本节。
+- 失败优先覆盖六类字段顺序/空值/差异/关系标题/附件数量/源对象不变、active 候选顺序与默认目标、只读和秘密边界；新增 UI 合约与 1440×900/390×844 Chromium 聚焦 E2E 均通过。功能提交 `88c4167` 与 annotated tag `v0.7.20` 已推送；[Pages run 31954409889](https://github.com/NextWeb4/gw/actions/runs/31954409889) 的 build/deploy 和远端 Playwright（98 passed / 12 skipped）成功，[Desktop run 31954422784](https://github.com/NextWeb4/gw/actions/runs/31954422784) 的 Windows/Linux 四组、Debian 10/12 八项 smoke 与 release job 成功。[Release v0.7.20](https://github.com/NextWeb4/gw/releases/tag/v0.7.20) 为非 draft/prerelease，13 个资产全部 HTTP 200，1,278 字节 `SHA256SUMS.txt` 含 12 条唯一记录并与 GitHub digest 全部匹配。线上入口 `index-HeKAbZEV.js` 为 335,011 字节，SHA-256 `2c8a971b943c150069996d1a3de6f05e94b7eaf8f1d9e7198bace951df70cdd7`，命中 0.7.20 十次且旧版本/秘密模式为 0；1440×900 与 390×844 真实 Chromium 在 service worker ready 后在线/离线 reload 均显示 0.7.20，零错误、零页面级横向溢出。详细证据见 `reports/gw-business-record-comparison-v0.7.20.md`。
 
 ## v0.7.19
 
