@@ -506,3 +506,23 @@ test('same-module business comparison stays active-only, read-only and session-o
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.business-comparison-action[^}]*min-height:\s*(?:4[4-9]|[5-9]\d)px/, 'narrow comparison controls must retain at least 44px touch targets');
   assert.match(css, /\.business-comparison-value[^}]*overflow-wrap:\s*anywhere/, 'long comparison values must wrap instead of widening the dialog');
 });
+
+test('business detail summary copy is awaited, whitelist-only and side-effect free', async () => {
+  const [app, summary, privateServices, css] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/business-record-summary.ts'),
+    read('apps/web/src/private-services.ts'),
+    read('apps/web/src/styles.css'),
+  ]);
+
+  assert.match(summary, /isActiveBusinessRecord/, 'the summary builder must defensively reject trash and purged records');
+  assert.match(summary, /buildBusinessRecordComparison/, 'summary fields must reuse the audited six-kind display whitelist rather than drift into ad hoc serialization');
+  assert.doesNotMatch(summary, /legacyPayload|sourceVersion|deletedAt|purgedAt|attachment\.data|apiKey|password/i, 'the summary builder must not read lifecycle, migration, attachment-body or secret fields');
+  assert.doesNotMatch(summary, /fetch|IndexedDB|localStorage|sessionStorage|putRecord|removeRecord|Electron|ipc|navigator\.clipboard/i, 'the pure summary builder must not persist, network or access the clipboard');
+  assert.match(app, /<ClipboardCopy[^>]*\/>复制记录摘要/, 'all six details must expose one clearly named copy-summary action');
+  assert.match(app, /await navigator\.clipboard\.writeText\(summary\)/, 'success feedback must wait for the clipboard Promise to resolve');
+  assert.match(app, /记录摘要已复制，不会自动发送/, 'successful copies must explain that the text remains local until the user pastes it');
+  assert.match(app, /记录摘要复制失败，请检查浏览器剪贴板权限/, 'clipboard rejection must produce an explicit failure message');
+  assert.doesNotMatch(privateServices, /business-record-summary|copyBusinessRecordSummary|记录摘要/, 'private sync must not gain summary-copy state');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.detail-panel-actions \.secondary-button[^}]*44px/, 'the shared narrow detail actions must retain 44px touch targets');
+});

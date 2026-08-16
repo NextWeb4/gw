@@ -143,6 +143,60 @@ test('copies all six business kinds into guarded drafts without auto-saving or e
   expect(unexpectedRequests).toEqual([]);
 });
 
+test('copies a sanitized summary for all six active details and reports clipboard failures', async ({ page }, testInfo) => {
+  await page.evaluate(() => {
+    const target = window as Window & { __businessSummaryCopies?: string[] };
+    target.__businessSummaryCopies = [];
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => { target.__businessSummaryCopies?.push(text); } } });
+    const prototype = IDBObjectStore.prototype as IDBObjectStore & Record<string, unknown>;
+    for (const method of ['add', 'clear', 'delete', 'put'] as const) {
+      const original = prototype[method] as (...args: unknown[]) => IDBRequest;
+      prototype[method] = function blockedSummaryWrite(this: IDBObjectStore, ...args: unknown[]) {
+        throw new Error(`unexpected IndexedDB write: ${method}`);
+      };
+      (prototype[method] as unknown as { original?: unknown }).original = original;
+    }
+  });
+  const actionRequests: string[] = [];
+  const pageOrigin = new URL(page.url()).origin;
+  page.on('request', (request) => { if (new URL(request.url()).origin !== pageOrigin) actionRequests.push(request.url()); });
+  const cases = [
+    { nav: '任务管理', heading: '【任务管理】推进全省基层治理年度工作总结', value: '工作类目：重点项目' },
+    { nav: '会议管理', heading: '【会议管理】全省重点工作协调推进会', value: '会议地点：省政府会议室' },
+    { nav: '文件收发', heading: '【文件收发】关于做好2026年全省重点工作的通知', value: '发文字号：闽政〔2026〕1号' },
+    { nav: '外出活动', heading: '【外出活动】基层服务阵地运行情况调研', value: '活动地点：福州市鼓楼区' },
+    { nav: '用章管理', heading: '【用章管理】省直单位工作联系函', value: '用章人：郑明川' },
+    { nav: '物资收发', heading: '【物资收发】A4 打印纸', value: '规格：70g / 500 张' },
+  ];
+
+  for (const item of cases) {
+    await page.getByRole('button', { name: item.nav, exact: true }).click();
+    const copyButton = page.locator('.business-detail-panel').getByRole('button', { name: '复制记录摘要' });
+    await expect(copyButton).toBeVisible();
+    if (testInfo.project.name === 'mobile') {
+      const box = await copyButton.boundingBox();
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+    await page.evaluate(() => { (window as Window & { __businessSummaryCopies?: string[] }).__businessSummaryCopies = []; });
+    await copyButton.click();
+    await expect(page.getByText('记录摘要已复制，不会自动发送')).toBeVisible();
+    const copied = await page.evaluate(() => (window as Window & { __businessSummaryCopies?: string[] }).__businessSummaryCopies || []);
+    expect(copied).toHaveLength(1);
+    expect(copied[0]).toContain(item.heading);
+    expect(copied[0]).toContain(item.value);
+    expect(copied[0]).not.toMatch(/(?:task|meeting|doc|research|seal|material)_demo_|legacyPayload|sourceVersion|deletedAt|purgedAt|apiKey|password|attachment_/i);
+  }
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('permission denied'); } } });
+  });
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await page.locator('.business-detail-panel').getByRole('button', { name: '复制记录摘要' }).click();
+  await expect(page.getByText('记录摘要复制失败，请检查浏览器剪贴板权限')).toBeVisible();
+  expect(actionRequests).toEqual([]);
+  if (testInfo.project.name === 'mobile') expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test('moves business records through trash, restore and permanent-delete lifecycle without network traffic', async ({ page }, testInfo) => {
   const unexpectedRequests: string[] = [];
   const pageOrigin = new URL(page.url()).origin;
@@ -1461,6 +1515,7 @@ test('creates, searches, edits and deletes a file record', async ({ page }) => {
 
 test('creates and persists meeting, research, seal and material records', async ({ page }) => {
   test.setTimeout(60_000);
+  page.setDefaultTimeout(15_000);
   await page.getByRole('button', { name: '会议管理' }).click();
   await page.getByRole('button', { name: '新建会议' }).click();
   await page.getByLabel('会议主题').fill('端到端业务调度会');
@@ -1468,6 +1523,7 @@ test('creates and persists meeting, research, seal and material records', async 
   await page.getByLabel('会议地点').fill('第一会议室');
   await page.locator('.attachment-picker input[type="file"]').setInputFiles({ name: '会议议程.txt', mimeType: 'text/plain', buffer: Buffer.from('agenda') });
   await page.getByRole('button', { name: '保存会议' }).click();
+  await expect(page.getByRole('dialog', { name: '新建会议' })).toHaveCount(0);
   await expect(page.getByText('端到端业务调度会', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: '外出活动' }).click();
@@ -1477,6 +1533,7 @@ test('creates and persists meeting, research, seal and material records', async 
   await page.getByLabel('参与人员', { exact: true }).fill('甲同志、乙同志');
   await page.getByLabel('成果记录').fill('形成测试问题清单');
   await page.getByRole('button', { name: '保存活动' }).click();
+  await expect(page.getByRole('dialog', { name: '新建外出活动' })).toHaveCount(0);
   await expect(page.getByText('端到端基层调研', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: '用章管理' }).click();
@@ -1486,6 +1543,7 @@ test('creates and persists meeting, research, seal and material records', async 
   await page.getByLabel('所盖文件名称').fill('端到端测试函');
   await page.getByLabel('文件类型').selectOption('函');
   await page.getByRole('button', { name: '保存用章' }).click();
+  await expect(page.getByRole('dialog', { name: '新建用章记录' })).toHaveCount(0);
   await expect(page.getByText('端到端测试函', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: '物资收发' }).click();
@@ -1496,6 +1554,7 @@ test('creates and persists meeting, research, seal and material records', async 
   await page.getByLabel('收发类型').selectOption('out');
   await page.getByLabel('经手人', { exact: true }).fill('测试经办人');
   await page.getByRole('button', { name: '保存物资' }).click();
+  await expect(page.getByRole('dialog', { name: '新建物资记录' })).toHaveCount(0);
   const materialRow = page.locator('.table-row').filter({ hasText: 'A4 打印纸' }).filter({ hasText: '领用 2' });
   await expect(materialRow).toBeVisible();
   await expect(materialRow.locator('.stock-balance')).toHaveText('3');
