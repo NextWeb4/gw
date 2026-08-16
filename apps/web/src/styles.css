@@ -435,6 +435,15 @@ h1, h2, p { margin-top: 0; }
 .detail-collapsed-rail { padding: 12px 7px; display: grid; justify-items: center; gap: 10px; }
 .detail-collapsed-rail .detail-icon { width: 38px; height: 38px; }
 .detail-collapsed-rail .detail-collapse-toggle { width: 38px; height: 38px; }
+.detail-visit-navigation { min-height: 58px; padding: 9px 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: rgba(216,255,63,.015); border-bottom: 1px solid var(--line); }
+.detail-visit-position { min-width: 0; display: grid; gap: 5px; color: var(--paper); }
+.detail-visit-position small { color: #858b7e; font: 700 8px/1 "Aptos Narrow", sans-serif; }
+.detail-visit-position strong { display: flex; align-items: baseline; color: var(--paper-bright); font: 600 14px/1 "Cascadia Mono", Consolas, monospace; }
+.detail-visit-position strong span { padding: 0 4px; color: #656a60; font-size: 10px; }
+.detail-visit-steps { display: flex; align-items: center; gap: 6px; }
+.detail-visit-step { width: 38px; min-width: 38px; height: 38px; color: #a8ad9f; background: rgba(216,255,63,.025); border-color: rgba(216,255,63,.14); }
+.detail-visit-step:hover:not(:disabled) { color: var(--acid); background: var(--acid-soft); border-color: rgba(216,255,63,.32); }
+.detail-visit-step:disabled { color: #555a51; cursor: not-allowed; opacity: .48; }
 .detail-record-navigation { min-height: 58px; padding: 9px 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
 .detail-record-position { min-width: 0; display: grid; gap: 5px; color: var(--paper); }
 .detail-record-position small { color: #70756b; font: 700 8px/1 "Aptos Narrow", sans-serif; letter-spacing: 0; text-transform: uppercase; }
@@ -981,6 +990,7 @@ h1, h2, p { margin-top: 0; }
   .document-revision-footer button { width: 100%; justify-content: center; white-space: normal; overflow-wrap: anywhere; }
   .detail-panel-actions .secondary-button { min-height: 44px; }
   .starred-record-toggle { width: 44px; min-width: 44px; height: 44px; }
+  .detail-visit-step { width: 44px; min-width: 44px; height: 44px; }
   .detail-record-step { width: 44px; min-width: 44px; height: 44px; }
   .detail-related-list button, .related-record-option { min-height: 44px; }
   .weekly-related-group button { min-height: 44px; }

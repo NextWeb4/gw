@@ -844,6 +844,104 @@ test('persists explicit starred records locally while respecting trash and purge
   if (testInfo.project.name === 'mobile') expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
+test('navigates a bounded session-only business visit history across modules and prunes deleted targets', async ({ page }, testInfo) => {
+  const actionRequests: string[] = [];
+  const recordActionRequest = (request: { url: () => string }) => actionRequests.push(request.url());
+  page.on('request', recordActionRequest);
+  const taskTitle = '整理省政府办公厅来文并建立关联';
+  const documentTitle = '关于做好2026年全省重点工作的通知';
+  const meetingTitle = '全省重点工作协调推进会';
+
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await page.locator('.selectable-row').filter({ hasText: taskTitle }).click();
+  const visitHistory = page.getByRole('group', { name: '跨模块访问历史' });
+  await expect(visitHistory.getByRole('button', { name: '没有可返回的访问记录' })).toBeDisabled();
+  await expect(visitHistory.getByRole('button', { name: '没有可前进的访问记录' })).toBeDisabled();
+
+  await page.getByRole('button', { name: `打开关联文件：${documentTitle}` }).click();
+  const detailHeading = page.locator('.business-detail-panel').getByRole('heading', { level: 2 });
+  await expect(detailHeading).toContainText(documentTitle);
+  await visitHistory.getByRole('button', { name: `返回上一条访问记录：${taskTitle}（任务管理）` }).click();
+  await expect(detailHeading).toContainText(taskTitle);
+  await visitHistory.getByRole('button', { name: `前进到下一条访问记录：${documentTitle}（文件收发）` }).click();
+  await expect(detailHeading).toContainText(documentTitle);
+
+  await visitHistory.getByRole('button', { name: `返回上一条访问记录：${taskTitle}（任务管理）` }).click();
+  await page.getByRole('button', { name: '会议管理', exact: true }).click();
+  await page.locator('.selectable-row').filter({ hasText: meetingTitle }).click();
+  await expect(visitHistory.getByRole('button', { name: '没有可前进的访问记录' })).toBeDisabled();
+  await expect(visitHistory.getByRole('button', { name: `返回上一条访问记录：${taskTitle}（任务管理）` })).toBeEnabled();
+
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  const taskRow = page.locator('.selectable-row').filter({ hasText: taskTitle });
+  const deleteDialog = page.waitForEvent('dialog');
+  const deleteAction = taskRow.getByTitle('删除任务').click();
+  await (await deleteDialog).accept();
+  await deleteAction;
+  await page.getByRole('button', { name: '会议管理', exact: true }).click();
+  await expect(visitHistory.getByRole('button', { name: '没有可返回的访问记录' })).toBeDisabled();
+
+  await page.getByRole('button', { name: '回收站', exact: true }).click();
+  const restoreDialog = page.waitForEvent('dialog');
+  const restoreAction = page.getByRole('button', { name: `恢复任务：${taskTitle}` }).click();
+  await (await restoreDialog).accept();
+  await restoreAction;
+  await page.getByRole('button', { name: '会议管理', exact: true }).click();
+  await expect(visitHistory.getByRole('button', { name: '没有可返回的访问记录' })).toBeDisabled();
+
+  if (testInfo.project.name === 'mobile') {
+    for (const button of await visitHistory.getByRole('button').all()) {
+      const box = await button.boundingBox();
+      expect(box?.width || 0).toBeGreaterThanOrEqual(44);
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+    expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+
+  page.off('request', recordActionRequest);
+  expect(actionRequests).toEqual([]);
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: '会议管理', exact: true }).click();
+  await expect(page.getByRole('group', { name: '跨模块访问历史' }).getByRole('button', { name: '没有可返回的访问记录' })).toBeDisabled();
+});
+
+test('opens the nearest surviving record when the current visit target is deleted', async ({ page }, testInfo) => {
+  const actionRequests: string[] = [];
+  page.on('request', (request) => actionRequests.push(request.url()));
+  const taskTitle = '整理省政府办公厅来文并建立关联';
+  const documentTitle = '关于做好2026年全省重点工作的通知';
+  const meetingTitle = '全省重点工作协调推进会';
+
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await page.locator('.selectable-row').filter({ hasText: taskTitle }).click();
+  await page.getByRole('button', { name: `打开关联文件：${documentTitle}` }).click();
+  const detailHeading = page.locator('.business-detail-panel').getByRole('heading', { level: 2 });
+  await page.getByRole('group', { name: '跨模块访问历史' }).getByRole('button', { name: `返回上一条访问记录：${taskTitle}（任务管理）` }).click();
+  await page.getByRole('button', { name: '会议管理', exact: true }).click();
+  await page.locator('.selectable-row').filter({ hasText: meetingTitle }).click();
+
+  const meetingRow = page.locator('.selectable-row').filter({ hasText: meetingTitle });
+  const deleteDialog = page.waitForEvent('dialog');
+  const deleteAction = meetingRow.getByTitle('删除会议').click();
+  await (await deleteDialog).accept();
+  await deleteAction;
+
+  await expect(detailHeading).toContainText(taskTitle);
+  const visitHistory = page.getByRole('group', { name: '跨模块访问历史' });
+  await expect(visitHistory.getByRole('button', { name: '没有可返回的访问记录' })).toBeDisabled();
+  await expect(visitHistory.getByRole('button', { name: '没有可前进的访问记录' })).toBeDisabled();
+  if (testInfo.project.name === 'mobile') {
+    for (const button of await visitHistory.getByRole('button').all()) {
+      const box = await button.boundingBox();
+      expect(box?.width || 0).toBeGreaterThanOrEqual(44);
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+    expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+  expect(actionRequests).toEqual([]);
+});
+
 test('steps through the current filtered and sorted task order from the shared detail navigator', async ({ page }, testInfo) => {
   const actionRequests: string[] = [];
   const recordActionRequest = (request: { url: () => string }) => actionRequests.push(request.url());

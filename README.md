@@ -15,7 +15,7 @@ A local-first system for official-document work, task and file tracking, draftin
 ![Pages](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![Last commit](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![Repository size](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![Version](https://img.shields.io/badge/version-0.7.16-0969da?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.7.17-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@ A local-first system for official-document work, task and file tracking, draftin
 
 HxHwang Gw is a pnpm monorepo that shares one domain model across a public GitHub Pages demonstration, separate Internet and intranet Web builds, and separate Internet and intranet Electron clients. It stores operational data locally first, separates network capabilities at build time, and provides explicit adapters for synchronization and AI requests.
 
-The current release is `0.7.16`. All six shared business-detail views now provide a device-local star toggle; active starred records appear on the dashboard and before session recents in the empty-query command palette, while every entry continues through the existing record-opening path. The setting is capped at 12 references and stores only the record kind, ID, and starred time in IndexedDB and local snapshots. It never enters business payloads, private synchronization, AI material, IPC, or network requests. Recent releases also added read-only weekly-report source links, a collapsible desktop detail rail, and corrected narrow-screen native-dialog animation. See [`RELEASE_NOTES.md`](RELEASE_NOTES.md) for details.
+The current release is `0.7.17`. Explicit visits to the six business ledgers now form a bounded, session-only back/forward history in the shared detail view. Cross-module jumps from task-document links, weekly sources, the agenda, dashboard, starred records, and global search can return through the original record-opening path; going back and then opening a different record truncates the forward branch, while deleted targets are pruned and a page reload clears the stack. The history stores only record kind and ID in React memory and never enters IndexedDB, snapshots, private synchronization, AI material, IPC, URLs, or network requests. See [`RELEASE_NOTES.md`](RELEASE_NOTES.md) for details.
 
 Public Pages does not expose private synchronization, but it supports local ledgers, attachments, legacy JSON/snapshots, bring-your-own-key AI, and an explicitly unlocked `127.0.0.1` relay. Page load and password entry do not contact the relay automatically. Business data stays in the current browser's IndexedDB. Use [GitHub Pages](https://nextweb4.github.io/gw/) only with public, fictional, or approved non-sensitive material.
 
@@ -33,7 +33,7 @@ Public Pages does not expose private synchronization, but it supports local ledg
 
 | Area | What is implemented |
 | --- | --- |
-| Work management | Editable task, meeting, document, field-activity, seal, and material ledgers with global quick-task capture, device-local starred records, session-only recent-record navigation, previous/next traversal through each current visible ledger order, a collapsible desktop detail rail, secure current-result CSV export, a reusable people/organization directory, stages, summaries, attachments, per-ledger keyword/field filters and sorting, local global search, a unified agenda, and a recoverable recycle bin |
+| Work management | Editable task, meeting, document, field-activity, seal, and material ledgers with global quick-task capture, device-local starred records, session-only recent records and cross-module back/forward history, previous/next traversal through each current visible ledger order, a collapsible desktop detail rail, secure current-result CSV export, a reusable people/organization directory, stages, summaries, attachments, per-ledger keyword/field filters and sorting, local global search, a unified agenda, and a recoverable recycle bin |
 | Writing | Rich-text drafting, DOCX/HTML/TXT import with sanitization, reusable custom formats, deterministic weekly reports with read-only source-record links, bounded local revision history with read-only comparison and non-destructive restore, and historical archives |
 | Documents | A shared A4-oriented engine for DOCX and PDF export; browser print is used on the Web and Electron printing on desktop |
 | Migration | Importers for two legacy prototype export shapes plus drag-and-drop JSON/snapshots, with warnings when their shared version marker cannot identify the source reliably |
@@ -60,7 +60,7 @@ All variants remain local-first. Private synchronization begins only after a use
 - Windows for NSIS installers; Linux for AppImage/DEB packaging and final Linux compatibility checks.
 - A Chromium-class browser for the Web builds.
 
-The repository version is `0.7.16`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
+The repository version is `0.7.17`. Dependencies are locked by `pnpm-lock.yaml`; use the frozen lockfile for reproducible installs.
 
 ## Install and Run
 

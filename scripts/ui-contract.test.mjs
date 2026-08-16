@@ -227,7 +227,7 @@ test('unified agenda stays local-only and reuses the existing record detail path
   ]);
 
   assert.match(app, /\{ id: 'agenda', label: '事务日历', icon: CalendarRange \}/, 'agenda must be a discoverable primary navigation module');
-  assert.match(app, /resetLedgerView\(businessTab\);\s*navigate\(businessTab\);\s*selectBusinessRecord\(businessTab, id\)/, 'agenda records must reuse ledger reset, navigation and detail selection');
+  assert.match(app, /resetLedgerView\(businessTab\);\s*navigate\(businessTab\);\s*selectBusinessRecord\(businessTab, id, rememberVisit\)/, 'agenda records must reuse ledger reset, navigation and detail selection');
   assert.match(agenda, /Array\.from\(\{ length: 42 \}/, 'month derivation must always create a stable six-week grid');
   assert.match(agenda, /isValidIsoDateTime/, 'meeting date-times must use the shared strict domain validator');
   assert.doesNotMatch(`${agenda}\n${agendaView}`, /\bfetch\b|listRecords|IndexedDB|localStorage|Electron|putRecord|removeRecord|ipc/i, 'agenda derivation and UI must stay within already loaded local arrays');
@@ -406,7 +406,7 @@ test('global search stays local-only and reuses accessible navigation paths', as
   assert.match(app, /openSealEditor\(emptySeal\(\)\)/, 'seal commands must reuse the original seal editor and empty draft factory');
   assert.match(app, /openMaterialEditor\(emptyMaterial\(\)\)/, 'material commands must reuse the original material editor and empty draft factory');
   assert.match(app, /setGlobalSearchOpen\(false\);\s*globalSearchReturnFocusRef\.current = null;\s*window\.requestAnimationFrame/, 'command activation must close the palette before opening an editor without restoring focus to the background trigger');
-  assert.match(app, /navigate\(businessTab\);\s*selectBusinessRecord\(businessTab, id\)/, 'record results must reuse the existing navigation and record-selection paths');
+  assert.match(app, /navigate\(businessTab\);\s*selectBusinessRecord\(businessTab, id, rememberVisit\)/, 'record results must reuse the existing navigation and record-selection paths');
   assert.match(globalSearch, /emptyQueryOnly/, 'session recents must disappear as soon as a real search query is entered');
   assert.match(globalSearch, /item\.kind === 'recent'[^\n]*'最近'/, 'recent records must have a visible kind label');
   assert.match(app, /useState<RecentRecordRef<BusinessTab>\[]>\(\[]\)/, 'recent record history must start as React session state');
@@ -442,4 +442,30 @@ test('starred business records stay reference-only, local and connected to exist
   assert.match(css, /\.starred-record-toggle/, 'the shared detail star action must have a dedicated compact treatment');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.starred-record-toggle[^}]*44px/, 'the narrow star action must retain a 44px touch target');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.starred-record-item[^}]*min-height:\s*64px/, 'narrow starred dashboard rows must exceed the 44px touch-target floor');
+});
+
+test('cross-module record visit history stays session-only and reuses the existing opener', async () => {
+  const [app, history, css, privateServices] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/record-visit-history.ts'),
+    read('apps/web/src/styles.css'),
+    read('apps/web/src/private-services.ts'),
+  ]);
+
+  assert.match(history, /RECORD_VISIT_HISTORY_LIMIT\s*=\s*20/, 'visit history must have one explicit bounded session limit');
+  assert.match(history, /slice\(0, cursor \+ 1\)/, 'a new visit after going back must truncate the forward branch');
+  assert.match(history, /pruneRecordVisitHistory/, 'inactive records must be removable from the visit stack');
+  assert.doesNotMatch(history, /fetch|IndexedDB|localStorage|sessionStorage|putRecord|removeRecord|Electron|apiKey|password/i, 'the pure visit stack must not persist, network or inspect secrets');
+  assert.match(app, /useState<RecordVisitHistory<BusinessTab>>\(createRecordVisitHistory/, 'visit history must start as React session state');
+  assert.match(app, /rememberRecordVisit\(recordVisitHistoryRef\.current, \{ tab: businessTab, id \}\)/, 'normal explicit record opens must enter the bounded history');
+  assert.match(app, /pruneRecordVisitHistory\((?:recordVisitHistoryRef\.current|current), activeBusinessRecordKeys\)/, 'trash and purge lifecycle must prune inactive targets');
+  assert.match(app, /currentWasRemoved[\s\S]*openBusinessRecord\(replacement\.tab, replacement\.id, false\)/, 'deleting the current history target must reopen the nearest surviving visit through the existing opener');
+  assert.match(app, /moveRecordVisitHistory\(recordVisitHistoryRef\.current, direction\)/, 'history controls must move the existing cursor instead of recording themselves');
+  assert.match(app, /openBusinessRecord\(moved\.target\.tab, moved\.target\.id, false\)/, 'back and forward must reuse the existing record opener without creating a new history entry');
+  assert.match(app, /aria-label="跨模块访问历史"/, 'the shared detail must expose a named history control group');
+  assert.match(app, /aria-label=\{visitNavigation\.previous/, 'back must expose a target-aware accessible label');
+  assert.match(app, /aria-label=\{visitNavigation\.next/, 'forward must expose a target-aware accessible label');
+  assert.match(css, /\.detail-visit-step/, 'back and forward controls must have a dedicated treatment');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.detail-visit-step[^}]*44px/, 'narrow history controls must retain 44px touch targets');
+  assert.doesNotMatch(privateServices, /record-visit-history|RecordVisitHistory|recordVisitHistory/, 'private sync must not gain visit-history state');
 });

@@ -3,7 +3,7 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import {
-  Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowUpDown, ArrowUpRight, BarChart3, BookOpen, CalendarDays, CalendarRange, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList,
+  Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpDown, ArrowUpRight, BarChart3, BookOpen, CalendarDays, CalendarRange, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList,
   Bot, Building2, CopyPlus, FileArchive, FileOutput, FileText, FileUp, FolderOpen, Globe2, Info, KeyRound, LayoutDashboard, Library, Link2, MapPin,
   History, ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Star, Stamp, Trash2, Upload, UsersRound, WandSparkles, X
 } from 'lucide-react';
@@ -43,12 +43,14 @@ import { StarredRecordsPanel } from './StarredRecordsPanel';
 import { QuickTaskCapture } from './QuickTaskCapture';
 import { RecycleBinView, type RecycleBinEntry, type RecycleRecordKind } from './RecycleBinView';
 import { pruneRecentRecords, rememberRecentRecord, type RecentRecordRef } from './recent-records';
+import { createRecordVisitHistory, moveRecordVisitHistory, pruneRecordVisitHistory, recordVisitHistoryNavigation, rememberRecordVisit, type RecordVisit, type RecordVisitHistory } from './record-visit-history';
 import { StarredRecordRevisionGate } from './starred-record-revision';
 import { getVisibleRecordPosition } from './visible-record-navigation';
 
 type Tab = 'dashboard' | 'agenda' | 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials' | 'directory' | 'writing' | 'weekly' | 'stats' | 'ai' | 'recycle' | 'archive' | 'migration' | 'about';
 type BusinessTab = Extract<Tab, 'tasks' | 'meetings' | 'documents' | 'researches' | 'seals' | 'materials'>;
 const starredKindToTab: Record<StarredBusinessRecordRef['kind'], BusinessTab> = { task: 'tasks', meeting: 'meetings', document: 'documents', research: 'researches', seal: 'seals', material: 'materials' };
+const businessTabLabels: Record<BusinessTab, string> = { tasks: '任务管理', meetings: '会议管理', documents: '文件收发', researches: '外出活动', seals: '用章管理', materials: '物资收发' };
 type BusinessDetail =
   | { kind: 'task'; record: Task }
   | { kind: 'meeting'; record: MeetingRecord }
@@ -91,6 +93,13 @@ interface BusinessDetailNavigation {
   total: number;
   previous?: BusinessDetailNavigationTarget;
   next?: BusinessDetailNavigationTarget;
+}
+interface BusinessVisitNavigationTarget extends RecordVisit<BusinessTab> { title: string; moduleLabel: string; }
+interface BusinessVisitNavigation {
+  previous?: BusinessVisitNavigationTarget;
+  next?: BusinessVisitNavigationTarget;
+  position: number;
+  total: number;
 }
 
 function visibleNavigationFor<T extends { id: string }>(
@@ -188,6 +197,7 @@ function App() {
   const [detailCollapsed, setDetailCollapsed] = useState(false);
   const [selectedBusinessRecord, setSelectedBusinessRecord] = useState<{ tab: BusinessTab; id: string } | null>(null);
   const [recentBusinessRecords, setRecentBusinessRecords] = useState<RecentRecordRef<BusinessTab>[]>([]);
+  const [recordVisitHistory, setRecordVisitHistory] = useState<RecordVisitHistory<BusinessTab>>(createRecordVisitHistory());
   const [starredBusinessRecords, setStarredBusinessRecords] = useState<StarredBusinessRecordRef[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [meetings, setMeetings] = useState<MeetingRecord[]>([]);
@@ -233,6 +243,7 @@ function App() {
   const directoryWriteQueue = useRef<Promise<void>>(Promise.resolve());
   const documentRevisionsRef = useRef<DocumentRevision[]>([]);
   const documentRevisionWriteQueue = useRef<Promise<void>>(Promise.resolve());
+  const recordVisitHistoryRef = useRef<RecordVisitHistory<BusinessTab>>(createRecordVisitHistory());
   const starredBusinessRecordsRef = useRef<StarredBusinessRecordRef[]>([]);
   const starredBusinessRecordWriteQueue = useRef<Promise<void>>(Promise.resolve());
   const starredBusinessRecordRevisionGate = useRef(new StarredRecordRevisionGate());
@@ -284,6 +295,10 @@ function App() {
   const replaceStarredBusinessRecords = (next: StarredBusinessRecordRef[]) => {
     starredBusinessRecordsRef.current = next;
     setStarredBusinessRecords(next);
+  };
+  const replaceRecordVisitHistory = (next: RecordVisitHistory<BusinessTab>) => {
+    recordVisitHistoryRef.current = next;
+    setRecordVisitHistory(next);
   };
   const persistStarredBusinessRecords = (items: StarredBusinessRecordRef[], updatedAt = nowIso()) => {
     const setting = createStarredBusinessRecordsSetting(items, updatedAt);
@@ -409,12 +424,6 @@ function App() {
     ...seals.map((record) => `seals:${record.id}`),
     ...materials.map((record) => `materials:${record.id}`),
   ]), [tasks, meetings, documents, researches, seals, materials]);
-  useEffect(() => {
-    setRecentBusinessRecords((current) => {
-      const next = pruneRecentRecords(current, activeBusinessRecordKeys);
-      return next.length === current.length ? current : next;
-    });
-  }, [activeBusinessRecordKeys]);
   const globalSearchGroups = useMemo<Array<GlobalSearchGroup<Tab>>>(() => {
     const groups: Array<GlobalSearchGroup<Tab>> = [
     {
@@ -521,6 +530,15 @@ function App() {
       ...groups,
     ];
   }, [tasks, meetings, documents, researches, seals, materials, recentBusinessRecords, starredBusinessRecords]);
+  const visitNavigation = useMemo<BusinessVisitNavigation>(() => {
+    const navigation = recordVisitHistoryNavigation(recordVisitHistory);
+    const resolve = (visit: RecordVisit<BusinessTab> | undefined): BusinessVisitNavigationTarget | undefined => {
+      if (!visit) return undefined;
+      const item = globalSearchGroups.find((group) => group.id === visit.tab)?.items.find((candidate) => candidate.kind === 'record' && candidate.recordId === visit.id);
+      return item ? { ...visit, title: item.title, moduleLabel: businessTabLabels[visit.tab] } : undefined;
+    };
+    return { previous: resolve(navigation.previous), next: resolve(navigation.next), position: navigation.position, total: navigation.total };
+  }, [globalSearchGroups, recordVisitHistory]);
 
   useEffect(() => {
     const toggleGlobalSearch = (event: KeyboardEvent) => {
@@ -1218,9 +1236,10 @@ function App() {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
   };
-  const selectBusinessRecord = (businessTab: BusinessTab, id: string) => {
+  const selectBusinessRecord = (businessTab: BusinessTab, id: string, rememberVisit = true) => {
     setSelectedBusinessRecord({ tab: businessTab, id });
     setRecentBusinessRecords((current) => rememberRecentRecord(current, { tab: businessTab, id }));
+    if (rememberVisit) replaceRecordVisitHistory(rememberRecordVisit(recordVisitHistoryRef.current, { tab: businessTab, id }));
     if (!window.matchMedia('(max-width: 1279px)').matches) return;
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => scrollToBusinessRegion(businessDetailRef.current)));
   };
@@ -1247,11 +1266,35 @@ function App() {
       navigate(item.tab);
     });
   };
-  const openBusinessRecord = (businessTab: BusinessTab | AgendaKind, id: string) => {
+  const openBusinessRecord = (businessTab: BusinessTab | AgendaKind, id: string, rememberVisit = true) => {
     resetLedgerView(businessTab);
     navigate(businessTab);
-    selectBusinessRecord(businessTab, id);
+    selectBusinessRecord(businessTab, id, rememberVisit);
   };
+  const navigateRecordVisitHistory = (direction: 'back' | 'forward') => {
+    const moved = moveRecordVisitHistory(recordVisitHistoryRef.current, direction);
+    if (!moved.target) return;
+    replaceRecordVisitHistory(moved.history);
+    openBusinessRecord(moved.target.tab, moved.target.id, false);
+  };
+  useEffect(() => {
+    setRecentBusinessRecords((current) => {
+      const next = pruneRecentRecords(current, activeBusinessRecordKeys);
+      return next.length === current.length ? current : next;
+    });
+    const current = recordVisitHistoryRef.current;
+    const currentEntry = current.entries[current.cursor];
+    const next = pruneRecordVisitHistory(current, activeBusinessRecordKeys);
+    const unchanged = next.cursor === current.cursor
+      && next.entries.length === current.entries.length
+      && next.entries.every((entry, index) => entry.tab === current.entries[index]?.tab && entry.id === current.entries[index]?.id);
+    if (unchanged) return;
+    replaceRecordVisitHistory(next);
+    const currentWasRemoved = currentEntry !== undefined
+      && !activeBusinessRecordKeys.has(`${currentEntry.tab}:${currentEntry.id}`);
+    const replacement = next.entries[next.cursor];
+    if (currentWasRemoved && replacement) openBusinessRecord(replacement.tab, replacement.id, false);
+  }, [activeBusinessRecordKeys]);
   const exportLedgerCsv = (createFile: () => LedgerCsvFile) => {
     try {
       const file = createFile();
@@ -1301,8 +1344,9 @@ function App() {
     </aside>
     <main className="main-area" ref={mainAreaRef}>
       <header className="topbar"><div className="mobile-brand"><Menu size={18} /><span>HxHwang Gw</span></div><div className="topbar-context"><span>HX / {String(activeNavIndex >= 0 ? activeNavIndex + 1 : navItems.length + 1).padStart(2, '0')}</span><strong>{navItems.find((item) => item.id === tab)?.label ?? '关于与设置'}</strong></div><div className="breadcrumbs">本地优先 <span>/</span> 外发必须逐次确认</div><div className="topbar-actions"><button ref={quickCaptureTriggerRef} type="button" className="global-search-trigger quick-capture-trigger" aria-label="快速记录任务" aria-haspopup="dialog" aria-expanded={quickCaptureOpen} title={quickCaptureBlocked ? '当前有查找、编辑或 AI 面板，暂不可用' : '快速记录任务（Shift + A）'} disabled={quickCaptureBlocked} onClick={() => changeQuickCaptureOpen(true)}><Plus size={16} /><span>快速记录</span><kbd>Shift A</kbd></button><button ref={globalSearchTriggerRef} type="button" className="global-search-trigger" aria-label="打开全局查找" aria-haspopup="dialog" aria-expanded={globalSearchOpen} title={globalSearchBlocked ? '当前有记录、编辑或 AI 面板，暂不可用' : '全局查找（Ctrl 或 Command + K）'} disabled={globalSearchBlocked} onClick={() => changeGlobalSearchOpen(true)}><Search size={16} /><span>全局查找</span><kbd>Ctrl K</kbd></button><span className="connection"><Activity size={15} /><span>{connectionLabel}</span><strong>{connectionDetail}</strong></span><button className="icon-button" title="刷新本地数据" onClick={() => void reload()}><RefreshCw size={17} /></button></div></header>
-      <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''} ${businessDetail && detailCollapsed ? 'detail-collapsed' : ''}`}><div className="primary-content" ref={primaryContentRef}>{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} compact={aiOverlayOpen} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} history={aiHistory} onSaveHistory={saveAiHistory} onDeleteHistory={deleteAiHistory} onClearHistory={clearAiHistory} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && businessDetailNavigation && <BusinessDetailPanel detail={businessDetail} navigation={businessDetailNavigation} tasks={tasks} documents={documents} attachments={attachments} panelRef={businessDetailRef} collapsed={detailCollapsed} onToggleCollapsed={() => setDetailCollapsed((collapsed) => !collapsed)}
+      <div className={`content-wrap ${businessDetail ? 'has-detail-panel' : ''} ${businessDetail && detailCollapsed ? 'detail-collapsed' : ''}`}><div className="primary-content" ref={primaryContentRef}>{renderContent()}<div className={`ai-keepalive ${aiOverlayOpen ? 'ai-context-overlay' : ''}`} hidden={tab !== 'ai' && !aiOverlayOpen} role={aiOverlayOpen ? 'dialog' : undefined} aria-modal={aiOverlayOpen || undefined} aria-label={aiOverlayOpen ? '当前页面 AI 协作面板' : undefined}>{aiOverlayOpen && <div className="ai-context-toolbar"><div><span className="eyebrow">当前页面</span><strong>AI 协作面板</strong></div><button type="button" className="icon-button" title="关闭当前页 AI 面板" onClick={() => setAiOverlayOpen(false)}><X size={18} /></button></div>}<AiHub distribution={distributionMode} compact={aiOverlayOpen} workspace={aiWorkspace} attachments={attachments} prefill={aiPrefill} skills={aiSkills} history={aiHistory} onSaveHistory={saveAiHistory} onDeleteHistory={deleteAiHistory} onClearHistory={clearAiHistory} onSaveSkill={saveAiSkill} onDeleteSkill={deleteAiSkill} onReload={reload} setToast={setToast} /></div></div>{businessDetail && businessDetailNavigation && <BusinessDetailPanel detail={businessDetail} navigation={businessDetailNavigation} visitNavigation={recordVisitHistory.entries[recordVisitHistory.cursor]?.tab === tab && recordVisitHistory.entries[recordVisitHistory.cursor]?.id === businessDetail.record.id ? visitNavigation : { position: 0, total: 0 }} tasks={tasks} documents={documents} attachments={attachments} panelRef={businessDetailRef} collapsed={detailCollapsed} onToggleCollapsed={() => setDetailCollapsed((collapsed) => !collapsed)}
         starred={starredBusinessRecords.some((item) => item.kind === businessDetail.kind && item.id === businessDetail.record.id)} onToggleStarred={() => void toggleBusinessRecordStar(businessDetail)}
+        onNavigateVisit={navigateRecordVisitHistory}
         onNavigateVisibleRecord={(id) => selectBusinessRecord(tab as BusinessTab, id)}
         onOpenRelatedRecord={openBusinessRecord} onBackToList={() => scrollToBusinessRegion(primaryContentRef.current)} onEdit={() => editBusinessDetail(businessDetail)} onDuplicate={() => duplicateBusinessDetail(businessDetail)} />}</div>
       <footer className="page-footer"><span>HXHWANG GW / {__APP_VERSION__}</span><span>© HaoXiangHwang · <a href="mailto:Rays688888@Gmail.com">Rays688888@Gmail.com</a> · <a href="https://nextweb4.github.io/" target="_blank" rel="noreferrer">nextweb4.github.io</a></span></footer>
@@ -1419,7 +1463,7 @@ interface BusinessDetailModel {
   sections: Array<{ title: string; content: React.ReactNode }>;
 }
 
-function BusinessDetailPanel({ detail, navigation, tasks, documents, attachments, panelRef, collapsed, starred, onToggleStarred, onToggleCollapsed, onNavigateVisibleRecord, onOpenRelatedRecord, onBackToList, onEdit, onDuplicate }: { detail: BusinessDetail; navigation: BusinessDetailNavigation; tasks: Task[]; documents: OfficialDocument[]; attachments: Attachment[]; panelRef: React.RefObject<HTMLElement | null>; collapsed: boolean; starred: boolean; onToggleStarred: () => void; onToggleCollapsed: () => void; onNavigateVisibleRecord: (id: string) => void; onOpenRelatedRecord: (tab: BusinessTab, id: string) => void; onBackToList: () => void; onEdit: () => void; onDuplicate: () => void }) {
+function BusinessDetailPanel({ detail, navigation, visitNavigation, tasks, documents, attachments, panelRef, collapsed, starred, onToggleStarred, onToggleCollapsed, onNavigateVisit, onNavigateVisibleRecord, onOpenRelatedRecord, onBackToList, onEdit, onDuplicate }: { detail: BusinessDetail; navigation: BusinessDetailNavigation; visitNavigation: BusinessVisitNavigation; tasks: Task[]; documents: OfficialDocument[]; attachments: Attachment[]; panelRef: React.RefObject<HTMLElement | null>; collapsed: boolean; starred: boolean; onToggleStarred: () => void; onToggleCollapsed: () => void; onNavigateVisit: (direction: 'back' | 'forward') => void; onNavigateVisibleRecord: (id: string) => void; onOpenRelatedRecord: (tab: BusinessTab, id: string) => void; onBackToList: () => void; onEdit: () => void; onDuplicate: () => void }) {
   const show = (value: string | number | undefined) => String(value ?? '').trim() || '未填写';
   const linkedTasks = detail.kind === 'document' ? relatedTasksForDocument(detail.record, tasks) : [];
   const linkedDocuments = detail.kind === 'task' ? relatedDocumentsForTask(detail.record.id, documents) : [];
@@ -1524,6 +1568,13 @@ function BusinessDetailPanel({ detail, navigation, tasks, documents, attachments
   }
   return <aside className="panel business-detail-panel" aria-label="记录详情" ref={panelRef}>
     <div className="detail-panel-header"><span className="detail-icon"><Icon size={18} /></span><div><span className="eyebrow">{model.eyebrow}</span><h2><span className="sr-only">记录详情：</span>{model.title}</h2></div><span className={`status-pill ${model.badgeClass}`}>{model.badge}</span><button type="button" className={`icon-button starred-record-toggle ${starred ? 'active' : ''}`} aria-label={starred ? '取消此记录星标' : '将此记录加入星标'} aria-pressed={starred} title={starred ? '取消本机星标' : '加入本机星标'} onClick={onToggleStarred}><Star size={17} fill={starred ? 'currentColor' : 'none'} /></button><button type="button" className="icon-button detail-collapse-toggle" aria-label="收起右侧记录详情" title="收起右侧记录详情" onClick={onToggleCollapsed}><PanelRightClose size={17} /></button></div>
+    <div className="detail-visit-navigation">
+      <span className="detail-visit-position" aria-live="polite"><small>跨模块轨迹</small><strong aria-label={visitNavigation.total ? `第 ${visitNavigation.position} 条，共 ${visitNavigation.total} 条` : '尚未建立访问轨迹'}>{visitNavigation.position}<span aria-hidden="true"> / </span>{visitNavigation.total}</strong></span>
+      <div className="detail-visit-steps" role="group" aria-label="跨模块访问历史">
+        <button type="button" className="icon-button detail-visit-step detail-visit-back" aria-label={visitNavigation.previous ? `返回上一条访问记录：${visitNavigation.previous.title}（${visitNavigation.previous.moduleLabel}）` : '没有可返回的访问记录'} title={visitNavigation.previous ? `返回：${visitNavigation.previous.moduleLabel} · ${visitNavigation.previous.title}` : '没有可返回的访问记录'} disabled={!visitNavigation.previous} onClick={() => visitNavigation.previous && onNavigateVisit('back')}><ArrowLeft size={17} /></button>
+        <button type="button" className="icon-button detail-visit-step detail-visit-forward" aria-label={visitNavigation.next ? `前进到下一条访问记录：${visitNavigation.next.title}（${visitNavigation.next.moduleLabel}）` : '没有可前进的访问记录'} title={visitNavigation.next ? `前进：${visitNavigation.next.moduleLabel} · ${visitNavigation.next.title}` : '没有可前进的访问记录'} disabled={!visitNavigation.next} onClick={() => visitNavigation.next && onNavigateVisit('forward')}><ArrowRight size={17} /></button>
+      </div>
+    </div>
     <div className="detail-record-navigation">
       <span aria-live="polite" className="detail-record-position"><small>当前可见</small><strong>{navigation.index + 1}<span aria-hidden="true"> / </span>{navigation.total}</strong></span>
       <div className="detail-record-steps" role="group" aria-label="浏览当前可见记录">
