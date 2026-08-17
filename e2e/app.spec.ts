@@ -345,10 +345,10 @@ test('filters and sorts all six ledgers while preserving session views and full 
   await taskFilter.selectOption('all');
   await taskSort.selectOption('deadline:asc');
   await expect(page.locator('.table-row').nth(0)).toContainText('整理省政府办公厅来文并建立关联');
-  await page.getByPlaceholder('搜索任务、类目或交办人').fill('省政府办公厅');
+  await page.getByLabel('任务管理关键词').fill('省政府办公厅');
   await page.getByRole('button', { name: '会议管理' }).click();
   await page.getByRole('button', { name: '任务管理' }).click();
-  await expect(page.getByPlaceholder('搜索任务、类目或交办人')).toHaveValue('省政府办公厅');
+  await expect(page.getByLabel('任务管理关键词')).toHaveValue('省政府办公厅');
   await expect(taskSort).toHaveValue('deadline:asc');
   await expect(page.getByText('显示 1 / 2 条任务')).toBeVisible();
   await page.getByRole('button', { name: '清除当前台账筛选和排序' }).click();
@@ -402,7 +402,7 @@ test('exports the six current ledger views as secure local CSV without changing 
   const taskCsv = await downloadCurrentCsv('任务管理');
   expect(taskCsv.fileName).toMatch(/^hxhwang-gw-任务管理-当前结果-\d{4}-\d{2}-\d{2}\.csv$/);
   expect(taskCsv.content.startsWith('\uFEFF')).toBe(true);
-  expect(taskCsv.content.split('\r\n')[0]).toBe('\uFEFF"任务名称","工作类目","任务来源","交办人","交办日期","截止日期","状态","关联文件","配合单位","任务阶段","备注","工作小结","附件数量","创建时间","更新时间"');
+  expect(taskCsv.content.split('\r\n')[0]).toBe('\uFEFF"任务名称","工作类目","任务来源","交办人","交办日期","截止日期","状态","关联文件","配合单位","任务阶段","检查清单","备注","工作小结","附件数量","创建时间","更新时间"');
   expect(taskCsv.content.indexOf('整理省政府办公厅来文并建立关联')).toBeLessThan(taskCsv.content.indexOf('推进全省基层治理年度工作总结'));
   await expect(page.getByLabel('任务管理排序')).toHaveValue('deadline:asc');
   expect(await page.locator('.business-detail-panel h2').textContent()).toBe(selectedTitle);
@@ -1285,7 +1285,7 @@ test('captures a task globally with deterministic preview and the original guard
   await expect(trigger).toBeFocused();
 
   await page.getByRole('button', { name: '任务管理' }).click();
-  const ledgerSearch = page.getByPlaceholder('搜索任务、类目或交办人');
+  const ledgerSearch = page.getByLabel('任务管理关键词');
   await ledgerSearch.focus();
   await page.keyboard.press('Shift+A');
   await expect(page.getByRole('dialog', { name: '快速记录任务' })).toBeHidden();
@@ -1408,9 +1408,9 @@ test('creates, persists, edits and deletes an editable task', async ({ page }) =
   await page.getByRole('button', { name: '保存任务' }).click();
   await expect(page.getByText(originalName, { exact: true })).toBeVisible();
   await expect(page.locator('.table-row').filter({ hasText: originalName })).toContainText('附件 1');
-  await page.getByPlaceholder('搜索任务、类目或交办人').fill('测试交办人');
+  await page.getByLabel('任务管理关键词').fill('测试交办人');
   await expect(page.locator('.table-row').filter({ hasText: originalName })).toBeVisible();
-  await page.getByPlaceholder('搜索任务、类目或交办人').fill('');
+  await page.getByLabel('任务管理关键词').fill('');
 
   await page.getByRole('button', { name: '新建任务' }).click();
   const assignerList = await page.getByLabel('交办人', { exact: true }).getAttribute('list');
@@ -1985,6 +1985,70 @@ test('saves partner unit groups and appends them without overwriting', async ({ 
   await page.getByRole('button', { name: '任务管理' }).click();
   await page.getByRole('button', { name: '新建任务' }).click();
   await expect(page.getByLabel('按分组添加配合单位').locator('option')).toContainText(['端到端协同组（2 个单位）']);
+});
+
+test('edits an embedded task checklist, persists progress and resets completion when copied', async ({ page }, testInfo) => {
+  const unexpectedRequests: string[] = [];
+  const pageOrigin = new URL(page.url()).origin;
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (!['data:', 'blob:'].includes(url.protocol) && url.origin !== pageOrigin) unexpectedRequests.push(request.url());
+  });
+
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await page.getByRole('button', { name: '新建任务' }).click();
+  const editor = page.getByRole('dialog', { name: '新建任务' });
+  await editor.getByLabel('任务名称').fill('检查清单端到端任务');
+  const checklist = editor.getByRole('region', { name: '任务检查清单' });
+  await checklist.getByRole('button', { name: '添加检查项' }).click();
+  await checklist.getByLabel('检查项内容 1').fill('汇总材料');
+  await checklist.getByRole('button', { name: '添加检查项' }).click();
+  await checklist.getByLabel('检查项内容 2').fill('核对预算口径');
+  await checklist.getByRole('button', { name: '添加检查项' }).click();
+  await checklist.getByLabel('检查项内容 3').fill('删除前的临时步骤');
+  await checklist.getByLabel('完成检查项 1').check();
+  await checklist.locator('.task-checklist-row').first().getByTitle('下移检查项').click();
+  await expect(checklist.getByLabel('检查项内容 1')).toHaveValue('核对预算口径');
+  await expect(checklist.getByLabel('检查项内容 2')).toHaveValue('汇总材料');
+  await expect(checklist.getByLabel('完成检查项 2')).toBeChecked();
+  await checklist.locator('.task-checklist-row').nth(2).getByTitle('删除检查项').click();
+  await expect(checklist.locator('.task-checklist-row')).toHaveCount(2);
+  if (testInfo.project.name === 'mobile') {
+    for (const control of [checklist.getByTitle('上移检查项').last(), checklist.getByTitle('下移检查项').first(), checklist.getByTitle('删除检查项').first()]) {
+      const box = await control.boundingBox();
+      expect(box?.width || 0).toBeGreaterThanOrEqual(44);
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+    expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+  await editor.getByRole('button', { name: '保存任务' }).click();
+
+  const savedRow = page.locator('.table-row').filter({ hasText: '检查清单端到端任务' });
+  await expect(savedRow).toContainText('检查清单 1/2');
+  await expect(savedRow.getByText('未启动')).toBeVisible();
+  await savedRow.click();
+  const detail = page.locator('.business-detail-panel');
+  await expect(detail.getByLabel('检查清单，已完成 1 项，共 2 项')).toContainText('核对预算口径');
+  await expect(detail.getByLabel('检查清单，已完成 1 项，共 2 项')).toContainText('汇总材料');
+
+  await page.getByLabel('任务管理关键词').fill('预算口径');
+  await expect(page.getByText('显示 1 / 3 条任务')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await page.getByLabel('任务管理关键词').fill('预算口径');
+  await expect(page.locator('.table-row').filter({ hasText: '检查清单端到端任务' })).toContainText('检查清单 1/2');
+  await page.locator('.table-row').filter({ hasText: '检查清单端到端任务' }).click();
+
+  await page.locator('.business-detail-panel').getByRole('button', { name: '复制相似记录' }).click();
+  const copyEditor = page.getByRole('dialog', { name: '复制任务为新记录' });
+  await expect(copyEditor.getByLabel('检查项内容 1')).toHaveValue('核对预算口径');
+  await expect(copyEditor.getByLabel('检查项内容 2')).toHaveValue('汇总材料');
+  await expect(copyEditor.getByLabel('完成检查项 1')).not.toBeChecked();
+  await expect(copyEditor.getByLabel('完成检查项 2')).not.toBeChecked();
+  page.once('dialog', (dialog) => { void dialog.accept(); });
+  await copyEditor.getByRole('button', { name: '取消' }).click();
+  await expect(page.locator('.table-row').filter({ hasText: '检查清单端到端任务' })).toHaveCount(1);
+  expect(unexpectedRequests).toEqual([]);
 });
 
 test('applies category tint overrides across the task list and statistics', async ({ page }) => {

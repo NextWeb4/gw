@@ -1,6 +1,7 @@
 import {
   calculateMaterialStock,
   materialStockKey,
+  normalizeTaskChecklist,
   relatedDocumentsForTask,
   relatedTasksForDocument,
   statusLabels,
@@ -57,7 +58,7 @@ const labels: Record<LedgerCsvKind, string> = {
   materials: '物资收发',
 };
 
-const taskHeaders = ['任务名称', '工作类目', '任务来源', '交办人', '交办日期', '截止日期', '状态', '关联文件', '配合单位', '任务阶段', '备注', '工作小结', '附件数量', '创建时间', '更新时间'] as const;
+const taskHeaders = ['任务名称', '工作类目', '任务来源', '交办人', '交办日期', '截止日期', '状态', '关联文件', '配合单位', '任务阶段', '检查清单', '备注', '工作小结', '附件数量', '创建时间', '更新时间'] as const;
 const meetingHeaders = ['会议主题', '发送对象', '接收方', '通知日期', '会议时间', '地点', '备注', '附件数量', '创建时间', '更新时间'] as const;
 const documentHeaders = ['文件标题', '文号', '文件类型', '文件日期', '密级', '来源单位', '文件归类', '工作归类', '承办人', '发送范围', '登记状态', '关联任务', '备注', '附件数量', '创建时间', '更新时间'] as const;
 const researchHeaders = ['活动日期', '活动类型', '活动主题', '地点', '用车', '参与人员', '情况摘要', '活动成果', '备注', '附件数量', '创建时间', '更新时间'] as const;
@@ -84,6 +85,7 @@ const taskRows = (records: readonly Task[], documents: readonly OfficialDocument
     const partners = formatPartners(stage.partnerStatus);
     return `${index + 1}. ${stage.name.trim()}${partners ? `：${partners}` : ''}`;
   }).join('；'),
+  normalizeTaskChecklist(task.checklist).map((item, index) => `${index + 1}. ${item.done ? '已完成' : '未完成'}：${item.text}`).join('；'),
   task.remark,
   task.workSummary,
   task.files.length,

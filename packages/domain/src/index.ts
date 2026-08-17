@@ -41,6 +41,37 @@ export interface TaskStage {
   partnerStatus: PartnerStatus[];
 }
 
+export interface TaskChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export const TASK_CHECKLIST_LIMIT = 100;
+export const TASK_CHECKLIST_TEXT_LIMIT = 240;
+
+export function normalizeTaskChecklist(value: unknown): TaskChecklistItem[] {
+  if (!Array.isArray(value)) return [];
+  const normalized: TaskChecklistItem[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const candidate = item as Partial<TaskChecklistItem>;
+    const id = typeof candidate.id === 'string' ? candidate.id.trim() : '';
+    const text = typeof candidate.text === 'string' ? candidate.text.trim().slice(0, TASK_CHECKLIST_TEXT_LIMIT) : '';
+    if (!id || id.length > 180 || !text || seen.has(id)) continue;
+    seen.add(id);
+    normalized.push({ id, text, done: candidate.done === true });
+    if (normalized.length >= TASK_CHECKLIST_LIMIT) break;
+  }
+  return normalized;
+}
+
+export function taskChecklistProgress(value: unknown) {
+  const checklist = normalizeTaskChecklist(value);
+  return { completed: checklist.filter((item) => item.done).length, total: checklist.length };
+}
+
 export interface Task extends BusinessRecordLifecycle {
   id: string;
   name: string;
@@ -52,6 +83,7 @@ export interface Task extends BusinessRecordLifecycle {
   status: Status;
   partnerStatus: PartnerStatus[];
   stages: TaskStage[];
+  checklist: TaskChecklistItem[];
   remark: string;
   workSummary: string;
   files: string[];
@@ -624,6 +656,7 @@ export function duplicateBusinessRecord(kind: BusinessRecordCopyKind, record: Ed
       status: 'pending',
       partnerStatus: task.partnerStatus.map(resetPartner),
       stages: task.stages.map((stage) => ({ id: createId('stage'), name: stage.name, partnerStatus: stage.partnerStatus.map(resetPartner) })),
+      checklist: normalizeTaskChecklist(task.checklist).map((item) => ({ id: createId('check'), text: item.text, done: false })),
       remark: task.remark,
       workSummary: '',
       files: [...task.files],
@@ -1280,13 +1313,13 @@ export function applyTaskTextExtraction(task: Task, extraction: TaskTextExtracti
 export const sampleTasks: Task[] = [
   {
     id: 'task_demo_1', name: '推进全省基层治理年度工作总结', category: '重点项目', source: '会议议定', assigner: '林晓岚',
-    assignDate: '2026-07-20', deadline: '2026-07-28', status: 'progress', partnerStatus: [{ name: '福建省民政厅', status: 'progress', files: [] }], stages: [],
+    assignDate: '2026-07-20', deadline: '2026-07-28', status: 'progress', partnerStatus: [{ name: '福建省民政厅', status: 'progress', files: [] }], stages: [], checklist: [],
     remark: '汇总省直有关单位和厅机关处室数据，保留来源和口径。', workSummary: '已完成省级任务清单整理。', files: [],
     createdAt: '2026-07-20T08:00:00.000Z', updatedAt: '2026-07-27T01:00:00.000Z'
   },
   {
     id: 'task_demo_2', name: '整理省政府办公厅来文并建立关联', category: '日常工作', source: '文件收发', assigner: '陈致远',
-    assignDate: '2026-07-21', deadline: '2026-07-25', status: 'pending', partnerStatus: [], stages: [],
+    assignDate: '2026-07-21', deadline: '2026-07-25', status: 'pending', partnerStatus: [], stages: [], checklist: [],
     remark: '按省级公文工作类目归档。', workSummary: '', files: [],
     createdAt: '2026-07-21T08:00:00.000Z', updatedAt: '2026-07-27T01:01:00.000Z'
   }

@@ -2,7 +2,7 @@ import {
   isActiveBusinessRecord,
   relatedDocumentsForTask,
   relatedTasksForDocument,
-  statusLabels,
+  normalizeTaskChecklist, statusLabels,
   type MaterialRecord,
   type MeetingRecord,
   type OfficialDocument,
@@ -125,6 +125,12 @@ function stageSummary(task: Task) {
   }).join('\n'));
 }
 
+function checklistSummary(task: Task) {
+  return show(normalizeTaskChecklist(task.checklist)
+    .map((item, index) => `${index + 1}. ${item.done ? '已完成' : '未完成'}：${item.text}`)
+    .join('\n'));
+}
+
 function relatedDocumentSummary(task: Task, documents: readonly OfficialDocument[]) {
   return show(relatedDocumentsForTask(task.id, documents).map((document) => document.title.trim()).filter(Boolean).join('\n'));
 }
@@ -146,6 +152,7 @@ function taskFields(source: Task, target: Task, context: BusinessComparisonConte
     { key: 'deadline', label: '截止日期', source: source.deadline, target: target.deadline },
     { key: 'partners', label: '配合单位', source: partnerSummary(source), target: partnerSummary(target) },
     { key: 'stages', label: '任务阶段', source: stageSummary(source), target: stageSummary(target) },
+    { key: 'checklist', label: '检查清单', source: checklistSummary(source), target: checklistSummary(target) },
     { key: 'workSummary', label: '工作小结', source: source.workSummary, target: target.workSummary },
     { key: 'relatedDocuments', label: '关联文件', source: relatedDocumentSummary(source, context.documents), target: relatedDocumentSummary(target, context.documents) },
     { key: 'remark', label: '备注', source: source.remark, target: target.remark },

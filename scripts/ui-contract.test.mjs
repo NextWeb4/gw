@@ -535,3 +535,30 @@ test('business detail summary copy is awaited, whitelist-only and side-effect fr
   assert.doesNotMatch(privateServices, /business-record-summary|copyBusinessRecordSummary|记录摘要/, 'private sync must not gain summary-copy state');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.detail-panel-actions \.secondary-button[^}]*44px/, 'the shared narrow detail actions must retain 44px touch targets');
 });
+
+test('task checklist stays inside the original task editor and exposes read-only progress', async () => {
+  const [app, domain, localData, css, privateServices] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('packages/domain/src/index.ts'),
+    read('packages/local-data/src/index.ts'),
+    read('apps/web/src/styles.css'),
+    read('apps/web/src/private-services.ts'),
+  ]);
+
+  assert.match(domain, /interface TaskChecklistItem[\s\S]*id:\s*string[\s\S]*text:\s*string[\s\S]*done:\s*boolean/, 'the checklist must be an embedded typed task field');
+  assert.match(domain, /normalizeTaskChecklist/, 'legacy and untrusted checklist values must share one normalizer');
+  assert.match(domain, /checklist:\s*normalizeTaskChecklist\(task\.checklist\)\.map/, 'copying a task must keep checklist text through the audited normalizer');
+  assert.match(domain, /done:\s*false/, 'copied checklist completion must reset');
+  assert.match(localData, /kind === 'task'[\s\S]*normalizeTaskChecklist/, 'local and restored old task payloads must gain a safe empty checklist');
+  assert.match(app, /<TaskChecklistEditor checklist=\{task\.checklist\}/, 'editing must stay in the original task drawer');
+  assert.match(app, /const checklist = normalizeTaskChecklist\(task\.checklist\);[\s\S]*persistEditableRecord\('task'/, 'only normalized non-empty checklist items may enter the existing save path');
+  assert.match(app, /aria-label="任务检查清单"/, 'the checklist editor must expose one accessible group name');
+  assert.match(app, /title="上移检查项"/, 'checklist order must be editable with a named icon command');
+  assert.match(app, /title="下移检查项"/, 'checklist order must be editable with a named icon command');
+  assert.match(app, /title="删除检查项"/, 'checklist items must be removable with a named icon command');
+  assert.match(app, /title:\s*'检查清单'/, 'the right detail lane must present checklist progress read-only');
+  assert.match(app, /taskChecklistProgress\(task\.checklist\)/, 'ledger and detail progress must use the shared pure helper');
+  assert.doesNotMatch(privateServices, /TaskChecklistItem|task-checklist|任务检查清单/, 'the checklist must not create a second sync collection or API path');
+  assert.match(css, /\.task-checklist-editor/, 'the editor must have a dedicated stable layout');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.task-checklist-actions \.icon-button[^}]*4[4-9]px/, 'narrow checklist icon commands must retain at least 44px touch targets');
+});

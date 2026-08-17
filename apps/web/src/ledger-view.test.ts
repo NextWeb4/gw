@@ -56,6 +56,18 @@ describe('ledger view derivation', () => {
       .toEqual(['meeting-blank']);
   });
 
+  it('finds a task by checklist text without changing the source checklist', () => {
+    const tasks: Task[] = [
+      { ...sampleTasks[0], id: 'task-checklist-hit', checklist: [{ id: 'check-hit', text: '核对预算口径', done: false }] },
+      { ...sampleTasks[1], id: 'task-checklist-miss', checklist: [{ id: 'check-miss', text: '整理会议材料', done: true }] },
+    ];
+    const before = JSON.stringify(tasks);
+
+    expect(deriveLedgerRecords('tasks', tasks, { query: '预算口径', filter: 'all', sort: 'default', date: 'all', attachments: 'all' }).map((task) => task.id))
+      .toEqual(['task-checklist-hit']);
+    expect(JSON.stringify(tasks)).toBe(before);
+  });
+
   it('offers module-specific filters and sort choices without duplicating dynamic values', () => {
     const tasks = [
       { ...sampleTasks[0], category: '重点项目' },

@@ -2,6 +2,7 @@ import {
   isActiveBusinessRecord,
   isValidIsoDate,
   isValidIsoDateTime,
+  normalizeTaskChecklist,
   statusLabels,
   type BusinessRecordLifecycle,
   type MaterialRecord,
@@ -169,7 +170,7 @@ function valueAfterPrefix(value: string) {
 
 const ledgerConfigs: { [K in LedgerKind]: LedgerConfig<LedgerRecordMap[K]> } = {
   tasks: {
-    searchText: (task) => `${task.name} ${task.category} ${task.assigner} ${task.source} ${task.workSummary}`,
+    searchText: (task) => `${task.name} ${task.category} ${task.assigner} ${task.source} ${task.workSummary} ${normalizeTaskChecklist(task.checklist).map((item) => item.text).join(' ')}`,
     matchesFilter: (task, filter) => filter === 'all'
       || (filter.startsWith('status:') && task.status === valueAfterPrefix(filter))
       || (filter.startsWith('category:') && task.category === valueAfterPrefix(filter)),

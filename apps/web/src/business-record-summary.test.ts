@@ -14,7 +14,7 @@ describe('business record summary', () => {
 
   it('builds stable fixed-whitelist summaries for all six active business kinds', () => {
     const cases = [
-      { kind: 'task' as const, record: sampleTasks[0], heading: '【任务管理】', labels: ['状态', '工作类目', '任务来源', '交办人', '交办日期', '截止日期', '配合单位', '任务阶段', '工作小结', '关联文件', '备注', '附件数量', '最近更新'] },
+      { kind: 'task' as const, record: sampleTasks[0], heading: '【任务管理】', labels: ['状态', '工作类目', '任务来源', '交办人', '交办日期', '截止日期', '配合单位', '任务阶段', '检查清单', '工作小结', '关联文件', '备注', '附件数量', '最近更新'] },
       { kind: 'meeting' as const, record: sampleMeetings[0], heading: '【会议管理】', labels: ['会议时间', '通知日期', '发送对象', '接收方', '会议地点', '备注', '附件数量', '最近更新'] },
       { kind: 'document' as const, record: sampleDocuments[0], heading: '【文件收发】', labels: ['发文字号', '文件类型', '文件日期', '密级', '来源单位', '文件归类', '工作归类', '承办人', '发送范围', '登记状态', '关联任务', '备注', '附件数量', '最近更新'] },
       { kind: 'research' as const, record: sampleResearches[0], heading: '【外出活动】', labels: ['活动类型', '活动日期', '活动地点', '参与人员', '是否用车', '活动摘要', '成果记录', '备注', '附件数量', '最近更新'] },

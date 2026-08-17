@@ -7,7 +7,7 @@ describe('legacy migration', () => {
   it('imports all archive module kinds from upgrade04', async () => {
     const bundle = await migrateLegacyExport(upgrade04);
     expect(bundle.tasks).toHaveLength(1);
-    expect(bundle.tasks[0]).toMatchObject({ id: 'task_old', name: '旧版任务', status: 'progress', files: ['att_old'] });
+    expect(bundle.tasks[0]).toMatchObject({ id: 'task_old', name: '旧版任务', status: 'progress', checklist: [], files: ['att_old'] });
     expect(bundle.documents).toHaveLength(1);
     expect(bundle.documents[0]).toMatchObject({ id: 'doc_old', title: '旧版文件', docType: '收文', files: ['att_old'] });
     expect(bundle.archives.map((record) => record.type).sort()).toEqual(['material', 'meeting', 'research', 'seal']);
@@ -32,7 +32,7 @@ describe('legacy migration', () => {
   it('keeps version, stages, weekly archive and attachment from WenXiBuddy 0722', async () => {
     const bundle = await migrateLegacyExport(wenxibuddy0722);
     expect(bundle.report.sourceVersion).toContain('导出格式未区分');
-    expect(bundle.tasks[0]).toMatchObject({ id: 'task_new', status: 'done', files: ['att_new'] });
+    expect(bundle.tasks[0]).toMatchObject({ id: 'task_new', status: 'done', checklist: [], files: ['att_new'] });
     expect(bundle.tasks[0]?.stages[0]?.name).toBe('报送');
     expect(bundle.documents[0]).toMatchObject({ id: 'doc_new', title: '新版文件', docType: '发文', code: '测试〔2026〕1号' });
     expect(bundle.archives).toHaveLength(1);

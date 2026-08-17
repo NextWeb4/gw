@@ -41,7 +41,7 @@ describe('local snapshot validation', () => {
       ]
     });
     expect(result.records).toEqual([
-      { id: 'task_1', kind: 'task', payload: { id: 'task_1', name: '恢复任务' }, updatedAt: '2026-07-23T00:00:00.000Z' },
+      { id: 'task_1', kind: 'task', payload: { id: 'task_1', name: '恢复任务', checklist: [] }, updatedAt: '2026-07-23T00:00:00.000Z' },
       { id: 'weekly_1', kind: 'weekly', payload: { id: 'weekly_1', title: '恢复周报' }, updatedAt: '2026-07-23T00:00:00.000Z' },
       { id: 'meeting_1', kind: 'meeting', payload: { id: 'meeting_1', subject: '恢复会议' }, updatedAt: '2026-07-23T00:00:00.000Z' },
       { id: 'research_1', kind: 'research', payload: { id: 'research_1', subject: '恢复外出活动' }, updatedAt: '2026-07-23T00:00:00.000Z' },
@@ -49,6 +49,20 @@ describe('local snapshot validation', () => {
       { id: 'material_1', kind: 'material', payload: { id: 'material_1', materialName: '恢复物资' }, updatedAt: '2026-07-23T00:00:00.000Z' }
     ]);
     expect(result.warnings).toEqual(['跳过跨类型 ID 冲突：task_1（task/attachment）', '跳过重复记录 ID：task_1', '跳过未知类型记录：secret_1', '跳过无效 payload：bad_payload', '跳过非对象记录']);
+  });
+
+  it('normalizes a legacy task without a checklist during snapshot parsing', () => {
+    const parsed = parseLocalSnapshot({
+      format: 'hxhwang-gw-local-v1',
+      records: [{
+        id: 'task-legacy-checklist',
+        kind: 'task',
+        payload: { id: 'task-legacy-checklist', name: '旧任务', updatedAt: '2026-08-16T08:00:00.000Z' },
+        updatedAt: '2026-08-16T08:00:00.000Z',
+      }],
+    });
+
+    expect(parsed.records[0]?.payload).toMatchObject({ id: 'task-legacy-checklist', checklist: [] });
   });
 
   it('rejects invalid formats and excessive record counts', () => {

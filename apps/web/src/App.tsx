@@ -3,21 +3,21 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import {
-  Activity, AlertTriangle, Archive, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpDown, ArrowUpRight, BarChart3, BookOpen, CalendarDays, CalendarRange, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardCopy, ClipboardList,
+  Activity, AlertTriangle, Archive, ArrowDown, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, ArrowUpRight, BarChart3, BookOpen, CalendarDays, CalendarRange, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardCopy, ClipboardList,
   Bot, Building2, CopyPlus, FileArchive, FileOutput, FileText, FileUp, FolderOpen, Globe2, Info, KeyRound, LayoutDashboard, Library, Link2, MapPin,
   GitCompareArrows, History, ListFilter, Menu, Orbit, Package, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Server, ShieldCheck, Sparkles, Star, Stamp, Trash2, Upload, UsersRound, WandSparkles, X
 } from 'lucide-react';
 import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, DEFAULT_WEEKLY_TEMPLATE, extractTaskFromText,
   createDocumentRevision, createStarredBusinessRecordsSetting, duplicateBusinessRecord, extractWeeklyTemplateFromSample, isDocumentRevision, listStatisticsMonths, mergePartnerGroupMembers, moveBusinessRecordToTrash, nowIso, parseStarredBusinessRecordsSetting, parseWeeklyTemplate, partitionBusinessRecords, pruneDocumentRevisions, prunePurgedStarredBusinessRecords,
-  normalizeRelatedRecordIds, purgeBusinessRecord, relatedDocumentsForTask, relatedTasksForDocument, renameCustomWritingTemplate, resolveCategoryTint, resolveWeeklyReportRelationGroups, restoreBusinessRecord,
+  normalizeRelatedRecordIds, normalizeTaskChecklist, purgeBusinessRecord, relatedDocumentsForTask, relatedTasksForDocument, renameCustomWritingTemplate, resolveCategoryTint, resolveWeeklyReportRelationGroups, restoreBusinessRecord,
   restoreDraftRevision, restoreWeeklyRevision, weeklySectionSourceLabels,
   type AiFieldChange, type AiGuidancePreset, type AiHistoryEntry, type AiSkill, type ArchiveRecord, type Attachment, type CategoryStyle, type CategoryTint, type Draft, type KnowledgePack, type MaterialRecord, type PartnerGroup,
   type MeetingRecord, type MigrationReport, type PurgedBusinessRecord, generateTaskWorkSummary, isValidIsoDate, isValidIsoDateTime, mergeContactDirectory, statusLabels,
   type ContactDirectory, type CustomWritingTemplate, type DocumentRevision, type OfficialDocument, type PartnerStatus, type ResearchDirection, type ResearchRecord,
-  type SealRecord, type Status, type Task, type TaskStage, type WeeklyReport, type WeeklySectionSource, type WeeklyTemplate,
+  type SealRecord, type Status, type Task, type TaskChecklistItem, type TaskStage, type WeeklyReport, type WeeklySectionSource, type WeeklyTemplate,
   type StarredBusinessRecordRef, type WeeklyTemplateSection, type WorkStatisticsInput, type WorkSummaryTemplateId, type WritingTemplate,
-  STARRED_BUSINESS_RECORDS_SETTING_ID, toggleStarredBusinessRecord,
+  STARRED_BUSINESS_RECORDS_SETTING_ID, TASK_CHECKLIST_LIMIT, TASK_CHECKLIST_TEXT_LIMIT, taskChecklistProgress, toggleStarredBusinessRecord,
   workSummaryTemplateLabels
 } from '@hxhwang/domain';
 import {
@@ -148,7 +148,7 @@ const globalNavItems = [...navItems, aboutNavItem];
 
 const emptyTask = (): Task => ({
   id: createId('task'), name: '', category: '日常工作', source: '其他', assigner: '', assignDate: localDateInput(new Date()),
-  deadline: '', status: 'pending', partnerStatus: [], stages: [], remark: '', workSummary: '', files: [], createdAt: nowIso(), updatedAt: nowIso()
+  deadline: '', status: 'pending', partnerStatus: [], stages: [], checklist: [], remark: '', workSummary: '', files: [], createdAt: nowIso(), updatedAt: nowIso()
 });
 
 const emptyDocument = (): OfficialDocument => ({
@@ -683,7 +683,8 @@ function App() {
     if (!isValidIsoDate(task.assignDate, false) || !isValidIsoDate(task.deadline)) return setToast('任务日期必须是有效的四位年份日期');
     const partnerStatus = task.partnerStatus.filter((partner) => partner.name.trim()).map((partner) => ({ ...partner, name: partner.name.trim() }));
     const stages = task.stages.filter((stage) => stage.name.trim()).map((stage) => ({ ...stage, name: stage.name.trim(), partnerStatus: stage.partnerStatus.filter((partner) => partner.name.trim()).map((partner) => ({ ...partner, name: partner.name.trim() })) }));
-    const saved = { ...task, name: task.name.trim(), partnerStatus, stages, updatedAt: nowIso() };
+    const checklist = normalizeTaskChecklist(task.checklist);
+    const saved = { ...task, name: task.name.trim(), partnerStatus, stages, checklist, updatedAt: nowIso() };
     if (!await persistEditableRecord('task', task.id, saved)) return;
     await persistDirectory([task.assigner], [...partnerStatus.map((partner) => partner.name), ...stages.flatMap((stage) => stage.partnerStatus.map((partner) => partner.name))]);
     await finishBusinessEditorSave('task', 'tasks', task.id, () => { setTaskEditorImportText(''); setTaskEditor(null); }); setToast('任务已保存，人员和单位已加入常用项');
@@ -1545,7 +1546,7 @@ function LedgerViewControls({ label, placeholder, countLabel, visibleCount, tota
 }
 
 function TaskView({ tasks, totalCount, view, filterOptions, onViewChange, onReset, onExport, selectedId, onSelect, attachments, relationCounts, categoryTints, onNew, onEdit, onDelete }: { tasks: Task[]; attachments: Attachment[]; relationCounts: ReadonlyMap<string, number>; categoryTints: ReadonlyMap<string, CategoryTint>; onNew: () => void; onEdit: (task: Task) => void; onDelete: (id: string) => void } & LedgerControlledViewProps & SelectableViewProps) {
-  return <><PageHeading eyebrow="事务管理" title="任务管理" detail="把交办、进度、配合单位和工作小结放在同一条记录里。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />新建任务</button>} /><LedgerViewControls label="任务管理" placeholder="搜索任务、类目或交办人" countLabel="条任务" visibleCount={tasks.length} totalCount={totalCount} view={view} filterOptions={filterOptions} sortOptions={LEDGER_SORT_OPTIONS.tasks} onViewChange={onViewChange} onReset={onReset} onExport={onExport} /><section className="panel table-panel"><div className="table-head task-columns"><span>任务</span><span>来源 / 类目</span><span>截止日期</span><span>状态</span><span /></div>{tasks.map((task) => { const linkedDocumentCount = relationCounts.get(task.id) || 0; return <div className={`table-row task-columns selectable-row ${selectedId === task.id ? 'selected' : ''}`} key={task.id} tabIndex={0} title={`查看任务详情：${task.name}`} onClick={() => onSelect(task.id)} onKeyDown={(event) => selectRecordOnKeyboard(event, () => onSelect(task.id))}><div className="row-title"><strong>{task.name}</strong><small>{task.assigner || '未指定交办人'} · {task.workSummary || '尚无工作小结'} · 附件 {task.files.length}{linkedDocumentCount ? ` · 关联文件 ${linkedDocumentCount}` : ''}</small></div><span className="muted-cell">{task.source || '其他'}<br /><span className="category-chip"><span className={`category-dot tint-${resolveCategoryTint(task.category, categoryTints)}`} aria-hidden="true" />{task.category || '未分类'}</span></span><span className="date-cell">{task.deadline || '—'}</span><StatusPill status={task.status} /><RowActions editTitle="编辑任务" deleteTitle="删除任务" onEdit={() => onEdit(task)} onDelete={() => onDelete(task.id)} /></div>; })}{!tasks.length && <EmptyState text="没有匹配的任务" />}</section><AttachmentHint count={attachments.length} /></>;
+  return <><PageHeading eyebrow="事务管理" title="任务管理" detail="把交办、进度、检查清单、配合单位和工作小结放在同一条记录里。" action={<button className="primary-button" onClick={onNew}><Plus size={16} />新建任务</button>} /><LedgerViewControls label="任务管理" placeholder="搜索任务、清单、类目或交办人" countLabel="条任务" visibleCount={tasks.length} totalCount={totalCount} view={view} filterOptions={filterOptions} sortOptions={LEDGER_SORT_OPTIONS.tasks} onViewChange={onViewChange} onReset={onReset} onExport={onExport} /><section className="panel table-panel"><div className="table-head task-columns"><span>任务</span><span>来源 / 类目</span><span>截止日期</span><span>状态</span><span /></div>{tasks.map((task) => { const linkedDocumentCount = relationCounts.get(task.id) || 0; const checklistProgress = taskChecklistProgress(task.checklist); return <div className={`table-row task-columns selectable-row ${selectedId === task.id ? 'selected' : ''}`} key={task.id} tabIndex={0} title={`查看任务详情：${task.name}`} onClick={() => onSelect(task.id)} onKeyDown={(event) => selectRecordOnKeyboard(event, () => onSelect(task.id))}><div className="row-title"><strong>{task.name}</strong><small>{task.assigner || '未指定交办人'} · {task.workSummary || '尚无工作小结'}{checklistProgress.total ? ` · 检查清单 ${checklistProgress.completed}/${checklistProgress.total}` : ''} · 附件 {task.files.length}{linkedDocumentCount ? ` · 关联文件 ${linkedDocumentCount}` : ''}</small></div><span className="muted-cell">{task.source || '其他'}<br /><span className="category-chip"><span className={`category-dot tint-${resolveCategoryTint(task.category, categoryTints)}`} aria-hidden="true" />{task.category || '未分类'}</span></span><span className="date-cell">{task.deadline || '—'}</span><StatusPill status={task.status} /><RowActions editTitle="编辑任务" deleteTitle="删除任务" onEdit={() => onEdit(task)} onDelete={() => onDelete(task.id)} /></div>; })}{!tasks.length && <EmptyState text="没有匹配的任务" />}</section><AttachmentHint count={attachments.length} /></>;
 }
 
 function MeetingView({ meetings, totalCount, view, filterOptions, onViewChange, onReset, onExport, selectedId, onSelect, onNew, onEdit, onDelete }: { meetings: MeetingRecord[]; onNew: () => void; onEdit: (meeting: MeetingRecord) => void; onDelete: (id: string) => void } & LedgerControlledViewProps & SelectableViewProps) {
@@ -1594,6 +1595,8 @@ function BusinessDetailPanel({ detail, navigation, visitNavigation, tasks, docum
   const model: BusinessDetailModel = (() => {
     if (detail.kind === 'task') {
       const task = detail.record;
+      const checklist = normalizeTaskChecklist(task.checklist);
+      const checklistProgress = taskChecklistProgress(task.checklist);
       return {
         eyebrow: 'TASK DETAIL', title: task.name, badge: statusLabels[task.status], badgeClass: task.status, icon: ClipboardList,
         fields: [
@@ -1605,6 +1608,7 @@ function BusinessDetailPanel({ detail, navigation, visitNavigation, tasks, docum
           { title: '工作小结', content: show(task.workSummary) },
           { title: '关联文件', content: <RelatedRecordList kind="document" records={linkedDocuments.map((document) => ({ id: document.id, title: document.title, meta: [document.code, document.docDate].filter(Boolean).join(' · ') }))} emptyText="当前任务没有关联的 active 文件" onOpen={(id) => onOpenRelatedRecord('documents', id)} /> },
           { title: '配合单位', content: task.partnerStatus.length ? <div className="detail-tag-list">{task.partnerStatus.map((partner, index) => <span key={`${partner.name}:${index}`}><strong>{partner.name}</strong>{partnerStatusLabels[partner.status]}</span>)}</div> : '未登记配合单位' },
+          { title: '检查清单', content: checklist.length ? <div className="detail-checklist" aria-label={`检查清单，已完成 ${checklistProgress.completed} 项，共 ${checklistProgress.total} 项`}><div className="detail-checklist-progress"><progress max={checklistProgress.total} value={checklistProgress.completed} /><span>{checklistProgress.completed}/{checklistProgress.total}</span></div>{checklist.map((item) => <div className={item.done ? 'done' : ''} key={item.id}>{item.done ? <Check size={14} aria-hidden="true" /> : <span aria-hidden="true" />}<span>{item.text}</span></div>)}</div> : '未登记检查清单' },
           { title: '任务阶段', content: task.stages.length ? <div className="detail-step-list">{task.stages.map((stage, index) => <div key={`${stage.name}:${index}`}><span>{String(index + 1).padStart(2, '0')}</span><div><strong>{stage.name}</strong><small>配合单位 {stage.partnerStatus.length}</small></div></div>)}</div> : '未登记任务阶段' },
           { title: '备注', content: show(task.remark) }
         ]
@@ -1922,6 +1926,7 @@ function TaskEditor({ task, isNew, forceDirty, initialImportText, returnFocusTar
     <div className="form-grid"><Field label="任务来源" value={task.source} onChange={(v) => update('source', v)} /><DateField label="交办日期" value={task.assignDate} onChange={(v) => update('assignDate', v)} /></div>
     <PartnerStatusEditor label="配合单位" partners={task.partnerStatus} unitSuggestions={directory.units} groups={partnerGroups} manageGroups onSaveGroup={onSaveGroup} onDeleteGroup={onDeleteGroup} setToast={setToast} onChange={(partners) => update('partnerStatus', partners)} />
     <TaskStageEditor stages={task.stages} unitSuggestions={directory.units} groups={partnerGroups} setToast={setToast} onChange={(stages) => update('stages', stages)} />
+    <TaskChecklistEditor checklist={task.checklist} onChange={(checklist) => update('checklist', checklist)} />
     <div className="summary-generator"><SelectField label="小结模板" value={summaryTemplate} options={(Object.entries(workSummaryTemplateLabels) as Array<[WorkSummaryTemplateId, string]>).map(([value, label]) => ({ value, label }))} onChange={(value) => setSummaryTemplate(value as WorkSummaryTemplateId)} /><button type="button" className="secondary-button" onClick={() => update('workSummary', generateTaskWorkSummary(task, summaryTemplate))}><WandSparkles size={15} />一键生成小结</button></div>
     <TextArea label="工作小结" value={task.workSummary} onChange={(v) => update('workSummary', v)} placeholder="生成周报时可引用" />
     <TextArea label="备注" value={task.remark} onChange={(v) => update('remark', v)} />
@@ -2083,6 +2088,22 @@ function TaskStageEditor({ stages, unitSuggestions, groups, setToast, onChange }
   return <section className="form-section">
     <div className="form-section-heading"><span>任务阶段</span><button type="button" className="text-button" onClick={() => onChange([...stages, { id: createId('stage'), name: '', partnerStatus: [] }])}><Plus size={13} />添加阶段</button></div>
     <div className="stage-list">{stages.map((stage, index) => <div className="stage-editor" key={`${stage.id}:${index}`}><div className="stage-title"><input aria-label={`阶段名称 ${index + 1}`} value={stage.name} placeholder={`阶段 ${index + 1}`} onChange={(event) => update(index, { name: event.target.value })} /><button type="button" className="icon-button danger-icon" title={`删除阶段 ${index + 1}`} onClick={() => onChange(stages.filter((_, stageIndex) => stageIndex !== index))}><X size={14} /></button></div><PartnerStatusEditor label={`阶段 ${index + 1} 配合单位`} partners={stage.partnerStatus} unitSuggestions={unitSuggestions} groups={groups} setToast={setToast} onChange={(partners) => update(index, { partnerStatus: partners })} /></div>)}{!stages.length && <small className="form-empty">尚未设置阶段</small>}</div>
+  </section>;
+}
+
+function TaskChecklistEditor({ checklist, onChange }: { checklist: TaskChecklistItem[]; onChange: (checklist: TaskChecklistItem[]) => void }) {
+  const progress = taskChecklistProgress(checklist);
+  const update = (index: number, patch: Partial<TaskChecklistItem>) => onChange(checklist.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  const move = (index: number, offset: -1 | 1) => {
+    const target = index + offset;
+    if (target < 0 || target >= checklist.length) return;
+    const next = [...checklist];
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange(next);
+  };
+  return <section className="form-section task-checklist-editor" aria-label="任务检查清单">
+    <div className="form-section-heading"><span>检查清单{progress.total ? `（${progress.completed}/${progress.total}）` : ''}</span><button type="button" className="text-button" disabled={checklist.length >= TASK_CHECKLIST_LIMIT} onClick={() => onChange([...checklist, { id: createId('check'), text: '', done: false }])}><Plus size={13} />添加检查项</button></div>
+    <div className="task-checklist-list">{checklist.map((item, index) => <div className="task-checklist-row" key={item.id}><input type="checkbox" aria-label={`完成检查项 ${index + 1}`} checked={item.done} onChange={(event) => update(index, { done: event.target.checked })} /><input aria-label={`检查项内容 ${index + 1}`} value={item.text} maxLength={TASK_CHECKLIST_TEXT_LIMIT} placeholder={`检查项 ${index + 1}`} onChange={(event) => update(index, { text: event.target.value })} /><div className="task-checklist-actions"><button type="button" className="icon-button" title="上移检查项" aria-label={`上移检查项 ${index + 1}`} disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp size={14} /></button><button type="button" className="icon-button" title="下移检查项" aria-label={`下移检查项 ${index + 1}`} disabled={index === checklist.length - 1} onClick={() => move(index, 1)}><ArrowDown size={14} /></button><button type="button" className="icon-button danger-icon" title="删除检查项" aria-label={`删除检查项 ${index + 1}`} onClick={() => onChange(checklist.filter((_, itemIndex) => itemIndex !== index))}><X size={14} /></button></div></div>)}{!checklist.length && <small className="form-empty">尚未添加检查项</small>}</div>
   </section>;
 }
 

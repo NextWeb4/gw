@@ -5,7 +5,7 @@ import type {
   ArchiveRecord, Attachment, DocumentRevision, Draft, MaterialRecord, MeetingRecord, OfficialDocument, PurgedBusinessRecord, ResearchRecord, SealRecord, StarredBusinessRecordsSetting, Task, WeeklyReport
 } from '@hxhwang/domain';
 import {
-  isDocumentRevision, isPurgedBusinessRecord, mergeContactDirectory, minimizePurgedBusinessRecord, parseStarredBusinessRecordsSetting, pruneDocumentRevisions,
+  isDocumentRevision, isPurgedBusinessRecord, mergeContactDirectory, minimizePurgedBusinessRecord, normalizeTaskChecklist, parseStarredBusinessRecordsSetting, pruneDocumentRevisions,
   STARRED_BUSINESS_RECORDS_SETTING_ID, STARRED_BUSINESS_RECORDS_SETTING_TYPE,
   sampleContactDirectory, sampleDocuments, sampleMaterials, sampleMeetings, sampleResearches, sampleSeals, sampleTasks
 } from '@hxhwang/domain';
@@ -70,6 +70,9 @@ function isStarredBusinessRecordsCandidate(id: string, payload: RecordPayload) {
 }
 
 function canonicalPayloadForRecord(kind: Kind, id: string, payload: RecordPayload): RecordPayload {
+  if (kind === 'task' && isObjectRecord(payload) && !isPurgedBusinessRecord(payload)) {
+    return { ...payload, checklist: normalizeTaskChecklist(payload.checklist) };
+  }
   if (kind !== 'setting' || !isStarredBusinessRecordsCandidate(id, payload)) return payload;
   return parseStarredBusinessRecordsSetting(payload) || payload;
 }
@@ -107,13 +110,13 @@ async function getDb() {
 export async function listRecords<T extends RecordPayload>(kind: Kind): Promise<T[]> {
   const collection = await getDb();
   const docs = await collection.find({ selector: { kind } }).exec();
-  return docs.map((doc: any) => doc.payload as T);
+  return docs.map((doc: any) => canonicalPayloadForRecord(doc.kind, doc.id, doc.payload) as T);
 }
 
 export async function getRecord<T extends RecordPayload>(id: string): Promise<T | undefined> {
   const collection = await getDb();
   const doc = await collection.findOne(id).exec();
-  return doc?.payload as T | undefined;
+  return doc ? canonicalPayloadForRecord(doc.kind, doc.id, doc.payload) as T : undefined;
 }
 
 export async function getRecordOfKind<T extends RecordPayload>(kind: Kind, id: string): Promise<T | undefined> {
@@ -121,7 +124,7 @@ export async function getRecordOfKind<T extends RecordPayload>(kind: Kind, id: s
   const doc = await collection.findOne(id).exec();
   if (!doc) return undefined;
   if (doc.kind !== kind) throw new Error(`记录 ID ${id} 属于 ${doc.kind}，拒绝按 ${kind} 类型读取`);
-  return doc.payload as T;
+  return canonicalPayloadForRecord(doc.kind, doc.id, doc.payload) as T;
 }
 
 async function putRecordUnlocked<T extends RecordPayload>(collection: RxCollection<StoredRecord>, kind: Kind, id: string, payload: T, preferredUpdatedAt?: unknown) {
@@ -305,7 +308,8 @@ export function snapshotPayloadForRecord(kind: Kind, payload: RecordPayload): Re
     if (!parsed) throw new Error('星标记录设置无效，拒绝导出');
     return parsed;
   }
-  return businessKinds.has(kind) && isPurgedBusinessRecord(payload) ? minimizePurgedBusinessRecord(payload) : payload;
+  if (businessKinds.has(kind) && isPurgedBusinessRecord(payload)) return minimizePurgedBusinessRecord(payload);
+  return kind === 'task' && isObjectRecord(payload) ? { ...payload, checklist: normalizeTaskChecklist(payload.checklist) } : payload;
 }
 
 export function parseLocalSnapshot(snapshot: unknown): { records: SnapshotRecord[]; warnings: string[] } {

@@ -49,7 +49,7 @@ describe('business record comparison', () => {
         kind: 'task' as const,
         source: { ...sampleTasks[0], id: 'task-source' },
         target: { ...sampleTasks[1], id: 'task-target' },
-        labels: ['任务名称', '状态', '工作类目', '任务来源', '交办人', '交办日期', '截止日期', '配合单位', '任务阶段', '工作小结', '关联文件', '备注', '附件数量', '最近更新'],
+        labels: ['任务名称', '状态', '工作类目', '任务来源', '交办人', '交办日期', '截止日期', '配合单位', '任务阶段', '检查清单', '工作小结', '关联文件', '备注', '附件数量', '最近更新'],
       },
       {
         kind: 'meeting' as const,

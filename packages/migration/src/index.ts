@@ -1,4 +1,4 @@
-import { createId, nowIso, type ArchiveRecord, type Attachment, type LegacySkill, type MigrationReport, type OfficialDocument, type Task } from '@hxhwang/domain';
+import { createId, normalizeTaskChecklist, nowIso, type ArchiveRecord, type Attachment, type LegacySkill, type MigrationReport, type OfficialDocument, type Task } from '@hxhwang/domain';
 
 export interface MigrationBundle {
   tasks: Task[];
@@ -60,7 +60,7 @@ function taskFromLegacy(raw: RawRecord, version: string): Task {
     assigner: text(raw.assigner), assignDate: text(raw.assignDate), deadline: text(raw.deadline),
     status: ['pending', 'progress', 'done', 'overdue'].includes(text(raw.status)) ? text(raw.status) as Task['status'] : 'pending',
     partnerStatus: Array.isArray(raw.partnerStatus) ? raw.partnerStatus as Task['partnerStatus'] : [],
-    stages: Array.isArray(raw.stages) ? raw.stages as Task['stages'] : [], remark: text(raw.remark), workSummary: text(raw.workSummary),
+    stages: Array.isArray(raw.stages) ? raw.stages as Task['stages'] : [], checklist: normalizeTaskChecklist(raw.checklist), remark: text(raw.remark), workSummary: text(raw.workSummary),
     files: collectTaskFileIds(raw), createdAt, updatedAt: text(raw.updatedAt) || createdAt, sourceVersion: version, legacyPayload: raw
   };
 }

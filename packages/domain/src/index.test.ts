@@ -3,7 +3,7 @@ import {
   applyTaskTextExtraction, buildWeeklyReportSummary, buildWorkStatistics, calculateMaterialStock, createId, defaultCategoryTint, extractTaskFromText,
   createDocumentRevision, documentRevisionContentLength, duplicateBusinessRecord, extractWeeklyTemplateFromSample, generateTaskWorkSummary, isDocumentRevision, isValidIsoDate, isValidIsoDateTime, listStatisticsMonths, materialStockKey,
   mergeContactDirectory, mergePartnerGroupMembers, moveBusinessRecordToTrash, parseWeeklyTemplate, partitionBusinessRecords, purgeBusinessRecord,
-  pruneDocumentRevisions, relatedDocumentsForTask, relatedTasksForDocument, normalizeRelatedRecordIds, renameCustomWritingTemplate, resolveCategoryTint, resolveWeeklyReportRelationGroups, restoreBusinessRecord, restoreDraftRevision, restoreWeeklyRevision,
+  normalizeTaskChecklist, pruneDocumentRevisions, relatedDocumentsForTask, relatedTasksForDocument, normalizeRelatedRecordIds, renameCustomWritingTemplate, resolveCategoryTint, resolveWeeklyReportRelationGroups, restoreBusinessRecord, restoreDraftRevision, restoreWeeklyRevision, taskChecklistProgress,
   sampleDocuments, sampleMaterials, sampleContactDirectory, sampleMeetings, sampleResearches, sampleSeals, sampleTasks,
   DOCUMENT_REVISION_MAX_CONTENT_LENGTH, type DocumentRevision, type Draft, type WeeklyReport
 } from './index.js';
@@ -71,6 +71,40 @@ describe('business record lifecycle', () => {
     expect(statistics.taskTotal).toBe(0);
     expect(statistics.materialIn).toBe(0);
     expect(stock.get(materialStockKey(sampleMaterials[0]))).toBe(sampleMaterials[0].quantity);
+  });
+});
+
+describe('task checklist', () => {
+  it('normalizes missing and malformed legacy checklist values without mutating the source', () => {
+    const source = [
+      { id: 'check-1', text: '  核对来文口径  ', done: true },
+      { id: 'check-1', text: '重复 ID', done: false },
+      { id: 'check-2', text: '   ', done: false },
+      { id: 'check-3', text: '完成报送', done: 'yes' },
+      null,
+    ];
+
+    expect(normalizeTaskChecklist(undefined)).toEqual([]);
+    expect(normalizeTaskChecklist(source)).toEqual([
+      { id: 'check-1', text: '核对来文口径', done: true },
+      { id: 'check-3', text: '完成报送', done: false },
+    ]);
+    expect(source[0]).toEqual({ id: 'check-1', text: '  核对来文口径  ', done: true });
+  });
+
+  it('derives progress without changing the task status', () => {
+    const task = {
+      ...sampleTasks[0],
+      status: 'progress' as const,
+      checklist: [
+        { id: 'check-1', text: '第一步', done: true },
+        { id: 'check-2', text: '第二步', done: false },
+        { id: 'check-3', text: '第三步', done: true },
+      ],
+    };
+
+    expect(taskChecklistProgress(task.checklist)).toEqual({ completed: 2, total: 3 });
+    expect(task.status).toBe('progress');
   });
 });
 
@@ -170,6 +204,7 @@ describe('business record duplication', () => {
       files: ['attachment-main'],
       partnerStatus: [{ name: '甲单位', status: 'done' as const, files: ['attachment-partner'] }],
       stages: [{ id: 'stage-old', name: '报送', partnerStatus: [{ name: '乙单位', status: 'progress' as const, files: ['attachment-stage'] }] }],
+      checklist: [{ id: 'check-old', text: '核对材料', done: true }],
       sourceVersion: 'legacy-v1',
       legacyPayload: { raw: '不得带入新记录' },
       deletedAt: '2026-07-31T08:00:00.000Z',
@@ -192,6 +227,8 @@ describe('business record duplication', () => {
     expect(copied.stages[0]).toMatchObject({ name: '报送', partnerStatus: [{ name: '乙单位', status: 'pending', files: [] }] });
     expect(copied.stages[0].id).toMatch(/^stage_/);
     expect(copied.stages[0].id).not.toBe(source.stages[0].id);
+    expect(copied.checklist).toEqual([{ id: expect.stringMatching(/^check_/), text: '核对材料', done: false }]);
+    expect(copied.checklist?.[0].id).not.toBe(source.checklist[0].id);
     expect(copied.files).not.toBe(source.files);
     expect(copied.partnerStatus).not.toBe(source.partnerStatus);
     expect(copied).not.toHaveProperty('deletedAt');

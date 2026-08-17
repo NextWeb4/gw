@@ -24,6 +24,7 @@ describe('current ledger CSV projection', () => {
         { name: '甲单位', status: 'done', files: [] },
       ],
       stages: [{ id: 'stage-secret-id', name: '征求意见', partnerStatus: [{ name: '丙单位', status: 'notified', files: ['stage-file-id'] }] }],
+      checklist: [{ id: 'check-secret-id', text: '核对预算口径', done: true }],
       files: ['task-attachment-id'],
       sourceVersion: 'legacy-secret-version',
       legacyPayload: { forbidden: 'legacy-secret-payload' },
@@ -37,14 +38,15 @@ describe('current ledger CSV projection', () => {
     const lines = bodyLines(file.content);
 
     expect(file).toMatchObject({ fileName: 'hxhwang-gw-任务管理-当前结果-2026-08-01.csv', mimeType: 'text/csv;charset=utf-8', rowCount: 2 });
-    expect(lines[0]).toBe('"任务名称","工作类目","任务来源","交办人","交办日期","截止日期","状态","关联文件","配合单位","任务阶段","备注","工作小结","附件数量","创建时间","更新时间"');
+    expect(lines[0]).toBe('"任务名称","工作类目","任务来源","交办人","交办日期","截止日期","状态","关联文件","配合单位","任务阶段","检查清单","备注","工作小结","附件数量","创建时间","更新时间"');
     expect(lines[1]).toContain('"第二条可见任务"');
     expect(lines[1]).toContain('"关于做好2026年全省重点工作的通知"');
     expect(lines[2]).toContain('"\'=HYPERLINK(""https://invalid.local"")"');
     expect(lines[2]).toContain('"乙单位（进行中）；甲单位（已完成）"');
     expect(lines[2]).toContain('"1. 征求意见：丙单位（已通知）"');
+    expect(lines[2]).toContain('"1. 已完成：核对预算口径"');
     expect(lines[2]).toContain('"1"');
-    expect(file.content).not.toMatch(/internal-id|stage-secret-id|attachment-id|legacy-secret|forbidden/);
+    expect(file.content).not.toMatch(/internal-id|stage-secret-id|check-secret-id|attachment-id|legacy-secret|forbidden/);
     expect(records.map((record) => record.id)).toEqual(originalOrder);
   });
 
