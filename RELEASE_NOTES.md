@@ -6,7 +6,8 @@
 - 列表显示“已完成 / 总数”，右侧详情以只读进度条和完整步骤展示。任务台账关键词可命中清单文字；当前结果 CSV、记录摘要和同类对比使用固定白名单输出步骤顺序与完成状态，不输出清单内部 ID、生命周期、迁移原文或附件信息。
 - 旧任务、旧历史导入和旧快照缺少字段时统一规范化为空数组；畸形项、重复 ID、空文字被过滤，单项文字最多 240 字符、单任务最多 100 项。复制相似任务时保留文字与顺序，为每项生成新 ID，并把完成态全部重置为未完成。
 - 清单继续随原 Task payload 进入 IndexedDB、本地快照和既有私有同步；不读取附件正文，不进入 AI 原文或秘密字段索引，不新增 API、IPC、依赖或网络请求。公开 Pages、互联网版和内网版保持原联网边界。
-- 失败优先阶段领域 3 项、迁移 2 项、本地快照 2 项和 UI 合约 1 项按预期失败。实现后 `pnpm lint`、`pnpm format:check`、198 项 workspace 单元/契约、主 E2E `103 passed / 11 skipped`、Internet `7/7`、Intranet `3/3` 和三类 Web 构建通过。公开/互联网/内网产物分别为 25/15/15 文件，均命中 `0.7.23` 十次且旧版本、指定中转密码、私钥和常见长格式 Key/PAT 模式为 0。独立 Chromium 149 在 1440×900 与 390×844 验证清单编辑/详情、移动 44px、零请求/错误/溢出。私有 API 的 lint/格式/build 和 34 项集成测试通过，2 项真实 PostgreSQL 测试因未提供 `DATABASE_URL` 跳过；Pages/Desktop/Release 线上结果将在工作流完成后补充。
+- 失败优先阶段领域 3 项、迁移 2 项、本地快照 2 项和 UI 合约 1 项按预期失败。实现后 `pnpm lint`、`pnpm format:check`、198 项 workspace 单元/契约、主 E2E `103 passed / 11 skipped`、Internet `7/7`、Intranet `3/3` 和三类 Web 构建通过。公开/互联网/内网产物分别为 25/15/15 文件，均命中 `0.7.23` 十次且旧版本、指定中转密码、私钥和常见长格式 Key/PAT 模式为 0。私有 API 的 lint/格式/build 和 34 项集成测试通过，2 项真实 PostgreSQL 测试因未提供 `DATABASE_URL` 跳过。
+- 已发布：功能提交 `dbd7d0c` 与 annotated tag `v0.7.23` 已推送；[Pages run 32037737780](https://github.com/NextWeb4/gw/actions/runs/32037737780) 的 build/deploy 和 [Desktop run 32037740699](https://github.com/NextWeb4/gw/actions/runs/32037740699) 的 verify、Windows 4 项、Linux 4 项、Debian 10/12 smoke 8 项及 release 全部成功。[Release v0.7.23](https://github.com/NextWeb4/gw/releases/tag/v0.7.23) 非 draft/prerelease，12 个安装包与校验文件共 13 个地址全部 HTTP 200；1,278 字节 `SHA256SUMS.txt` 含 12 条唯一记录，自身 SHA-256 为 `1cdd5b0c57b225bbf8a5300b3df9919b7b527f31555176a4c3cf8dcb99cd4a46`，12 个安装包哈希与 GitHub digest 全部匹配。线上主 bundle `index-Yp5uYgYK.js` 为 375,486 字节，SHA-256 `831a1d30e0fba8fb2506dceb29d626dbd88caa06b1b454c5df3e82ccf53fd10a`，版本命中 0.7.23/0.7.22/0.3.1 为 10/0/0，秘密模式为 0。Chromium 149 在 1440×900 与 390×844 验证在线清单新建/详情、离线重载后搜索、activated Service Worker、移动 44px、零请求/错误/溢出。
 
 ## v0.7.22
 
