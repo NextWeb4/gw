@@ -31,7 +31,7 @@ import { buildPrintableDocument, downloadBlob, draftBodyLines, exportDraftDocx }
 import knowledgePack from '../../../content/generated/knowledge-pack.json';
 import guidancePresetData from '../../../content/generated/ai-guidance-presets.json';
 import { importWritingDocument } from './document-import';
-import { createInitialLedgerViewStates, deriveLedgerRecords, getLedgerFilterOptions, LEDGER_SORT_OPTIONS, type LedgerKind, type LedgerViewOption, type LedgerViewState } from './ledger-view';
+import { createInitialLedgerViewState, createInitialLedgerViewStates, deriveLedgerRecords, getLedgerFilterOptions, LEDGER_SORT_OPTIONS, toggleLedgerPresenceFilter, type LedgerKind, type LedgerViewOption, type LedgerViewState } from './ledger-view';
 import { buildLedgerCsv, type LedgerCsvFile } from './ledger-csv';
 import { syncPrivateWorkspace } from './private-services';
 import { GlobalSearch, type GlobalSearchGroup, type GlobalSearchItem } from './GlobalSearch';
@@ -410,7 +410,7 @@ function App() {
   }, [tab]);
 
   const updateLedgerView = (kind: LedgerKind, patch: Partial<LedgerViewState>) => setLedgerViews((current) => ({ ...current, [kind]: { ...current[kind], ...patch } }));
-  const resetLedgerView = (kind: LedgerKind) => setLedgerViews((current) => ({ ...current, [kind]: { query: '', filter: 'all', sort: 'default' } }));
+  const resetLedgerView = (kind: LedgerKind) => setLedgerViews((current) => ({ ...current, [kind]: createInitialLedgerViewState() }));
   const filteredTasks = useMemo(() => deriveLedgerRecords('tasks', tasks, ledgerViews.tasks), [tasks, ledgerViews.tasks]);
   const filteredMeetings = useMemo(() => deriveLedgerRecords('meetings', meetings, ledgerViews.meetings), [meetings, ledgerViews.meetings]);
   const filteredDocuments = useMemo(() => deriveLedgerRecords('documents', documents, ledgerViews.documents), [documents, ledgerViews.documents]);
@@ -1528,12 +1528,19 @@ function LedgerViewControls({ label, placeholder, countLabel, visibleCount, tota
   label: string; placeholder: string; countLabel: string; visibleCount: number; totalCount: number; view: LedgerViewState;
   filterOptions: readonly LedgerViewOption[]; sortOptions: readonly LedgerViewOption[]; onViewChange: (patch: Partial<LedgerViewState>) => void; onReset: () => void; onExport: () => void;
 }) {
-  const active = Boolean(view.query.trim()) || view.filter !== 'all' || view.sort !== 'default';
+  const active = Boolean(view.query.trim()) || view.filter !== 'all' || view.sort !== 'default' || view.date !== 'all' || view.attachments !== 'all';
   return <div className="ledger-view-controls" aria-label={`${label}视图控制`}>
     <div className="search-field ledger-search"><Search size={16} /><input aria-label={`${label}关键词`} value={view.query} onChange={(event) => onViewChange({ query: event.target.value })} placeholder={placeholder} /></div>
     <label className="ledger-select"><ListFilter size={15} /><span>筛选</span><select aria-label={`${label}筛选`} value={view.filter} onChange={(event) => onViewChange({ filter: event.target.value })}>{filterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
     <label className="ledger-select"><ArrowUpDown size={15} /><span>排序</span><select aria-label={`${label}排序`} value={view.sort} onChange={(event) => onViewChange({ sort: event.target.value })}>{sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-    <div className={`ledger-view-summary ${active ? 'active' : ''}`}><span>显示 {visibleCount} / {totalCount} {countLabel}</span><div className="ledger-view-actions"><button type="button" className="ledger-export" aria-label="导出当前台账结果" title={`${label}：导出当前关键词、筛选和排序后的 ${visibleCount} 条结果`} disabled={!visibleCount} onClick={onExport}><ArrowDownToLine size={14} />导出</button><button type="button" className="ledger-clear" aria-label="清除当前台账筛选和排序" title={`${label}：清除关键词、筛选和排序`} disabled={!active} onClick={onReset}><RotateCcw size={14} />清除</button></div></div>
+    <div className="ledger-filter-chips" role="group" aria-label={`${label}快捷筛选`}>
+      <span className="ledger-filter-chip-label">快捷</span>
+      <button type="button" className="ledger-filter-chip" title="仅显示有效四位日期记录" aria-pressed={view.date === 'present'} onClick={() => onViewChange({ date: toggleLedgerPresenceFilter(view.date, 'present') })}><CalendarDays size={13} />日期已填</button>
+      <button type="button" className="ledger-filter-chip" title="显示空日期或无效日期记录" aria-pressed={view.date === 'missing'} onClick={() => onViewChange({ date: toggleLedgerPresenceFilter(view.date, 'missing') })}><CalendarRange size={13} />待补日期</button>
+      <button type="button" className="ledger-filter-chip" title="按当前记录的附件引用数量筛选" aria-pressed={view.attachments === 'present'} onClick={() => onViewChange({ attachments: toggleLedgerPresenceFilter(view.attachments, 'present') })}><FileArchive size={13} />有附件</button>
+      <button type="button" className="ledger-filter-chip" title="仅显示没有附件引用的记录" aria-pressed={view.attachments === 'missing'} onClick={() => onViewChange({ attachments: toggleLedgerPresenceFilter(view.attachments, 'missing') })}><FileUp size={13} />无附件</button>
+    </div>
+    <div className={`ledger-view-summary ${active ? 'active' : ''}`}><span>显示 {visibleCount} / {totalCount} {countLabel}</span><div className="ledger-view-actions"><button type="button" className="ledger-export" aria-label="导出当前台账结果" title={`${label}：导出当前关键词、筛选和排序后的 ${visibleCount} 条结果`} disabled={!visibleCount} onClick={onExport}><ArrowDownToLine size={14} />导出</button><button type="button" className="ledger-clear" aria-label="清除当前台账筛选和排序" title={`${label}：清除关键词、结构化筛选、快捷筛选和排序`} disabled={!active} onClick={onReset}><RotateCcw size={14} />清除</button></div></div>
   </div>;
 }
 

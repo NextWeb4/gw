@@ -102,11 +102,20 @@ test('six ledgers share local-only filter and sort controls without changing sto
   assert.match(app, /function LedgerViewControls\(/, 'all business ledgers must reuse one view-control component');
   assert.ok((app.match(/<LedgerViewControls/g) || []).length >= 6, 'all six ledger views must render the shared control');
   assert.match(app, /createInitialLedgerViewStates/, 'ledger view state must be separated per module for the current session');
+  assert.match(app, /aria-label=\{`\$\{label\}快捷筛选`\}/, 'all ledgers must expose one accessible common-chip group');
+  assert.ok((app.match(/aria-pressed=\{/g) || []).length >= 4, 'date and attachment chips must expose their toggle state');
+  assert.match(app, /日期已填/, 'common chips must expose the valid-date predicate');
+  assert.match(app, /待补日期/, 'common chips must expose the missing-or-invalid-date predicate');
+  assert.match(app, /有附件/, 'common chips must expose the attachment-present predicate');
+  assert.match(app, /无附件/, 'common chips must expose the attachment-missing predicate');
   assert.match(app, /allMaterials=\{materials\}/, 'material stock must continue receiving every material record');
+  assert.match(ledgerView, /isValidIsoDateTime/, 'meeting date chips must validate the fixed calendar datetime source');
+  assert.match(ledgerView, /dateValue:/, 'every ledger config must declare its fixed calendar date source');
   assert.match(ledgerView, /\.map\(\(record, index\) => \(\{ record, index \}\)\)/, 'view derivation must copy and index source records before sorting');
   assert.doesNotMatch(ledgerView, /\bfetch\b|listRecords|IndexedDB|localStorage|Electron|putRecord|removeRecord/i, 'ledger filtering and sorting must remain a pure local view transformation');
   assert.match(css, /\.ledger-view-controls[^}]*flex-wrap:\s*wrap/, 'ledger controls must wrap instead of widening the page');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.ledger-select[^}]*min-height:\s*44px/, 'narrow ledger selects must retain a 44px touch target');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.ledger-filter-chip[^}]*min-height:\s*44px/, 'narrow filter chips must retain a 44px touch target');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.ledger-clear[^}]*min-height:\s*44px/, 'narrow clear action must retain a 44px touch target');
 });
 

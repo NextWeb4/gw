@@ -279,9 +279,64 @@ test('moves narrow-screen record selection to the detail and provides a return p
 
 test('filters and sorts all six ledgers while preserving session views and full material stock', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: '任务管理' }).click();
+  await page.evaluate(() => {
+    const target = window as Window & { __ledgerChipIdbWrites?: number };
+    target.__ledgerChipIdbWrites = 0;
+    const prototype = IDBObjectStore.prototype as IDBObjectStore & Record<string, unknown>;
+    for (const method of ['add', 'clear', 'delete', 'put'] as const) {
+      const original = prototype[method] as (...args: unknown[]) => IDBRequest;
+      prototype[method] = function trackedLedgerChipWrite(this: IDBObjectStore, ...args: unknown[]) {
+        target.__ledgerChipIdbWrites = (target.__ledgerChipIdbWrites || 0) + 1;
+        return original.apply(this, args);
+      };
+    }
+  });
+  const chipRequests: string[] = [];
+  const recordChipRequest = (request: { url: () => string }) => chipRequests.push(request.url());
+  page.on('request', recordChipRequest);
   const taskFilter = page.getByLabel('任务管理筛选');
   const taskSort = page.getByLabel('任务管理排序');
+  const datePresent = page.getByRole('button', { name: '日期已填' });
+  const dateMissing = page.getByRole('button', { name: '待补日期' });
+  const attachmentsPresent = page.getByRole('button', { name: '有附件' });
+  const attachmentsMissing = page.getByRole('button', { name: '无附件' });
   await expect(taskFilter).toBeVisible();
+  await datePresent.focus();
+  await page.keyboard.press('Space');
+  await expect(datePresent).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Enter');
+  await expect(datePresent).toHaveAttribute('aria-pressed', 'false');
+  await datePresent.click();
+  await expect(datePresent).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('显示 2 / 2 条任务')).toBeVisible();
+  await dateMissing.click();
+  await expect(datePresent).toHaveAttribute('aria-pressed', 'false');
+  await expect(dateMissing).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('显示 0 / 2 条任务')).toBeVisible();
+  await dateMissing.click();
+  await attachmentsPresent.click();
+  await expect(page.getByText('显示 0 / 2 条任务')).toBeVisible();
+  await attachmentsMissing.click();
+  await expect(attachmentsPresent).toHaveAttribute('aria-pressed', 'false');
+  await expect(attachmentsMissing).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('显示 2 / 2 条任务')).toBeVisible();
+  await taskFilter.selectOption('status:progress');
+  await datePresent.click();
+  await expect(page.getByText('显示 1 / 2 条任务')).toBeVisible();
+  await page.getByRole('button', { name: '会议管理' }).click();
+  await page.getByRole('button', { name: '任务管理' }).click();
+  await expect(datePresent).toHaveAttribute('aria-pressed', 'true');
+  await expect(attachmentsMissing).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => (window as Window & { __ledgerChipIdbWrites?: number }).__ledgerChipIdbWrites || 0)).toBe(0);
+  expect(chipRequests).toEqual([]);
+  page.off('request', recordChipRequest);
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: '任务管理' }).click();
+  for (const chip of [datePresent, dateMissing, attachmentsPresent, attachmentsMissing]) await expect(chip).toHaveAttribute('aria-pressed', 'false');
+  await datePresent.click();
+  await page.getByRole('button', { name: '清除当前台账筛选和排序' }).click();
+  await expect(datePresent).toHaveAttribute('aria-pressed', 'false');
   await taskFilter.selectOption('status:progress');
   await expect(page.getByText('显示 1 / 2 条任务')).toBeVisible();
   await expect(page.locator('.table-row').filter({ hasText: '推进全省基层治理年度工作总结' })).toBeVisible();
@@ -323,7 +378,7 @@ test('filters and sorts all six ledgers while preserving session views and full 
   await expect(page.locator('.table-row').filter({ hasText: '领用 2' }).locator('.stock-balance')).toHaveText('3');
 
   if (testInfo.project.name === 'mobile') {
-    for (const control of [page.getByLabel('物资收发筛选'), page.getByLabel('物资收发排序'), page.getByRole('button', { name: '清除当前台账筛选和排序' })]) {
+    for (const control of [page.getByLabel('物资收发筛选'), page.getByLabel('物资收发排序'), page.getByRole('button', { name: '日期已填' }), page.getByRole('button', { name: '待补日期' }), page.getByRole('button', { name: '有附件' }), page.getByRole('button', { name: '无附件' }), page.getByRole('button', { name: '清除当前台账筛选和排序' })]) {
       const box = await control.boundingBox();
       expect(box?.height || 0).toBeGreaterThanOrEqual(44);
     }

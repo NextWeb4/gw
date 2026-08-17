@@ -1,5 +1,7 @@
 import {
   isActiveBusinessRecord,
+  isValidIsoDate,
+  isValidIsoDateTime,
   statusLabels,
   type BusinessRecordLifecycle,
   type MaterialRecord,
@@ -27,7 +29,11 @@ export interface LedgerViewState {
   query: string;
   filter: string;
   sort: string;
+  date: LedgerPresenceFilter;
+  attachments: LedgerPresenceFilter;
 }
+
+export type LedgerPresenceFilter = 'all' | 'present' | 'missing';
 
 export type LedgerViewStates = Record<LedgerKind, LedgerViewState>;
 
@@ -40,19 +46,24 @@ type LedgerConfig<T> = {
   searchText: (record: T) => string;
   matchesFilter: (record: T, filter: string) => boolean;
   compare: (left: T, right: T, sort: string) => number;
+  dateValue: (record: T) => { value: string; kind: 'date' | 'datetime' };
 };
 
 const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' });
-const initialState = (): LedgerViewState => ({ query: '', filter: 'all', sort: 'default' });
+export const createInitialLedgerViewState = (): LedgerViewState => ({ query: '', filter: 'all', sort: 'default', date: 'all', attachments: 'all' });
+
+export function toggleLedgerPresenceFilter(current: LedgerPresenceFilter, requested: Exclude<LedgerPresenceFilter, 'all'>): LedgerPresenceFilter {
+  return current === requested ? 'all' : requested;
+}
 
 export function createInitialLedgerViewStates(): LedgerViewStates {
   return {
-    tasks: initialState(),
-    meetings: initialState(),
-    documents: initialState(),
-    researches: initialState(),
-    seals: initialState(),
-    materials: initialState(),
+    tasks: createInitialLedgerViewState(),
+    meetings: createInitialLedgerViewState(),
+    documents: createInitialLedgerViewState(),
+    researches: createInitialLedgerViewState(),
+    seals: createInitialLedgerViewState(),
+    materials: createInitialLedgerViewState(),
   };
 }
 
@@ -169,18 +180,20 @@ const ledgerConfigs: { [K in LedgerKind]: LedgerConfig<LedgerRecordMap[K]> } = {
       if (sort === 'name:asc') return compareValue(left.name, right.name, 'asc');
       return 0;
     },
+    dateValue: (task) => ({ value: task.deadline, kind: 'date' }),
   },
   meetings: {
     searchText: (meeting) => `${meeting.subject} ${meeting.sendTo} ${meeting.receiver} ${meeting.location} ${meeting.remark}`,
     matchesFilter: (meeting, filter) => filter === 'all'
-      || (filter === 'time:scheduled' && Boolean(meeting.meetingTime.trim()))
-      || (filter === 'time:missing' && !meeting.meetingTime.trim()),
+      || (filter === 'time:scheduled' && isValidIsoDateTime(meeting.meetingTime, false))
+      || (filter === 'time:missing' && !isValidIsoDateTime(meeting.meetingTime, false)),
     compare: (left, right, sort) => {
       if (sort === 'meetingTime:asc') return compareValue(left.meetingTime, right.meetingTime, 'asc');
       if (sort === 'meetingTime:desc') return compareValue(left.meetingTime, right.meetingTime, 'desc');
       if (sort === 'subject:asc') return compareValue(left.subject, right.subject, 'asc');
       return 0;
     },
+    dateValue: (meeting) => ({ value: meeting.meetingTime, kind: 'datetime' }),
   },
   documents: {
     searchText: (document) => `${document.title} ${document.code} ${document.fromUnit} ${document.handler} ${document.fileCategory} ${document.workCategory}`,
@@ -193,6 +206,7 @@ const ledgerConfigs: { [K in LedgerKind]: LedgerConfig<LedgerRecordMap[K]> } = {
       if (sort === 'title:asc') return compareValue(left.title, right.title, 'asc');
       return 0;
     },
+    dateValue: (document) => ({ value: document.docDate, kind: 'date' }),
   },
   researches: {
     searchText: (research) => `${research.subject} ${research.direction} ${research.participants} ${research.location} ${research.summary} ${research.achievements}`,
@@ -203,6 +217,7 @@ const ledgerConfigs: { [K in LedgerKind]: LedgerConfig<LedgerRecordMap[K]> } = {
       if (sort === 'subject:asc') return compareValue(left.subject, right.subject, 'asc');
       return 0;
     },
+    dateValue: (research) => ({ value: research.researchTime, kind: 'date' }),
   },
   seals: {
     searchText: (seal) => `${seal.userName} ${seal.approver} ${seal.docName} ${seal.docType} ${seal.remark}`,
@@ -213,6 +228,7 @@ const ledgerConfigs: { [K in LedgerKind]: LedgerConfig<LedgerRecordMap[K]> } = {
       if (sort === 'docName:asc') return compareValue(left.docName, right.docName, 'asc');
       return 0;
     },
+    dateValue: (seal) => ({ value: seal.sealTime, kind: 'date' }),
   },
   materials: {
     searchText: (material) => `${material.materialName} ${material.spec} ${material.handler} ${material.fromUnit} ${material.remark}`,
@@ -223,15 +239,30 @@ const ledgerConfigs: { [K in LedgerKind]: LedgerConfig<LedgerRecordMap[K]> } = {
       if (sort === 'materialName:asc') return compareValue(left.materialName, right.materialName, 'asc') || compareValue(left.spec, right.spec, 'asc');
       return 0;
     },
+    dateValue: (material) => ({ value: material.handlerTime, kind: 'date' }),
   },
 };
 
-function applyLedgerView<T extends BusinessRecordLifecycle>(records: readonly T[], state: LedgerViewState, config: LedgerConfig<T>): T[] {
+function matchesPresenceFilter(present: boolean, filter: LedgerPresenceFilter) {
+  return filter === 'all' || (filter === 'present' ? present : !present);
+}
+
+function hasValidLedgerDate<T>(record: T, config: LedgerConfig<T>) {
+  const date = config.dateValue(record);
+  return date.kind === 'datetime'
+    ? isValidIsoDateTime(date.value, false)
+    : isValidIsoDate(date.value, false);
+}
+
+function applyLedgerView<T extends BusinessRecordLifecycle & { files: string[] }>(records: readonly T[], state: LedgerViewState, config: LedgerConfig<T>): T[] {
   const query = state.query.trim().toLocaleLowerCase('zh-CN');
   return records
     .filter(isActiveBusinessRecord)
     .map((record, index) => ({ record, index }))
-    .filter(({ record }) => (!query || config.searchText(record).toLocaleLowerCase('zh-CN').includes(query)) && config.matchesFilter(record, state.filter))
+    .filter(({ record }) => (!query || config.searchText(record).toLocaleLowerCase('zh-CN').includes(query))
+      && config.matchesFilter(record, state.filter)
+      && matchesPresenceFilter(hasValidLedgerDate(record, config), state.date)
+      && matchesPresenceFilter(record.files.length > 0, state.attachments))
     .sort((left, right) => config.compare(left.record, right.record, state.sort) || left.index - right.index)
     .map(({ record }) => record);
 }

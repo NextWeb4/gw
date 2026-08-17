@@ -16,6 +16,7 @@ import {
   deriveLedgerRecords,
   getLedgerFilterOptions,
   LEDGER_SORT_OPTIONS,
+  toggleLedgerPresenceFilter,
 } from './ledger-view';
 
 describe('ledger view derivation', () => {
@@ -32,6 +33,8 @@ describe('ledger view derivation', () => {
       query: '治理',
       filter: 'status:progress',
       sort: 'deadline:asc',
+      date: 'all',
+      attachments: 'all',
     });
 
     expect(visible.map((task) => task.id)).toEqual(['task-early', 'task-late']);
@@ -47,9 +50,9 @@ describe('ledger view derivation', () => {
       { ...sampleMeetings[0], id: 'meeting-a', meetingTime: '2026-08-02T09:00', subject: '甲会议' },
     ];
 
-    expect(deriveLedgerRecords('meetings', meetings, { query: '', filter: 'all', sort: 'meetingTime:asc' }).map((meeting) => meeting.id))
+    expect(deriveLedgerRecords('meetings', meetings, { query: '', filter: 'all', sort: 'meetingTime:asc', date: 'all', attachments: 'all' }).map((meeting) => meeting.id))
       .toEqual(['meeting-b', 'meeting-a', 'meeting-blank']);
-    expect(deriveLedgerRecords('meetings', meetings, { query: '', filter: 'time:missing', sort: 'default' }).map((meeting) => meeting.id))
+    expect(deriveLedgerRecords('meetings', meetings, { query: '', filter: 'time:missing', sort: 'default', date: 'all', attachments: 'all' }).map((meeting) => meeting.id))
       .toEqual(['meeting-blank']);
   });
 
@@ -74,7 +77,7 @@ describe('ledger view derivation', () => {
       { ...sampleMaterials[0], id: 'material-in', quantity: 5, type: 'in' },
       { ...sampleMaterials[0], id: 'material-out', quantity: 2, type: 'out', handlerTime: '2026-07-25' },
     ];
-    const visible = deriveLedgerRecords('materials', materials, { query: '', filter: 'movement:out', sort: 'handlerTime:desc' });
+    const visible = deriveLedgerRecords('materials', materials, { query: '', filter: 'movement:out', sort: 'handlerTime:desc', date: 'all', attachments: 'all' });
     const stock = calculateMaterialStock(materials);
 
     expect(visible.map((material) => material.id)).toEqual(['material-out']);
@@ -87,6 +90,75 @@ describe('ledger view derivation', () => {
     state.tasks.query = '只改任务';
 
     expect(state.meetings.query).toBe('');
+    expect(state.tasks).toMatchObject({ date: 'all', attachments: 'all' });
+    expect(state.meetings).toMatchObject({ date: 'all', attachments: 'all' });
     expect(Object.keys(state)).toEqual(['tasks', 'meetings', 'documents', 'researches', 'seals', 'materials']);
+  });
+
+  it('toggles one value per common filter dimension and returns to all', () => {
+    expect(toggleLedgerPresenceFilter('all', 'present')).toBe('present');
+    expect(toggleLedgerPresenceFilter('present', 'present')).toBe('all');
+    expect(toggleLedgerPresenceFilter('present', 'missing')).toBe('missing');
+    expect(toggleLedgerPresenceFilter('missing', 'missing')).toBe('all');
+  });
+
+  it('combines common date and attachment chips with the existing structured task filter without mutating input', () => {
+    const tasks: Task[] = [
+      { ...sampleTasks[0], id: 'task-match', status: 'progress', deadline: '2026-08-18', files: ['attachment-1'] },
+      { ...sampleTasks[0], id: 'task-no-file', status: 'progress', deadline: '2026-08-18', files: [] },
+      { ...sampleTasks[0], id: 'task-invalid-date', status: 'progress', deadline: '2026-02-30', files: ['attachment-2'] },
+      { ...sampleTasks[0], id: 'task-invalid-year', status: 'progress', deadline: '200000-08-18', files: ['attachment-year'] },
+      { ...sampleTasks[0], id: 'task-other-status', status: 'done', deadline: '2026-08-19', files: ['attachment-3'] },
+    ];
+    const original = tasks.map((task) => ({ id: task.id, files: [...task.files], deadline: task.deadline }));
+
+    expect(deriveLedgerRecords('tasks', tasks, {
+      query: '', filter: 'status:progress', sort: 'default', date: 'present', attachments: 'present',
+    }).map((task) => task.id)).toEqual(['task-match']);
+    expect(deriveLedgerRecords('tasks', tasks, {
+      query: '', filter: 'status:progress', sort: 'default', date: 'missing', attachments: 'present',
+    }).map((task) => task.id)).toEqual(['task-invalid-date', 'task-invalid-year']);
+    expect(tasks.map((task) => ({ id: task.id, files: [...task.files], deadline: task.deadline }))).toEqual(original);
+  });
+
+  it('uses the fixed calendar date source for each of the six ledgers', () => {
+    const common = { query: '', filter: 'all', sort: 'default', date: 'missing' as const, attachments: 'all' as const };
+    const present = '2026-08-18';
+
+    expect(deriveLedgerRecords('tasks', [
+      { ...sampleTasks[0], id: 'task-present', deadline: present },
+      { ...sampleTasks[0], id: 'task-missing', deadline: '' },
+    ], common).map((record) => record.id)).toEqual(['task-missing']);
+    expect(deriveLedgerRecords('meetings', [
+      { ...sampleMeetings[0], id: 'meeting-present', meetingTime: `${present}T09:00` },
+      { ...sampleMeetings[0], id: 'meeting-missing', meetingTime: '' },
+    ], common).map((record) => record.id)).toEqual(['meeting-missing']);
+    expect(deriveLedgerRecords('documents', [
+      { ...sampleDocuments[0], id: 'document-present', docDate: present },
+      { ...sampleDocuments[0], id: 'document-missing', docDate: '' },
+    ], common).map((record) => record.id)).toEqual(['document-missing']);
+    expect(deriveLedgerRecords('researches', [
+      { ...sampleResearches[0], id: 'research-present', researchTime: present },
+      { ...sampleResearches[0], id: 'research-missing', researchTime: '' },
+    ], common).map((record) => record.id)).toEqual(['research-missing']);
+    expect(deriveLedgerRecords('seals', [
+      { ...sampleSeals[0], id: 'seal-present', sealTime: present },
+      { ...sampleSeals[0], id: 'seal-missing', sealTime: '' },
+    ], common).map((record) => record.id)).toEqual(['seal-missing']);
+    expect(deriveLedgerRecords('materials', [
+      { ...sampleMaterials[0], id: 'material-present', handlerTime: present },
+      { ...sampleMaterials[0], id: 'material-missing', handlerTime: '' },
+    ], common).map((record) => record.id)).toEqual(['material-missing']);
+  });
+
+  it('keeps the legacy meeting time filter aligned with strict date-chip validity', () => {
+    const meetings = [
+      { ...sampleMeetings[0], id: 'meeting-valid', meetingTime: '2026-08-18T09:00' },
+      { ...sampleMeetings[0], id: 'meeting-invalid', meetingTime: '2026-02-30T09:00' },
+      { ...sampleMeetings[0], id: 'meeting-empty', meetingTime: '' },
+    ];
+    const state = { query: '', sort: 'default', date: 'all' as const, attachments: 'all' as const };
+    expect(deriveLedgerRecords('meetings', meetings, { ...state, filter: 'time:scheduled' }).map((record) => record.id)).toEqual(['meeting-valid']);
+    expect(deriveLedgerRecords('meetings', meetings, { ...state, filter: 'time:missing' }).map((record) => record.id)).toEqual(['meeting-invalid', 'meeting-empty']);
   });
 });
