@@ -2051,6 +2051,68 @@ test('edits an embedded task checklist, persists progress and resets completion 
   expect(unexpectedRequests).toEqual([]);
 });
 
+test('switches the current task result between list and a read-only status board', async ({ page }, testInfo) => {
+  const actionRequests: string[] = [];
+  const pageOrigin = new URL(page.url()).origin;
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (!['data:', 'blob:'].includes(url.protocol) && url.origin !== pageOrigin) actionRequests.push(request.url());
+  });
+
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  const listMode = page.getByRole('button', { name: '列表', exact: true });
+  const boardMode = page.getByRole('button', { name: '看板', exact: true });
+  await expect(listMode).toHaveAttribute('aria-pressed', 'true');
+  await expect(boardMode).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.table-panel')).toBeVisible();
+
+  await boardMode.click();
+  await expect(boardMode).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.table-panel')).toHaveCount(0);
+  const board = page.getByRole('region', { name: '任务状态看板' });
+  await expect(board).toBeVisible();
+  await expect(board.getByRole('region', { name: /^未启动，1 条任务$/ })).toBeVisible();
+  await expect(board.getByRole('region', { name: /^进行中，1 条任务$/ })).toBeVisible();
+  await expect(board.getByRole('region', { name: /^已超期，0 条任务$/ })).toContainText('暂无任务');
+  await expect(board.getByRole('region', { name: /^已完成，0 条任务$/ })).toContainText('暂无任务');
+
+  const progressCard = board.getByRole('button', { name: '查看任务详情：推进全省基层治理年度工作总结' });
+  const pendingCard = board.getByRole('button', { name: '查看任务详情：整理省政府办公厅来文并建立关联' });
+  await progressCard.focus();
+  await page.keyboard.press('Enter');
+  await expect(progressCard).toHaveAttribute('aria-current', 'true');
+  await expect(page.locator('.business-detail-panel').getByRole('heading', { level: 2 })).toContainText('推进全省基层治理年度工作总结');
+  await pendingCard.click();
+  await expect(pendingCard).toHaveAttribute('aria-current', 'true');
+  await expect(page.locator('.business-detail-panel').getByRole('heading', { level: 2 })).toContainText('整理省政府办公厅来文并建立关联');
+
+  await page.getByLabel('任务管理关键词').fill('办公厅来文');
+  await expect(board.getByRole('button', { name: /查看任务详情：/ })).toHaveCount(1);
+  await expect(board.getByRole('region', { name: /^未启动，1 条任务$/ })).toContainText('整理省政府办公厅来文并建立关联');
+  await expect(board.getByRole('region', { name: /^进行中，0 条任务$/ })).toContainText('暂无任务');
+
+  await page.getByRole('button', { name: '会议管理', exact: true }).click();
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await expect(boardMode).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('region', { name: '任务状态看板' }).getByRole('button', { name: /查看任务详情：/ })).toHaveCount(1);
+
+  if (testInfo.project.name === 'mobile') {
+    for (const control of [listMode, boardMode, page.getByRole('region', { name: '任务状态看板' }).getByRole('button', { name: /查看任务详情：/ })]) {
+      const box = await control.boundingBox();
+      expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+    }
+    expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+
+  expect(actionRequests).toEqual([]);
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: '任务管理', exact: true }).click();
+  await expect(page.getByRole('button', { name: '列表', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.table-panel')).toBeVisible();
+  await expect(page.getByRole('region', { name: '任务状态看板' })).toHaveCount(0);
+});
+
 test('applies category tint overrides across the task list and statistics', async ({ page }) => {
   await page.getByRole('button', { name: '统计分析' }).click();
   await page.getByLabel('统计月份').selectOption('');

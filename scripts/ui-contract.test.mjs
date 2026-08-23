@@ -562,3 +562,32 @@ test('task checklist stays inside the original task editor and exposes read-only
   assert.match(css, /\.task-checklist-editor/, 'the editor must have a dedicated stable layout');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.task-checklist-actions \.icon-button[^}]*4[4-9]px/, 'narrow checklist icon commands must retain at least 44px touch targets');
 });
+
+test('task status board is a session-only projection that reuses the current detail path', async () => {
+  const [app, boardProjection, boardView, css, privateServices] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/task-board.ts'),
+    read('apps/web/src/TaskBoard.tsx'),
+    read('apps/web/src/styles.css'),
+    read('apps/web/src/private-services.ts'),
+  ]);
+
+  assert.match(boardProjection, /TASK_STATUS_BOARD_ORDER/, 'the board must declare one fixed status-column order');
+  assert.match(boardProjection, /buildTaskStatusBoard/, 'status grouping must stay in one pure projection');
+  assert.doesNotMatch(boardProjection, /sort\(|splice\(|reverse\(|fetch|IndexedDB|localStorage|sessionStorage|putRecord|removeRecord|Electron|ipc/i, 'the projection must not reorder, mutate, persist or network');
+  assert.match(app, /useState<TaskDisplayMode>\('list'\)/, 'the display mode must default to list in React memory');
+  assert.match(app, /mode=\{taskDisplayMode\}/, 'the task view must receive the current session mode');
+  assert.match(app, /onModeChange=\{setTaskDisplayMode\}/, 'mode changes must remain in the existing App session');
+  assert.match(app, /aria-label="任务展示方式"/, 'the list/board segmented control must have an accessible name');
+  assert.ok((app.match(/aria-pressed=\{mode ===/g) || []).length >= 2, 'both display modes must expose pressed state');
+  assert.match(app, /<TaskBoard[^>]*tasks=\{tasks\}/, 'the board must receive the already filtered and sorted task projection');
+  assert.match(app, /onSelect=\{onSelect\}/, 'board cards must reuse the existing selected-record detail path');
+  assert.doesNotMatch(boardView, /fetch|IndexedDB|localStorage|sessionStorage|putRecord|removeRecord|Electron|ipc|onSave|onChange|draggable|dragstart/i, 'the board component must remain read-only and local-only');
+  assert.match(boardView, /aria-label=\{`查看任务详情：\$\{task\.name\}`\}/, 'every board card must expose the same detail target to keyboard users');
+  assert.doesNotMatch(privateServices, /TaskDisplayMode|TaskBoard|task-status-board/, 'private sync must not gain task display state');
+  assert.match(css, /\.task-board-grid[^}]*grid-template-columns:/, 'wide task boards must use stable status columns');
+  assert.match(css, /\.task-board-card[^}]*overflow-wrap:\s*anywhere/, 'long task titles must wrap inside cards');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.task-board-grid[^}]*grid-template-columns:\s*1fr/, 'narrow task boards must stack without page overflow');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.task-board-card[^}]*min-height:\s*(?:4[4-9]|[5-9]\d|[1-9]\d{2,})px/, 'narrow board cards must retain at least a 44px touch target');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.task-display-mode button[^}]*min-height:\s*(?:4[4-9]|[5-9]\d)px/, 'narrow display-mode buttons must retain at least a 44px touch target');
+});

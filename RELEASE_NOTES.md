@@ -1,5 +1,14 @@
 # HxHwang Gw 发布说明
 
+## v0.7.24
+
+- 任务页新增会话级“列表 / 看板”切换。看板从当前已经筛选、排序的任务投影派生四列：“未启动”“进行中”“已超期”“已完成”，保持原列表和列内顺序不变。
+- 看板卡片显示截止日期、交办人、工作类目、检查清单进度及关联计数，并复用现有只读详情和原任务编辑抽屉；键盘可以聚焦卡片并用 Enter/Space 打开详情。
+- 这是只读展示能力：不提供拖拽改列、内联改状态、批量写入或日期修改。视图状态仅存在 React 会话，刷新复位，不写入 IndexedDB、localStorage、快照、同步、API、IPC、依赖或网络。
+- 发布前验证：`pnpm install --frozen-lockfile`、完整 lint、format check、workspace 测试（Desktop 9、Domain 45、Sync 27、Documents 6、Migration 5、Local data 21、Web 49、Content 5、Workflow 9、UI contract 25）均通过；主 E2E 单 worker 为 `105 passed / 11 skipped`，Internet `7/7`，Intranet `3/3`。三类 Web 构建分别生成 25/15/15 个文件，产物各命中 `0.7.24` 10 次，旧版本和 `886680` 为 0。
+- 独立 Chromium 运行证据覆盖 1440×900 与 375×812：四列计数、键盘打开既有详情、筛选一致性、跨模块看板状态保留、刷新复位、移动 44px 控件和页面无横向溢出均通过；两视口零跨域请求、零 console/page error。证据由 `reports/gw-task-status-board-v0.7.24.md` 及其 case evidence 归档。公开 bundle `index-B7Fjr-aS.js` 为 378,198 字节，SHA-256 `1C5B03E3709660C25E2E68A4AEF17EF6B1CFCEA20093B92B2DAE13F5FB85F1DF`。
+- GitHub Pages、Desktop Actions 和 Release 资产将在 `v0.7.24` tag 推送后以远端运行结果补录；本地验证不替代远端 ARM64/打包和线上缓存验收。
+
 ## v0.7.23
 
 - 任务新增内嵌检查清单。用户在原 `TaskEditor` 中添加、勾选、上移、下移或删除检查项，最终仍须点击“保存任务”；勾选不会自动修改任务状态，也没有建立独立子任务数据库或第二套保存路径。
