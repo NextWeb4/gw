@@ -7,7 +7,7 @@
 - 这是只读展示能力：不提供拖拽改列、内联改状态、批量写入或日期修改。视图状态仅存在 React 会话，刷新复位，不写入 IndexedDB、localStorage、快照、同步、API、IPC、依赖或网络。
 - 发布前验证：`pnpm install --frozen-lockfile`、完整 lint、format check、workspace 测试（Desktop 9、Domain 45、Sync 27、Documents 6、Migration 5、Local data 21、Web 49、Content 5、Workflow 9、UI contract 25）均通过；主 E2E 单 worker 为 `105 passed / 11 skipped`，Internet `7/7`，Intranet `3/3`。三类 Web 构建分别生成 25/15/15 个文件，产物各命中 `0.7.24` 10 次，旧版本和 `886680` 为 0。
 - 独立 Chromium 运行证据覆盖 1440×900 与 375×812：四列计数、键盘打开既有详情、筛选一致性、跨模块看板状态保留、刷新复位、移动 44px 控件和页面无横向溢出均通过；两视口零跨域请求、零 console/page error。证据由 `reports/gw-task-status-board-v0.7.24.md` 及其 case evidence 归档。公开 bundle `index-B7Fjr-aS.js` 为 378,198 字节，SHA-256 `1C5B03E3709660C25E2E68A4AEF17EF6B1CFCEA20093B92B2DAE13F5FB85F1DF`。
-- GitHub Pages、Desktop Actions 和 Release 资产将在 `v0.7.24` tag 推送后以远端运行结果补录；本地验证不替代远端 ARM64/打包和线上缓存验收。
+- 已发布并完成远端验收：提交 `5e53e88` 和 annotated tag `v0.7.24` 已推送；[Pages run 32630604146](https://github.com/NextWeb4/gw/actions/runs/32630604146) 与 [Desktop run 32630672578](https://github.com/NextWeb4/gw/actions/runs/32630672578) 均显示 `completed successfully`，后者包含 verify、Windows/Linux 四项矩阵、Debian 10/12 八项 smoke 和 release job。线上入口 `https://nextweb4.github.io/gw/` HTTP 200，bundle `index-BRiqbuSu.js` 为 343,508 字节、SHA-256 `5AA2875B632F1DCD82EAFF844AF38C88DE8F8F30D519111D628ABD02BE260733`，版本命中 10 次且旧版本命中 0；远端 Pages 双视口看板、PWA service worker、零跨域请求/错误通过。`[Release v0.7.24](https://github.com/NextWeb4/gw/releases/tag/v0.7.24)` 已公开 12 个安装包和 `SHA256SUMS.txt`，13 个资产地址全部 HTTP 200，校验文件 1,278 字节、12 条唯一记录，12 个安装包 SHA-256 与 GitHub digest 全部匹配。
 
 ## v0.7.23
 
