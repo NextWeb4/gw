@@ -2062,6 +2062,7 @@ test('switches the current task result between list and a read-only status board
   await page.getByRole('button', { name: '任务管理', exact: true }).click();
   const listMode = page.getByRole('button', { name: '列表', exact: true });
   const boardMode = page.getByRole('button', { name: '看板', exact: true });
+  const timelineMode = page.getByRole('button', { name: '时间轴', exact: true });
   await expect(listMode).toHaveAttribute('aria-pressed', 'true');
   await expect(boardMode).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('.table-panel')).toBeVisible();
@@ -2075,6 +2076,15 @@ test('switches the current task result between list and a read-only status board
   await expect(board.getByRole('region', { name: /^进行中，1 条任务$/ })).toBeVisible();
   await expect(board.getByRole('region', { name: /^已超期，0 条任务$/ })).toContainText('暂无任务');
   await expect(board.getByRole('region', { name: /^已完成，0 条任务$/ })).toContainText('暂无任务');
+
+  await timelineMode.click();
+  await expect(timelineMode).toHaveAttribute('aria-pressed', 'true');
+  const timeline = page.getByRole('region', { name: '任务截止时间轴' });
+  await expect(timeline).toBeVisible();
+  await expect(timeline.getByRole('region', { name: /已过截止日期，/ })).toBeVisible();
+  await expect(timeline.getByRole('button', { name: '查看任务详情：推进全省基层治理年度工作总结' })).toBeVisible();
+  await boardMode.click();
+  await expect(boardMode).toHaveAttribute('aria-pressed', 'true');
 
   const progressCard = board.getByRole('button', { name: '查看任务详情：推进全省基层治理年度工作总结' });
   const pendingCard = board.getByRole('button', { name: '查看任务详情：整理省政府办公厅来文并建立关联' });
@@ -2097,7 +2107,7 @@ test('switches the current task result between list and a read-only status board
   await expect(page.getByRole('region', { name: '任务状态看板' }).getByRole('button', { name: /查看任务详情：/ })).toHaveCount(1);
 
   if (testInfo.project.name === 'mobile') {
-    for (const control of [listMode, boardMode, page.getByRole('region', { name: '任务状态看板' }).getByRole('button', { name: /查看任务详情：/ })]) {
+    for (const control of [listMode, boardMode, timelineMode, page.getByRole('region', { name: '任务状态看板' }).getByRole('button', { name: /查看任务详情：/ })]) {
       const box = await control.boundingBox();
       expect(box?.height || 0).toBeGreaterThanOrEqual(44);
     }

@@ -1,6 +1,6 @@
 import { statusLabels, type Status, type Task } from '@hxhwang/domain';
 
-export type TaskDisplayMode = 'list' | 'board';
+export type TaskDisplayMode = 'list' | 'board' | 'timeline';
 
 export const TASK_STATUS_BOARD_ORDER = ['pending', 'progress', 'overdue', 'done'] as const satisfies readonly Status[];
 

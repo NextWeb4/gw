@@ -22,3 +22,15 @@
 - 模板结构只来自 `content/licensed/公文写作算法_蒸馏笔记.md` 中已获授权的材料，并标记为“授权教材建议”。
 - 官方格式规则仍只来自政府或国家标准来源，商业参考站不得覆盖人工模板和确定性规则。
 - v0.2.0 的暗色画布、巨型中文排版、环形信号动效和响应式底栏均为本项目重新设计和本地实现；运行时不加载 MotionSites 或其他外部资源。
+
+## v0.7.25 时间轴方法审计
+
+审计日期：2026-08-23。以下只核对公开交互语义，不复制实现、文案、样式、图标、接口数据或业务数据。
+
+| 方案 | 官方来源 | 观察到的交互语义 | 本项目采用边界 |
+| --- | --- | --- | --- |
+| OpenProject Gantt charts | [Gantt charts introduction](https://www.openproject.org/docs/getting-started/gantt-chart-introduction/)；[work package views](https://www.openproject.org/docs/user-guide/work-packages/work-package-views/) | 任务/工作包纵向排列，时间横向表达；同一筛选集合可切换表格与时间视图；时间轴用于发现延误和计划结构。 | 仅采用“同一集合切换视图”和“按时间扫描”的抽象；当前 Task 只有截止日期，因此不伪造开始日期、持续时间、依赖线或拖拽写入。 |
+| Todoist Upcoming | [官方帮助：Upcoming view](https://todoist.com/help/articles/use-the-upcoming-view-in-todoist) | 在同一任务集合上按日期浏览近期事项，适合提前发现未来安排。 | 仅采用日期分组和未排期分离；不复制其筛选语法、界面、数据或品牌。 |
+| Super Productivity | [官方开源仓库](https://github.com/johannesjo/super-productivity) | Today/时间块和任务列表用于把近期行动集中到一个工作面。 | 仅作为能力对比；本轮不引入其代码、时间追踪、依赖或许可证内容。 |
+
+时间轴实现保持本项目 local-first 边界：只读、会话级、无网络、无 schema/API/IPC/依赖变化；日期校验复用领域 `isValidIsoDate`，详情复用原 `onSelect` 链路。

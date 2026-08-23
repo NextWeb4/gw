@@ -579,7 +579,7 @@ test('task status board is a session-only projection that reuses the current det
   assert.match(app, /mode=\{taskDisplayMode\}/, 'the task view must receive the current session mode');
   assert.match(app, /onModeChange=\{setTaskDisplayMode\}/, 'mode changes must remain in the existing App session');
   assert.match(app, /aria-label="任务展示方式"/, 'the list/board segmented control must have an accessible name');
-  assert.ok((app.match(/aria-pressed=\{mode ===/g) || []).length >= 2, 'both display modes must expose pressed state');
+  assert.ok((app.match(/aria-pressed=\{mode ===/g) || []).length >= 3, 'all display modes must expose pressed state');
   assert.match(app, /<TaskBoard[^>]*tasks=\{tasks\}/, 'the board must receive the already filtered and sorted task projection');
   assert.match(app, /onSelect=\{onSelect\}/, 'board cards must reuse the existing selected-record detail path');
   assert.doesNotMatch(boardView, /fetch|IndexedDB|localStorage|sessionStorage|putRecord|removeRecord|Electron|ipc|onSave|onChange|draggable|dragstart/i, 'the board component must remain read-only and local-only');
@@ -590,4 +590,29 @@ test('task status board is a session-only projection that reuses the current det
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.task-board-grid[^}]*grid-template-columns:\s*1fr/, 'narrow task boards must stack without page overflow');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.task-board-card[^}]*min-height:\s*(?:4[4-9]|[5-9]\d|[1-9]\d{2,})px/, 'narrow board cards must retain at least a 44px touch target');
   assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.task-display-mode button[^}]*min-height:\s*(?:4[4-9]|[5-9]\d)px/, 'narrow display-mode buttons must retain at least a 44px touch target');
+});
+
+test('task deadline timeline is a read-only local projection over the current task result', async () => {
+  const [app, projection, view, css, privateServices] = await Promise.all([
+    read('apps/web/src/App.tsx'),
+    read('apps/web/src/task-timeline.ts'),
+    read('apps/web/src/TaskTimeline.tsx'),
+    read('apps/web/src/styles.css'),
+    read('apps/web/src/private-services.ts'),
+  ]);
+
+  assert.match(projection, /buildTaskTimeline/, 'timeline grouping must stay in one pure projection');
+  assert.match(projection, /isValidIsoDate/, 'timeline must reject invalid dates instead of displaying them as scheduled');
+  assert.doesNotMatch(projection, /tasks\.sort|splice\(|reverse\(|fetch|IndexedDB|localStorage|sessionStorage|putRecord|removeRecord|Electron|ipc/i, 'timeline projection must not mutate, persist or network');
+  assert.match(app, /mode === 'timeline'/, 'task view must expose a session-only timeline mode');
+  assert.match(app, /<TaskTimeline[^>]*tasks=\{tasks\}/, 'timeline must receive the already filtered and sorted task projection');
+  assert.match(app, /today=\{taskTimelineToday\(\)\}/, 'timeline date must be derived locally at render time');
+  assert.match(view, /aria-label="任务截止时间轴"/, 'timeline must expose an accessible region name');
+  assert.match(view, /aria-label=\{`查看任务详情：\$\{task\.name\}`\}/, 'timeline cards must reuse the existing detail target');
+  assert.doesNotMatch(view, /fetch|IndexedDB|localStorage|sessionStorage|putRecord|removeRecord|Electron|ipc|onSave|onChange|draggable|dragstart/i, 'timeline must remain read-only and local-only');
+  assert.doesNotMatch(privateServices, /TaskTimeline|task-timeline|TaskDisplayMode/, 'private sync must not gain timeline state');
+  assert.match(css, /\.task-timeline-axis/, 'timeline must expose a stable vertical axis');
+  assert.match(css, /\.task-timeline-group-list[^}]*grid-template-columns:/, 'timeline groups must use a stable card grid');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.task-timeline-group-list[^}]*grid-template-columns:\s*1fr/, 'narrow timeline groups must stack cards');
+  assert.match(css, /@media \(max-width: 800px\)[\s\S]*\.task-timeline-card[^}]*min-height:\s*(?:4[4-9]|[5-9]\d|[1-9]\d{2,})px/, 'narrow timeline cards must retain at least a 44px touch target');
 });

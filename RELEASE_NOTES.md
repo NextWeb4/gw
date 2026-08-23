@@ -1,5 +1,15 @@
 # HxHwang Gw 发布说明
 
+## v0.7.25
+
+- 任务页新增会话级“时间轴”视图，与列表和看板共用当前筛选、排序和既有只读详情入口。时间轴按截止日期分组为“已过截止日期”“今天”“未来 7 天逐日”“更远日期”“未排期”，保留当前结果顺序和同日顺序。
+- 时间轴只表达截止日期，不把截止日期推断成开始日期、持续时间或依赖关系；无效日期不会伪装成已排期任务。卡片显示状态、截止日期、交办人、类目、检查清单进度、附件和关联计数。
+- 参考 OpenProject 官方 Gantt 文档的时间轴扫描语义、工作包视图的同一筛选集合多视图语义，以及 Todoist 官方 Upcoming 视图的按日期浏览语义；没有复制外部代码、文案、样式、图标、接口或数据。OpenProject 的拖拽改期、依赖连线和写入能力不纳入本轮。
+- 时间轴状态只存在 React 会话，不写入 IndexedDB、localStorage、快照、同步、API、IPC、schema 或网络；编辑、改期、改状态和保存继续走原任务抽屉。
+- 发布前本机验证已完成：`pnpm install --frozen-lockfile`、`pnpm lint`、`pnpm format:check`、`pnpm test` 均通过；workspace 测试为 Desktop 9、Domain 45、Sync 27、Documents 6、Migration 5、Local data 21、Web 51、Content 5、Workflow 9、UI contract 26。主 E2E 为 105 passed / 11 skipped，Internet 7/7，Intranet 3/3；时间轴聚焦桌面/移动 2/2。公开/互联网/内网 Web 构建均通过，产物文件数为 25/15/15，各命中 `0.7.25`，旧版本 `0.7.24`、`0.7.23`、`0.3.1` 和 `886680` 均为 0；`git diff --check` 通过。
+- 独立 Chromium 运行证据覆盖 1440×900 与 375×812：时间轴分组、列表/看板/时间轴同一筛选投影、键盘打开既有详情、跨视图保持、刷新复位、移动 44px 视图按钮、138px 卡片、页面宽度 375px、零跨域请求和零错误均通过。原始 JSON/截图归档在 `cases/gw-task-timeline/evidence-local/`，详细报告见 `reports/gw-task-timeline-v0.7.25.md`。
+- 本地公开 bundle `apps/web/dist/assets/index-CFfyLo0j.js` 为 382,364 字节，SHA-256 `C9A2502D34B318D7C0FA551482A0CECA91AE89C945CBBDAED325081A24E312CD`；Pages、Desktop Actions、Release 资产和线上 PWA/Chromium 验收必须在推送后单独核对。
+
 ## v0.7.24
 
 - 任务页新增会话级“列表 / 看板”切换。看板从当前已经筛选、排序的任务投影派生四列：“未启动”“进行中”“已超期”“已完成”，保持原列表和列内顺序不变。
