@@ -669,7 +669,18 @@ test('opens local global search from the keyboard and finds navigation and busin
   await trigger.click();
   dialog = page.getByRole('dialog', { name: '全局查找' });
   searchInput = dialog.getByRole('combobox', { name: '全局查找' });
+  await searchInput.fill('任务 办公厅');
+  await expect(dialog.locator('.global-search-group').filter({ hasText: '任务记录' }).locator('.global-search-item')).toHaveCount(1);
+  await page.keyboard.press('Enter');
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('.business-detail-panel').getByRole('heading', { level: 2 })).toContainText('整理省政府办公厅来文并建立关联');
+
+  await trigger.click();
+  dialog = page.getByRole('dialog', { name: '全局查找' });
+  searchInput = dialog.getByRole('combobox', { name: '全局查找' });
   await searchInput.fill('完全不存在的导航与业务记录');
+  await expect(dialog.getByText('没有找到匹配项')).toBeVisible();
+  await searchInput.fill('任务 办公厅 不存在的词');
   await expect(dialog.getByText('没有找到匹配项')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();

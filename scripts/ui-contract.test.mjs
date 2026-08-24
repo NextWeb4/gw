@@ -388,13 +388,20 @@ test('business drawers share one unsaved-change guard without persisting staged 
 });
 
 test('global search stays local-only and reuses accessible navigation paths', async () => {
-  const [app, globalSearch, css] = await Promise.all([
+  const [app, globalSearch, globalSearchFilter, css] = await Promise.all([
     read('apps/web/src/App.tsx'),
     read('apps/web/src/GlobalSearch.tsx'),
+    read('apps/web/src/global-search-filter.ts'),
     read('apps/web/src/styles.css'),
   ]);
 
   assert.match(globalSearch, /from 'cmdk'/, 'the command palette must reuse the audited accessible cmdk primitive');
+  assert.match(globalSearch, /import \{ globalSearchFilter \} from '\.\/global-search-filter'/, 'the palette must use the shared local multi-term filter');
+  assert.match(globalSearch, /<Command\.Dialog[^>]*filter=\{globalSearchFilter\}/, 'cmdk must receive the shared local multi-term filter');
+  assert.match(globalSearchFilter, /from 'cmdk'/, 'multi-term filtering must preserve cmdk ranking semantics for each term');
+  assert.match(globalSearchFilter, /query\.trim\(\)\.toLocaleLowerCase\('zh-CN'\)\.split\(\/\\s\+\/u\)/, 'whitespace-separated query terms must be independent required filters');
+  assert.match(globalSearchFilter, /terms\.every\(/, 'every query term must match before an item remains visible');
+  assert.doesNotMatch(globalSearchFilter, /\bfetch\b|listRecords|IndexedDB|localStorage|Electron|apiKey|password|session/i, 'the pure search helper must not read data, network state or secrets');
   assert.match(globalSearch, /<Command\.Dialog[^>]*label="全局查找"/, 'cmdk must give the dialog and its combobox a stable accessible label');
   assert.match(globalSearch, /<Command\.Input/, 'the palette must use cmdk input semantics rather than a custom keyboard field');
   assert.match(globalSearch, /<Command\.Group heading=\{group\.label\}/, 'navigation and each business ledger must remain visibly grouped');

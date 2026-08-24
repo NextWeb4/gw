@@ -1,5 +1,14 @@
 # HxHwang Gw 发布说明
 
+## v0.7.26
+
+- 全局查找支持空格分隔的多关键词 AND 过滤。每个关键词独立匹配记录标题、当前台账支持的搜索字段或模块别名，例如“任务 办公厅”要求结果同时具备任务信号和“办公厅”信号；单个词仍保留 cmdk 原有模糊匹配语义。
+- 过滤器是本地纯函数，返回固定 1/0 以保持既有分组与来源排序；不改变键盘选择、焦点恢复、空状态或模态互斥。不索引 API Key、访问码、中转密码、AI 原文、备注或附件正文。
+- 多词搜索只存在当前 React 会话，不写入 IndexedDB、localStorage、sessionStorage、快照、私有同步、日志、API、IPC、schema 或网络；未新增依赖、数据集合或第二套详情路径。
+- 参考 VS Code、GitHub 与 Linear 等命令面板公开可见的多词过滤交互语义；没有复制外部代码、文案、样式、图标、接口或资产。
+- 发布前本机验证已完成：`pnpm install --frozen-lockfile`、`pnpm lint`、`pnpm format:check`、`pnpm test` 均通过；workspace 测试为 Desktop 9、Domain 45、Sync 27、Documents 6、Migration 5、Local data 21、Web 53、Content 5、Workflow 9、UI contract 26。主 E2E 为 105 passed / 11 skipped，Internet 7/7，Intranet 3/3；`git diff --check` 通过。
+- 公开/互联网/内网 Web 构建均通过，产物文件数为 25/15/15（source map 10/0/0），主 bundle 分别命中 `0.7.26` 10 次；旧版本和敏感模式均为 0。公开主 bundle `index-oNBexxA7.js` 为 382,617 字节，SHA-256 `B5A2C1003DF8ABF0DFEF1AC018CA78716C87F9D286A5F2F008C4B777874EE12B`；互联网 `index-CAWwQLFN.js` 与内网 `index-FP3yfT2Q.js` 均为 377,906 字节，SHA-256 分别为 `376E93983CB556AD8E56D77935FDA8D33018CB5680187B3049B94C2AF71DB361` 和 `F5DCBB6A58EB6DD8D74B4C634BC0D0DDFB2B3CF107D0EA331C04B08BB2FCAE04`。远端 Pages/Desktop/Release 与线上 PWA/Chromium 验收须在推送后单独核对。
+
 ## v0.7.25
 
 - 任务页新增会话级“时间轴”视图，与列表和看板共用当前筛选、排序和既有只读详情入口。时间轴按截止日期分组为“已过截止日期”“今天”“未来 7 天逐日”“更远日期”“未排期”，保留当前结果顺序和同日顺序。

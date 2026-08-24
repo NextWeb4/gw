@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Command } from 'cmdk';
 import { ArrowUpRight, Search, X, type LucideIcon } from 'lucide-react';
+import { globalSearchFilter } from './global-search-filter';
 
 export interface GlobalSearchItem<TTab extends string> {
   id: string;
@@ -36,7 +37,7 @@ export function GlobalSearch<TTab extends string>({ open, groups, onOpenChange, 
     if (!open) setQuery('');
   }, [open]);
 
-  return <Command.Dialog open={open} onOpenChange={onOpenChange} label="全局查找" contentClassName="global-search-dialog">
+  return <Command.Dialog open={open} onOpenChange={onOpenChange} label="全局查找" contentClassName="global-search-dialog" filter={globalSearchFilter}>
     <div className="global-search-heading">
       <span className="global-search-mark" aria-hidden="true"><Search size={19} strokeWidth={1.7} /></span>
       <div><span>LOCAL COMMANDS / CMD K</span><strong>查找与快速新建</strong></div>
