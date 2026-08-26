@@ -42,6 +42,12 @@ test('workbench exposes local cross-module action scopes without extra traffic',
     if (!['data:', 'blob:'].includes(url.protocol) && url.origin !== pageOrigin) unexpectedRequests.push(request.url());
   });
 
+  await page.evaluate(() => {
+    const target = window as Window & { __workBriefingCopies?: string[] };
+    target.__workBriefingCopies = [];
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => { target.__workBriefingCopies?.push(text); } } });
+  });
+
   const board = page.getByRole('region', { name: '工作焦点概览' });
   await expect(board).toBeVisible();
   await expect(board.getByRole('tab', { name: /今日与逾期/ })).toBeVisible();
@@ -52,12 +58,26 @@ test('workbench exposes local cross-module action scopes without extra traffic',
   await board.getByRole('tab', { name: /未排期/ }).click();
   await expect(board.getByRole('tab', { name: /未排期/ })).toHaveAttribute('aria-selected', 'true');
   if (testInfo.project.name === 'mobile') {
-    for (const control of [board.getByRole('tab', { name: /今日与逾期/ }), board.getByRole('tab', { name: /未来 7 天/ }), board.getByRole('tab', { name: /未排期/ })]) {
+    for (const control of [board.getByRole('button', { name: '复制今日简报' }), board.getByRole('tab', { name: /今日与逾期/ }), board.getByRole('tab', { name: /未来 7 天/ }), board.getByRole('tab', { name: /未排期/ })]) {
       const box = await control.boundingBox();
       expect(box?.height || 0).toBeGreaterThanOrEqual(44);
     }
     expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
   }
+
+  const briefingButton = board.getByRole('button', { name: '复制今日简报' });
+  await expect(briefingButton).toBeVisible();
+  await briefingButton.click();
+  await expect(page.getByText('今日简报已复制，不会自动发送')).toBeVisible();
+  const copied = await page.evaluate(() => (window as Window & { __workBriefingCopies?: string[] }).__workBriefingCopies || []);
+  expect(copied).toHaveLength(1);
+  for (const section of ['【今日工作简报】', '逾期', '今天', '未来 7 天', '未排期']) expect(copied[0]).toContain(section);
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('permission denied'); } } });
+  });
+  await briefingButton.click();
+  await expect(page.getByText('今日简报复制失败，请检查浏览器剪贴板权限')).toBeVisible();
   await board.getByRole('button', { name: '查看完整日历' }).click();
   await expect(page.getByRole('heading', { level: 1, name: '事务日历' })).toBeVisible();
   expect(unexpectedRequests).toEqual([]);

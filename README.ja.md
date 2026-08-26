@@ -15,7 +15,7 @@
 ![Pages の状態](https://img.shields.io/github/actions/workflow/status/NextWeb4/gw/pages.yml?branch=main&style=flat-square&label=Pages)
 ![最終コミット](https://img.shields.io/github/last-commit/NextWeb4/gw?style=flat-square)
 ![リポジトリサイズ](https://img.shields.io/github/repo-size/NextWeb4/gw?style=flat-square)
-![バージョン](https://img.shields.io/badge/version-0.7.26-0969da?style=flat-square)
+![バージョン](https://img.shields.io/badge/version-0.7.27-0969da?style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-11.9.0-f69220?style=flat-square&logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?style=flat-square&logo=typescript&logoColor=white)
@@ -25,7 +25,7 @@
 
 HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラネット Web ビルド、インターネット/イントラネット Electron クライアントで同一のドメインモデルを共有する pnpm monorepo です。業務データをまずローカルに保存し、ネットワーク機能をビルド時に分離し、同期と AI リクエストを明示的なアダプターで提供します。
 
-現在のリリースは `0.7.26` です。グローバル検索では空白で区切った語句を独立した必須条件として扱い、モジュール別名とレコード項目の両方を組み合わせて絞り込みます。cmdk のアクセシビリティとローカルセッション限定の境界はそのままです。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
+現在のリリースは `0.7.27` です。ワークベンチでは、期限切れ・今日・今後7日・日程未定を決定的な当日業務ブリーフィングに整理し、端末内クリップボードへコピーできます。詳細は [`RELEASE_NOTES.md`](RELEASE_NOTES.md) を参照してください。
 
 公開 Pages はプライベート同期を表示しませんが、ローカル台帳、添付、旧 JSON/スナップショット、ユーザー自身の Key を使う AI、明示的に解除した `127.0.0.1` 中継を利用できます。ページ読込やパスワード入力だけでは中継へ接続しません。業務データは現在のブラウザーの IndexedDB に保存されます。[GitHub Pages](https://nextweb4.github.io/gw/) では公開、架空、または許可済みの非機密資料だけを扱ってください。
 
@@ -33,7 +33,7 @@ HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラ
 
 | 分野 | 実装内容 |
 | --- | --- |
-| 業務管理 | タスク内チェックリストを備えた、タスク、会議、文書、外出、押印、物資の編集可能な6台帳と同一モジュール active レコードの読み取り専用比較、グローバルなクイックタスク入力、端末内スター、セッション内の最近項目とモジュール間の戻る/進む履歴、現在の可視順を移動する前/次の詳細操作、デスクトップ詳細の折りたたみレール、現在結果の安全な CSV 出力、再利用可能な担当者/組織、段階、要約、添付、台帳内キーワード/項目フィルター/並べ替え、ローカル全体検索、統合業務カレンダー、復元可能なごみ箱 |
+| 業務管理 | タスク内チェックリストを備えた、タスク、会議、文書、外出、押印、物資の編集可能な6台帳と同一モジュール active レコードの読み取り専用比較、グローバルなクイックタスク入力、端末内スター、セッション内の最近項目とモジュール間の戻る/進む履歴、現在の可視順を移動する前/次の詳細操作、デスクトップ詳細の折りたたみレール、現在結果の安全な CSV 出力、再利用可能な担当者/組織、段階、要約、添付、台帳内キーワード/項目フィルター/並べ替え、ローカル全体検索、統合業務カレンダー、復元可能なごみ箱、コピー可能な当日業務ブリーフィング |
 | 文書作成 | リッチテキスト下書き、サニタイズ済み DOCX/HTML/TXT 取込、ローカルカスタム書式、参照元への読み取り専用リンクを備えた決定的な週報、読み取り専用比較と非破壊復元を備えた上限付きローカル履歴 |
 | 文書 | DOCX/PDF 共通の A4 指向エンジン。Web はブラウザー印刷、デスクトップは Electron 印刷を使用 |
 | 移行 | 2 種類の旧プロトタイプ書き出し形式と JSON/スナップショットのドラッグ＆ドロップに対応し、出所を特定できない場合は警告 |
@@ -60,7 +60,7 @@ HxHwang Gw は、公開 GitHub Pages デモ、インターネット/イントラ
 - NSIS インストーラーには Windows、AppImage/DEB のパッケージ化と最終 Linux 互換性確認には Linux。
 - Web ビルドには Chromium 系ブラウザー。
 
-リポジトリのバージョンは `0.7.26` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
+リポジトリのバージョンは `0.7.27` です。依存関係は `pnpm-lock.yaml` で固定され、再現可能なインストールには frozen lockfile を使用します。
 
 ## インストールと実行
 

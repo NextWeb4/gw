@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
-import { CalendarClock, CalendarDays, ChevronRight, CircleAlert, ClipboardList, FileText, MapPin, Package, Stamp } from 'lucide-react';
+import { CalendarClock, CalendarDays, ChevronRight, CircleAlert, ClipboardCopy, ClipboardList, FileText, MapPin, Package, Stamp } from 'lucide-react';
 import type { AgendaKind, AgendaSources } from './agenda';
+import { buildWorkBriefing } from './work-briefing';
 import { buildWorkOverview, workOverviewToday, type WorkOverviewBucket, type WorkOverviewItem } from './work-overview';
 
 interface WorkOverviewProps extends AgendaSources {
   onOpenRecord: (kind: AgendaKind, id: string) => void;
   onOpenAgenda: () => void;
+  onCopyBriefing: (briefing: string) => void;
 }
 
 type WorkOverviewView = Exclude<WorkOverviewBucket, 'overdue'> | 'today';
@@ -32,9 +34,10 @@ function emptyCopy(view: WorkOverviewView) {
   return { title: '没有待补日期的记录', detail: '当前六类台账都已有可识别的日期。' };
 }
 
-export function WorkOverview({ tasks, meetings, documents, researches, seals, materials, onOpenRecord, onOpenAgenda }: WorkOverviewProps) {
+export function WorkOverview({ tasks, meetings, documents, researches, seals, materials, onOpenRecord, onOpenAgenda, onCopyBriefing }: WorkOverviewProps) {
   const today = workOverviewToday();
   const overview = useMemo(() => buildWorkOverview({ tasks, meetings, documents, researches, seals, materials }, today), [tasks, meetings, documents, researches, seals, materials, today]);
+  const briefing = useMemo(() => buildWorkBriefing({ tasks, meetings, documents, researches, seals, materials }, today), [tasks, meetings, documents, researches, seals, materials, today]);
   const [view, setView] = useState<WorkOverviewView>('today');
   const items = overview[view];
   const visibleItems = items.slice(0, 8);
@@ -49,7 +52,10 @@ export function WorkOverview({ tasks, meetings, documents, researches, seals, ma
   return <section className="panel work-overview" aria-label="工作焦点概览">
     <div className="panel-heading work-overview-heading">
       <div><span className="eyebrow">ACTION BOARD / {today}</span><h2>工作焦点</h2><p>从六类本机台账提炼可继续处理的记录。</p></div>
-      <button type="button" className="text-button" onClick={onOpenAgenda}>查看完整日历 <ChevronRight size={15} /></button>
+      <div className="work-overview-heading-actions">
+        <button type="button" className="text-button" onClick={() => onCopyBriefing(briefing)}><ClipboardCopy size={15} />复制今日简报</button>
+        <button type="button" className="text-button" onClick={onOpenAgenda}>查看完整日历 <ChevronRight size={15} /></button>
+      </div>
     </div>
     <div className="work-overview-tabs" role="tablist" aria-label="工作焦点范围">
       {viewOptions.map((option) => <button type="button" role="tab" key={option.id} className={`work-overview-tab ${view === option.id ? 'active' : ''}`} aria-selected={view === option.id} onClick={() => setView(option.id)}><span>{option.label}</span><strong>{option.count}</strong><small>{option.note}</small></button>)}

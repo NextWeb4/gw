@@ -350,6 +350,7 @@ h1, h2, p { margin-top: 0; }
 .work-overview-heading { padding-bottom: 13px; }
 .work-overview-heading p { margin: 8px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .work-overview-heading .text-button { min-height: 44px; display: inline-flex; align-items: center; gap: 5px; }
+.work-overview-heading-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 14px; }
 .work-overview-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 0 22px 14px; }
 .work-overview-tab { min-width: 0; min-height: 72px; padding: 11px 13px; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; align-items: center; gap: 5px 8px; color: var(--muted); background: rgba(255,255,255,.025); border: 1px solid var(--line); border-radius: 13px; text-align: left; transition: color .25s ease, background .25s ease, border-color .25s ease, transform .25s ease; }
 .work-overview-tab:hover { color: var(--paper); background: rgba(255,255,255,.06); border-color: var(--line-strong); transform: translateY(-2px); }

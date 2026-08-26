@@ -248,10 +248,12 @@ test('unified agenda stays local-only and reuses the existing record detail path
 });
 
 test('work overview stays a local read-only cross-module action board', async () => {
-  const [app, overview, view, styles] = await Promise.all([
+  const [app, overview, briefing, view, privateServices, styles] = await Promise.all([
     read('apps/web/src/App.tsx'),
     read('apps/web/src/work-overview.ts'),
+    read('apps/web/src/work-briefing.ts'),
     read('apps/web/src/WorkOverview.tsx'),
+    read('apps/web/src/private-services.ts'),
     read('apps/web/src/styles.css'),
   ]);
 
@@ -263,6 +265,15 @@ test('work overview stays a local read-only cross-module action board', async ()
   assert.doesNotMatch(`${overview}\n${view}`, /\bfetch\b|listRecords|IndexedDB|localStorage|Electron|putRecord|removeRecord|ipc/i, 'overview derivation and UI must stay within loaded local arrays');
   assert.match(overview, /unscheduledItems\.sort\(compareUnscheduled\)/, 'unscheduled records must have deterministic ordering');
   assert.match(view, /onOpenRecord\(item\.kind, item\.recordId\)/, 'overview items must reuse existing record navigation');
+  assert.match(briefing, /buildWorkOverview\(sources, today\)/, 'the briefing must reuse the audited overview buckets');
+  assert.doesNotMatch(`${briefing}\n${view}`, /\bfetch\b|listRecords|IndexedDB|localStorage|sessionStorage|Electron|putRecord|removeRecord|ipc|navigator\.clipboard/i, 'briefing derivation and presentation must stay pure and loaded-array-only');
+  assert.match(app, /<WorkOverview[\S\s]+onCopyBriefing=\{onCopyBriefing\}/, 'dashboard must wire the briefing through the shared app clipboard handler');
+  assert.match(view, /onClick=\{\(\) => onCopyBriefing\(briefing\)\}/, 'the briefing button must pass deterministic text without touching the clipboard itself');
+  assert.match(app, /const copyWorkBriefing = async \(briefing: string\)/, 'briefing copying must live beside the audited summary-copy path');
+  assert.match(app, /await navigator\.clipboard\.writeText\(briefing\)/, 'briefing copying must wait for the clipboard Promise to resolve');
+  assert.match(app, /今日简报已复制，不会自动发送/, 'successful briefing copies must explain that sending remains explicit');
+  assert.match(app, /今日简报复制失败，请检查浏览器剪贴板权限/, 'briefing clipboard rejection must produce an explicit failure message');
+  assert.doesNotMatch(privateServices, /work-briefing|copyWorkBriefing|今日简报/, 'private sync must not gain briefing-copy state');
   assert.match(styles, /\.work-overview-tabs[^}]*grid-template-columns:\s*repeat\(3/, 'overview scopes must remain visible as three explicit actions');
   assert.match(styles, /@media \(max-width: 800px\)[\s\S]*\.work-overview-item[^}]*min-height:\s*68px/, 'narrow overview records must retain a touch-sized row');
   assert.match(styles, /\.dashboard-hero[^}]*min-height:\s*320px/, 'dashboard hero must be compact enough to expose the action board earlier');

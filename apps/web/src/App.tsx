@@ -1313,6 +1313,15 @@ function App() {
       setToast('记录摘要复制失败，请检查浏览器剪贴板权限');
     }
   };
+  const copyWorkBriefing = async (briefing: string) => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+      await navigator.clipboard.writeText(briefing);
+      setToast('今日简报已复制，不会自动发送');
+    } catch {
+      setToast('今日简报复制失败，请检查浏览器剪贴板权限');
+    }
+  };
   const editBusinessDetail = (detail: BusinessDetail) => {
     if (detail.kind === 'task') openTaskEditor(detail.record);
     if (detail.kind === 'meeting') openMeetingEditor(detail.record);
@@ -1419,7 +1428,7 @@ function App() {
   };
 
   const renderContent = () => {
-    if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} starredRecords={starredBusinessRecords} onNavigate={navigate} onOpenRecord={openBusinessRecord} onQuickCapture={() => changeQuickCaptureOpen(true)} />;
+    if (tab === 'dashboard') return <Dashboard tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} archives={archives} starredRecords={starredBusinessRecords} onNavigate={navigate} onOpenRecord={openBusinessRecord} onQuickCapture={() => changeQuickCaptureOpen(true)} onCopyBriefing={(briefing) => void copyWorkBriefing(briefing)} />;
     if (tab === 'agenda') return <AgendaView tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={openBusinessRecord} />;
     if (tab === 'tasks') return <TaskView tasks={filteredTasks} totalCount={tasks.length} view={ledgerViews.tasks} filterOptions={taskFilterOptions} onViewChange={(patch) => updateLedgerView('tasks', patch)} onReset={() => resetLedgerView('tasks')} onExport={() => exportLedgerCsv(() => buildLedgerCsv('tasks', filteredTasks, { date: localDateInput(new Date()), documents }))} mode={taskDisplayMode} onModeChange={setTaskDisplayMode} selectedId={selectedTaskId} onSelect={(id) => selectBusinessRecord('tasks', id)} attachments={attachments} relationCounts={taskRelationCounts} categoryTints={categoryTints} onNew={() => openTaskEditor(emptyTask())} onEdit={(task) => openTaskEditor(task)} onDelete={deleteTask} />;
     if (tab === 'meetings') return <MeetingView meetings={filteredMeetings} totalCount={meetings.length} view={ledgerViews.meetings} filterOptions={meetingFilterOptions} onViewChange={(patch) => updateLedgerView('meetings', patch)} onReset={() => resetLedgerView('meetings')} onExport={() => exportLedgerCsv(() => buildLedgerCsv('meetings', filteredMeetings, { date: localDateInput(new Date()) }))} selectedId={selectedMeetingId} onSelect={(id) => selectBusinessRecord('meetings', id)} onNew={() => openMeetingEditor(emptyMeeting())} onEdit={(meeting) => openMeetingEditor(meeting)} onDelete={deleteMeeting} />;
@@ -1495,7 +1504,7 @@ function PageHeading({ eyebrow, title, detail, action }: { eyebrow: string; titl
   return <div className="page-heading"><div className="heading-copy"><span className="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{detail}</p></div>{action && <div className="heading-action">{action}</div>}<span className="heading-signal" aria-hidden="true">HX</span></div>;
 }
 
-function Dashboard({ tasks, meetings, documents, researches, seals, materials, archives, starredRecords, onNavigate, onOpenRecord, onQuickCapture }: { tasks: Task[]; meetings: MeetingRecord[]; documents: OfficialDocument[]; researches: ResearchRecord[]; seals: SealRecord[]; materials: MaterialRecord[]; archives: ArchiveRecord[]; starredRecords: StarredBusinessRecordRef[]; onNavigate: (tab: Tab) => void; onOpenRecord: (kind: AgendaKind, id: string) => void; onQuickCapture: () => void }) {
+function Dashboard({ tasks, meetings, documents, researches, seals, materials, archives, starredRecords, onNavigate, onOpenRecord, onQuickCapture, onCopyBriefing }: { tasks: Task[]; meetings: MeetingRecord[]; documents: OfficialDocument[]; researches: ResearchRecord[]; seals: SealRecord[]; materials: MaterialRecord[]; archives: ArchiveRecord[]; starredRecords: StarredBusinessRecordRef[]; onNavigate: (tab: Tab) => void; onOpenRecord: (kind: AgendaKind, id: string) => void; onQuickCapture: () => void; onCopyBriefing: (briefing: string) => void }) {
   const active = tasks.filter((task) => task.status !== 'done').length;
   const dueSoon = tasks.filter((task) => task.deadline && task.deadline <= localDateInput(new Date(Date.now() + 7 * 86400000)) && task.status !== 'done').length;
   const operations = meetings.length + researches.length + seals.length + materials.length;
@@ -1506,7 +1515,7 @@ function Dashboard({ tasks, meetings, documents, researches, seals, materials, a
       <div className="hero-meta"><span>01 / PRIVATE BY DEFAULT</span><span>02 / DETERMINISTIC RULES</span><span>03 / TRACEABLE RECORDS</span></div>
     </section>
     <section className="metric-grid"><Metric label="进行中任务" value={active} note="未完成事项" accent="rust" /><Metric label="近七日到期" value={dueSoon} note="需要优先处理" accent="gold" /><Metric label="登记文件" value={documents.length} note="本机索引" accent="green" /><Metric label="综合台账" value={operations} note={`会议/外出/用章/物资；历史 ${archives.length}`} accent="ink" /></section>
-    <div className="dashboard-grid"><WorkOverview tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={onOpenRecord} onOpenAgenda={() => onNavigate('agenda')} /><StarredRecordsPanel refs={starredRecords} tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={onOpenRecord} /></div>
+    <div className="dashboard-grid"><WorkOverview tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={onOpenRecord} onOpenAgenda={() => onNavigate('agenda')} onCopyBriefing={onCopyBriefing} /><StarredRecordsPanel refs={starredRecords} tasks={tasks} meetings={meetings} documents={documents} researches={researches} seals={seals} materials={materials} onOpenRecord={onOpenRecord} /></div>
     <section className="panel quick-panel"><div className="panel-heading"><div><span className="eyebrow">工作入口</span><h2>继续处理</h2></div></div><div className="quick-actions"><button onClick={() => onNavigate('meetings')}><CalendarDays size={18} /><span>记录会议</span><small>通知、时间、地点</small></button><button onClick={() => onNavigate('documents')}><FileText size={18} /><span>登记新文件</span><small>收文、发文、附件</small></button><button onClick={() => onNavigate('writing')}><BookOpen size={18} /><span>开始写作</span><small>模板、规则、版本</small></button><button onClick={() => onNavigate('migration')}><Upload size={18} /><span>导入旧数据</span><small>支持 JSON 导出文件</small></button></div></section>
   </>;
 }
